@@ -1,0 +1,20 @@
+# --- サーバー（Flask REST API）用 ---
+flask>=2.2.0
+pandas>=2.0.0
+openpyxl>=3.1.0
+
+# --- NFCリーダー用（Windows/Linux両対応） ---
+nfcpy>=1.0.4
+
+# --- Raspberry Pi & モーター制御（子機用） ---
+RPi.GPIO>=0.7.1         # Raspberry Pi GPIO制御
+Adafruit-PCA9685>=1.0.4 # I2Cサーボドライバ
+pyserial>=3.5           # Arduino等とのシリアル通信
+
+# --- その他（必要に応じて追加） ---
+# numpy>=1.24.0         # データ処理（pandas依存で自動インストールされる場合あり）
+
+# --- 注意 ---
+# Windows環境では RPi.GPIO, Adafruit-PCA9685 は不要です。
+# Raspberry Pi でのみインストールしてください。
+# NFCリーダー利用時は nfcpy のみで十分です。
