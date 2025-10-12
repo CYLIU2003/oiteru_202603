@@ -8,38 +8,58 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-  <header>
-    <!-- Logo and title -->
-    <img src="{{ url_for('static', filename='img/logo20250506.png') }}" alt="東京都市大学 美しい時代へ 東急グループ">
-    <h1>オイテル登録システム</h1>
-    <div id="reader-status">
-        <span id="reader-light"></span>
-        <span id="reader-text"></span>
-    </div>
-  </header>
-
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      <div class="flash-messages">
-        {% for category, message in messages %}
-          <div class="flash flash-{{ category }}">{{ message }}</div>
-        {% endfor %}
+  <div class="page-wrapper">
+    <header class="site-header">
+      <div class="container header-inner">
+        <div class="brand-block">
+          <img src="{{ url_for('static', filename='img/logo20250506.png') }}" alt="東京都市大学 美しい時代へ 東急グループ">
+          <div class="brand-text">
+            <span class="brand-subtitle">東京都市大学 × 東急グループ</span>
+            <h1>オイテル登録システム</h1>
+          </div>
+        </div>
+        <div class="status-card" id="reader-status" role="status" aria-live="polite">
+          <span class="status-light" id="reader-light" aria-hidden="true"></span>
+          <div class="status-copy">
+            <span class="status-label">ICカードリーダー</span>
+            <span class="status-value" id="reader-text">接続状態を確認しています...</span>
+          </div>
+        </div>
       </div>
-    {% endif %}
-  {% endwith %}
+    </header>
 
-  <main>
-    {% block content %}{% endblock %}
-  </main>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-messages">
+          <div class="container">
+            {% for category, message in messages %}
+              <div class="flash flash-{{ category }}">{{ message }}</div>
+            {% endfor %}
+          </div>
+        </div>
+      {% endif %}
+    {% endwith %}
 
-  <footer>
-    <p>© 2025 Tokyo City University / Tokyu Group</p>
-  </footer>
+    <main class="main-content">
+      <div class="container">
+        {% block content %}{% endblock %}
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container">
+        <p>© 2025 Tokyo City University / Tokyu Group</p>
+      </div>
+    </footer>
+  </div>
 
   <script>
     document.addEventListener("DOMContentLoaded", function() {
         const statusLight = document.getElementById("reader-light");
         const statusText = document.getElementById("reader-text");
+
+        statusLight.style.backgroundColor = "#FFB300";
+        statusLight.style.boxShadow = "0 0 0 6px rgba(255, 179, 0, 0.22)";
 
         function checkReaderStatus() {
             fetch("/api/reader_status")
@@ -54,15 +74,18 @@
                 .then(data => {
                     if (data.connected) {
                         statusLight.style.backgroundColor = "#4CAF50"; // Green
+                        statusLight.style.boxShadow = "0 0 0 6px rgba(76, 175, 80, 0.18)";
                         statusText.textContent = "ICカードリーダー接続";
                     } else {
                         statusLight.style.backgroundColor = "#F44336"; // Red
+                        statusLight.style.boxShadow = "0 0 0 6px rgba(244, 67, 54, 0.18)";
                         statusText.textContent = data.error || "ICカードリーダー未接続";
                     }
                 })
                 .catch(error => {
                     console.error("リーダー状態の確認中にエラー:", error);
                     statusLight.style.backgroundColor = "#F44336"; // Red
+                    statusLight.style.boxShadow = "0 0 0 6px rgba(244, 67, 54, 0.18)";
                     statusText.textContent = error.message;
                 });
         }

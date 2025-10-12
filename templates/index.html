@@ -1,10 +1,43 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="home-options">
-  <h2>メニュー</h2>
-  <a href="{{ url_for('register') }}" class="btn">学生証を登録する</a>
-  <a href="{{ url_for('usage') }}" class="btn">利用状況の確認</a>
-  <hr>
-  <p class="admin-link">管理者の方は <a href="{{ url_for('admin_login') }}">こちらからログイン</a></p>
-</div>
+<section class="hero">
+  <div class="hero-text">
+    <h2>オイテルシステムへようこそ</h2>
+    <p>学生証をかざすだけでスムーズに備品を受け取れるセルフサービスです。<br class="u-hide-mobile">はじめての方でも直感的に操作できるよう、シンプルなステップでご案内します。</p>
+    <div class="hero-actions">
+      <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg">学生証を登録する</a>
+      <a href="{{ url_for('usage') }}" class="btn btn-outline btn-lg">利用状況を確認する</a>
+    </div>
+    <p class="hero-note">管理者の方は <a href="{{ url_for('admin_login') }}">こちらからログイン</a></p>
+  </div>
+  <div class="hero-visual" aria-hidden="true">
+    <div class="hero-card">
+      <span class="hero-icon">📱</span>
+      <h3>かんたん3ステップ</h3>
+      <ol>
+        <li>学生証をリーダーにタッチ</li>
+        <li>在庫を確認</li>
+        <li>自動で備品を受け取る</li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<section class="feature-grid">
+  <article class="feature-card">
+    <span class="feature-icon">✅</span>
+    <h3>リアルタイムな在庫表示</h3>
+    <p>在庫状況が瞬時に更新されるので、備品の残数をすぐに把握できます。</p>
+  </article>
+  <article class="feature-card">
+    <span class="feature-icon">🔐</span>
+    <h3>安心の認証フロー</h3>
+    <p>学生証による認証で、権限のあるユーザーだけが利用できる安全な運用を実現します。</p>
+  </article>
+  <article class="feature-card">
+    <span class="feature-icon">💡</span>
+    <h3>はじめてでも迷わない</h3>
+    <p>画面の案内やLED表示で、操作手順を丁寧にナビゲーションします。</p>
+  </article>
+</section>
 {% endblock %}

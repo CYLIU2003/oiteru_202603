@@ -28,6 +28,32 @@ except (ImportError, RuntimeError):
     print("!! 警告: Raspberry Piライブラリが見つかりません。PCモードで起動します。")
 
 # --------------------------------------------------------------------------
+# --- 実行権限の確認 ---
+# --------------------------------------------------------------------------
+def ensure_root_privileges():
+    """必要に応じてsudo経由で再実行し、ハードウェア制御に必要な権限を確保する"""
+    if os.name == "nt":
+        return  # Windowsではsudoは不要
+
+    geteuid = getattr(os, "geteuid", None)
+    if not callable(geteuid):
+        return  # getuidが使えない環境では何もしない
+
+    if geteuid() == 0:
+        return  # 既にroot権限
+
+    print("INFO: ハードウェア制御にはroot権限が必要です。sudo経由で再起動します...")
+    try:
+        os.execvp("sudo", ["sudo", sys.executable] + sys.argv)
+    except FileNotFoundError:
+        print("ERROR: sudoコマンドが見つかりません。sudoをインストールするか、手動でroot権限を付与して実行してください。")
+    except Exception as exc:
+        print(f"ERROR: sudoによる再実行に失敗しました: {exc}")
+
+    sys.exit(1)
+
+
+# --------------------------------------------------------------------------
 # --- 設定ファイル関連 ---
 # --------------------------------------------------------------------------
 CONFIG_FILE = 'config.json'
@@ -627,6 +653,9 @@ def run_client(config, stop_event, gui_queue):
 # --- 起動処理 ---
 # --------------------------------------------------------------------------
 if __name__ == "__main__":
+    if PLATFORM == "RASPI":
+        ensure_root_privileges()
+
     if '--no-gui' not in sys.argv and HAS_TKINTER:
         root = tk.Tk()
         app = SettingsGUI(root)
