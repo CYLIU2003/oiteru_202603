@@ -169,6 +169,8 @@ class SettingsGUI:
         self.is_checking_hardware = False
         self.hardware_thread = None
         self.gui_queue = queue.Queue()
+        self.is_auto_scanning = False
+        self.auto_detection_started = False
 
         self.MOTOR_TYPE_MAP = {"サーボモーター": "SERVO", "ステッピングモーター": "STEPPER"}
         self.CONTROL_METHOD_MAP = {"ラズパイ直結 (PCA9685)": "RASPI_DIRECT", "Arduino経由 (シリアル通信)": "ARDUINO_SERIAL"}
@@ -181,6 +183,7 @@ class SettingsGUI:
         
         self.create_widgets()
         self.load_settings()
+        self.start_auto_server_detection()
         self.master.protocol("WM_DELETE_WINDOW", self.on_closing)
 
     def create_widgets(self):
@@ -209,6 +212,8 @@ class SettingsGUI:
         self.entries["SERVER_URL"].pack(side=tk.LEFT, fill=tk.X, expand=True)
         self.buttons["scan"] = ttk.Button(server_frame, text="親機スキャン", command=self.run_scan)
         self.buttons["scan"].pack(side=tk.LEFT, padx=(5, 0))
+        self.server_scan_status = tk.StringVar(value="")
+        ttk.Label(server_frame, textvariable=self.server_scan_status, foreground="#006400").pack(side=tk.LEFT, padx=(8, 0))
 
         ttk.Label(self.settings_frame, text="子機名").grid(row=1, column=0, sticky=tk.W, pady=4)
         self.entries["UNIT_NAME"] = ttk.Entry(self.settings_frame)
@@ -322,10 +327,24 @@ class SettingsGUI:
                 self.pca_status.set(message['pca'])
             if 'sensor' in message:
                 self.sensor_status.set(message['sensor'])
+            if 'auto_scan_message' in message:
+                self.server_scan_status.set(message['auto_scan_message'])
+            if 'auto_server' in message:
+                server_url = message['auto_server']
+                if server_url:
+                    self.entries["SERVER_URL"].delete(0, tk.END)
+                    self.entries["SERVER_URL"].insert(0, server_url)
+                    self.config["SERVER_URL"] = server_url
+                    save_config(self.config)
+                self.is_auto_scanning = False
         except queue.Empty:
             pass
         finally:
-            if (self.client_thread and self.client_thread.is_alive()) or self.is_checking_hardware:
+            if (
+                (self.client_thread and self.client_thread.is_alive())
+                or self.is_checking_hardware
+                or self.is_auto_scanning
+            ):
                 self.master.after(100, self.process_gui_queue)
 
     def toggle_hardware_status(self):
@@ -402,10 +421,14 @@ class SettingsGUI:
         servers = scan_for_servers()
         if not servers:
             messagebox.showinfo("スキャン結果", "親機サーバーが見つかりませんでした。")
+            self.server_scan_status.set("親機が見つかりませんでした")
             return
         found_server = servers[0]
         self.entries["SERVER_URL"].delete(0, tk.END)
         self.entries["SERVER_URL"].insert(0, found_server)
+        self.config["SERVER_URL"] = found_server
+        save_config(self.config)
+        self.server_scan_status.set(f"親機: {found_server}")
         messagebox.showinfo("スキャン完了", f"親機サーバーを自動設定しました:\n{found_server}")
 
     def load_settings(self):
@@ -416,6 +439,11 @@ class SettingsGUI:
         self.comboboxes["CONTROL_METHOD"].set(self.CONTROL_METHOD_MAP_REV.get(self.config.get("CONTROL_METHOD")))
         self.comboboxes["USE_SENSOR"].set(self.USE_SENSOR_MAP_REV.get(self.config.get("USE_SENSOR")))
         self.comboboxes["MOTOR_REVERSE"].set(self.MOTOR_REVERSE_MAP_REV.get(self.config.get("MOTOR_REVERSE")))
+        server_url = (self.config.get("SERVER_URL") or "").strip()
+        if server_url:
+            self.server_scan_status.set(f"現在: {server_url}")
+        else:
+            self.server_scan_status.set("")
     
     def save_settings(self, show_success_message=True):
         for key, entry in self.entries.items():
@@ -443,6 +471,41 @@ class SettingsGUI:
                 messagebox.showinfo("成功", "設定を保存しました。")
         else:
             messagebox.showerror("エラー", "設定の保存に失敗しました。")
+
+    def start_auto_server_detection(self):
+        if self.auto_detection_started:
+            return
+
+        current_url = (self.config.get("SERVER_URL") or "").strip()
+        normalized_url = current_url.rstrip('/')
+        if normalized_url and normalized_url not in (
+            "http://127.0.0.1:5000",
+            "http://localhost:5000",
+            "127.0.0.1",
+            "localhost",
+        ):
+            self.server_scan_status.set("既存設定を使用します")
+            return
+
+        self.auto_detection_started = True
+        self.is_auto_scanning = True
+        self.server_scan_status.set("親機を検索中...")
+
+        def worker():
+            servers = scan_for_servers()
+            if servers:
+                self.gui_queue.put({
+                    'auto_server': servers[0],
+                    'auto_scan_message': f"自動検出: {servers[0]}"
+                })
+            else:
+                self.gui_queue.put({
+                    'auto_server': None,
+                    'auto_scan_message': "親機が見つかりませんでした"
+                })
+
+        threading.Thread(target=worker, daemon=True).start()
+        self.master.after(100, self.process_gui_queue)
 
 # --------------------------------------------------------------------------
 # --- メインクライアント処理 ---
