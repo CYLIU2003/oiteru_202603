@@ -1,20 +1,22 @@
-# --- サーバー（Flask REST API）用 ---
+# --- Server (Flask REST API) ---
 flask>=2.2.0
 pandas>=2.0.0
 openpyxl>=3.1.0
 
-# --- NFCリーダー用（Windows/Linux両対応） ---
+# --- NFC Reader (Windows/Linux compatible) ---
 nfcpy>=1.0.4
 
-# --- Raspberry Pi & モーター制御（子機用） ---
-RPi.GPIO>=0.7.1         # Raspberry Pi GPIO制御
-Adafruit-PCA9685>=1.0.4 # I2Cサーボドライバ
-pyserial>=3.5           # Arduino等とのシリアル通信
+# --- Raspberry Pi & Motor Control (Client) ---
+# Note: These packages are for Raspberry Pi only and may cause build errors in Docker
+# Uncomment only when deploying to Raspberry Pi
+# RPi.GPIO>=0.7.1         # Raspberry Pi GPIO control
+# Adafruit-PCA9685>=1.0.1 # I2C servo driver (changed from 1.0.4 to 1.0.1)
+# pyserial>=3.5           # Serial communication with Arduino
 
-# --- その他（必要に応じて追加） ---
-# numpy>=1.24.0         # データ処理（pandas依存で自動インストールされる場合あり）
+# --- Others (add as needed) ---
+numpy>=1.24.0         # Data processing (may be auto-installed with pandas)
 
-# --- 注意 ---
-# Windows環境では RPi.GPIO, Adafruit-PCA9685 は不要です。
-# Raspberry Pi でのみインストールしてください。
-# NFCリーダー利用時は nfcpy のみで十分です。
+# --- Notes ---
+# RPi.GPIO and Adafruit-PCA9685 are not needed on Windows or Docker.
+# Install only on Raspberry Pi.
+# nfcpy is sufficient for NFC reader usage.

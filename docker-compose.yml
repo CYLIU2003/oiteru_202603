@@ -1,0 +1,10 @@
+services:
+  flask:
+    build: .
+    container_name: oiteru_flask
+    volumes:
+      - ./oiteru.sqlite3:/app/oiteru.sqlite3
+      - ./userdb.sqlite3:/app/userdb.sqlite3
+    ports:
+      - "5000:5000"
+    restart: unless-stopped

@@ -66,6 +66,45 @@ oiteru_250827_restAPI/
     python app.py
     ```
 
+### Dockerを使用したセットアップ（安定動作向け）
+
+Dockerを使用することで、環境を隔離し安定した動作を実現できます。また、Tailscaleを統合してリモートアクセスを可能にします。
+
+#### 前提条件
+- DockerとDocker Composeがインストールされていること
+- TailscaleがホストPCにインストール・起動されていること（https://tailscale.com/）
+
+#### 手順（ホストTailscale使用 - Auth Key不要）
+1. ホストPCでTailscaleを起動・認証済みにしておく
+
+2. Docker Composeでビルドと起動
+    ```sh
+    docker-compose up --build
+    ```
+
+3. ブラウザで `http://localhost:5000` にアクセス（Tailscale IPでもアクセス可能）
+
+#### 手順（Auth Key使用 - 従来通り）
+1. Tailscale Auth Keyを取得（https://tailscale.com/）
+
+2. `.env`ファイルを作成し、Tailscale Auth Keyを設定
+    ```
+    TS_AUTHKEY=your_tailscale_auth_key_here
+    ```
+
+3. Docker Composeでビルドと起動
+    ```sh
+    docker-compose up --build
+    ```
+
+4. ブラウザで `http://localhost:5000` にアクセス
+
+#### 注意事項
+- 子機（unit_client.py）はハードウェア依存のためDocker化せず、別途実行してください。
+- SQLiteデータベースはホストの `./oiteru.sqlite3` と `./userdb.sqlite3` にマウントされます。
+- Tailscaleの状態は `./tailscale` ディレクトリに保存されます（Auth Key使用時）。
+- ホストTailscale使用時はAuth Keyの期限切れを気にせず使用できます。
+
 ### 主な API エンドポイント
 
 - `GET /api/users` : 全ユーザーの一覧を取得
