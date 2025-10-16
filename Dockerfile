@@ -1,6 +1,11 @@
 # Use Python 3.11 slim image
 FROM python:3.11-slim
 
+# Install libusb for NFC reader support and usbutils for debugging
+RUN apt-get update && \
+    apt-get install -y libusb-1.0-0 libusb-1.0-0-dev usbutils && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
 # Set working directory
 WORKDIR /app
 

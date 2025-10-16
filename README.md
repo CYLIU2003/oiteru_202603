@@ -68,42 +68,104 @@ oiteru_250827_restAPI/
 
 ### Dockerを使用したセットアップ（安定動作向け）
 
-Dockerを使用することで、環境を隔離し安定した動作を実現できます。また、Tailscaleを統合してリモートアクセスを可能にします。
+Dockerを使用することで、環境を隔離し安定した動作を実現できます。
 
 #### 前提条件
 - DockerとDocker Composeがインストールされていること
-- TailscaleがホストPCにインストール・起動されていること（https://tailscale.com/）
+- **NFCリーダーを使用する場合**: WSL2とusbipd-winが必要（下記参照）
 
-#### 手順（ホストTailscale使用 - Auth Key不要）
-1. ホストPCでTailscaleを起動・認証済みにしておく
+#### 基本的な手順（NFCリーダーなし）
 
-2. Docker Composeでビルドと起動
+1. Docker Composeでビルドと起動
     ```sh
-    docker-compose up --build
+    docker-compose up --build -d
     ```
 
-3. ブラウザで `http://localhost:5000` にアクセス（Tailscale IPでもアクセス可能）
+2. ブラウザで `http://localhost:5000` にアクセス
 
-#### 手順（Auth Key使用 - 従来通り）
-1. Tailscale Auth Keyを取得（https://tailscale.com/）
-
-2. `.env`ファイルを作成し、Tailscale Auth Keyを設定
-    ```
-    TS_AUTHKEY=your_tailscale_auth_key_here
-    ```
-
-3. Docker Composeでビルドと起動
+3. 停止する場合
     ```sh
-    docker-compose up --build
+    docker-compose down
     ```
 
-4. ブラウザで `http://localhost:5000` にアクセス
+#### NFCリーダーを使用する場合（Windows + WSL2）
+
+WindowsホストからDockerコンテナ内でNFCリーダーを使用するには、WSL2経由でUSBデバイスをパススルーする必要があります。
+
+**1. usbipd-winのインストール（Windowsホスト側で実行）**
+
+PowerShellを管理者権限で開き、以下を実行：
+
+```powershell
+# winget経由でインストール
+winget install --id dorssel.usbipd-win
+
+# または、GitHubから手動ダウンロード
+# https://github.com/dorssel/usbipd-win/releases
+```
+
+**2. WSL2にusbipツールをインストール（WSL2内で実行）**
+
+```bash
+# WSL2を起動
+wsl
+
+# usbipツールをインストール
+sudo apt update
+sudo apt install linux-tools-generic hwdata
+sudo update-alternatives --install /usr/local/bin/usbip usbip /usr/lib/linux-tools/*-generic/usbip 20
+```
+
+**3. NFCリーダーをWSL2にアタッチ（Windowsホスト側で実行）**
+
+```powershell
+# 管理者権限のPowerShellで実行
+
+# 接続されているUSBデバイス一覧を表示
+usbipd list
+
+# NFCリーダーのBUSIDを確認（例: 2-4）
+# 次にそのデバイスをバインド（初回のみ必要）
+usbipd bind --busid 2-4
+
+# WSL2にアタッチ
+usbipd attach --wsl --busid 2-4
+```
+
+**4. WSL2内でデバイス確認**
+
+```bash
+# WSL2内で実行
+lsusb
+
+# NFCリーダーが表示されることを確認
+# 例: Bus 001 Device 002: ID 054c:06c3 Sony Corp. FeliCa S320 [PaSoRi]
+```
+
+**5. WSL2内でDockerコンテナを起動**
+
+```bash
+# WSL2内でプロジェクトディレクトリに移動
+cd /mnt/c/oiteru/oiteru_250827_restAPI
+
+# Dockerコンテナをビルド・起動
+docker-compose up --build -d
+
+# ログを確認
+docker-compose logs -f
+```
+
+**6. デバイスが切断された場合**
+
+```powershell
+# Windowsホスト側で再アタッチ
+usbipd attach --wsl --busid 2-4
+```
 
 #### 注意事項
-- 子機（unit_client.py）はハードウェア依存のためDocker化せず、別途実行してください。
 - SQLiteデータベースはホストの `./oiteru.sqlite3` と `./userdb.sqlite3` にマウントされます。
-- Tailscaleの状態は `./tailscale` ディレクトリに保存されます（Auth Key使用時）。
-- ホストTailscale使用時はAuth Keyの期限切れを気にせず使用できます。
+- NFCリーダーは物理的に接続されたホストからWSL2を経由してコンテナに渡されます。
+- USB接続が切れた場合は、再度`usbipd attach`を実行してください。
 
 ### 主な API エンドポイント
 

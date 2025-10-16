@@ -2,9 +2,11 @@ services:
   flask:
     build: .
     container_name: oiteru_flask
+    privileged: true  # Required for USB device access
     volumes:
       - ./oiteru.sqlite3:/app/oiteru.sqlite3
       - ./userdb.sqlite3:/app/userdb.sqlite3
+      - /dev/bus/usb:/dev/bus/usb  # Mount USB devices (WSL2 only)
     ports:
       - "5000:5000"
     restart: unless-stopped
