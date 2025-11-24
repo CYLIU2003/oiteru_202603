@@ -32,6 +32,10 @@ app = Flask(__name__, template_folder='templates', static_folder='static')
 app.secret_key = 'oiteru_secret_key_2025_final'
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'oiteru.sqlite3')
 
+# 未登録子機の一時保存用（メモリ内）
+# {unit_name: {password, ip_address, first_seen, last_seen, heartbeat_count}}
+unregistered_units = {}
+
 
 # --- DB Helpers ---
 
@@ -774,21 +778,30 @@ def unit_heartbeat():
     unit = db.execute("SELECT * FROM units WHERE name = ?", (unit_name,)).fetchone()
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # 1. もし子機が未登録だったら、自動で新規登録する
+    # 1. もし子機が未登録だったら、一時保存する（自動登録はしない）
     if unit is None:
-        db.execute(
-            "INSERT INTO units (name, password, stock, connect, available, last_seen, ip_address) VALUES (?, ?, 0, 1, 1, ?, ?)",
-            (unit_name, unit_pass, now_str, unit_ip)
-        )
-        db.commit()
-        add_history(f"子機を自動登録しました: {unit_name} (IP: {unit_ip})")
-        # 新規登録された子機の情報を取得して返す
-        new_unit = db.execute("SELECT stock FROM units WHERE name = ?", (unit_name,)).fetchone()
+        # 未登録子機の情報を保存/更新
+        if unit_name not in unregistered_units:
+            unregistered_units[unit_name] = {
+                'password': unit_pass,
+                'ip_address': unit_ip,
+                'first_seen': now_str,
+                'last_seen': now_str,
+                'heartbeat_count': 1
+            }
+            print(f"[新規発見] 未登録子機: {unit_name} (IP: {unit_ip})")
+        else:
+            unregistered_units[unit_name]['last_seen'] = now_str
+            unregistered_units[unit_name]['heartbeat_count'] += 1
+            unregistered_units[unit_name]['ip_address'] = unit_ip  # IPが変わった場合に更新
+        
+        # 未登録なので拒否応答（stock=0で応答）
         return jsonify({
-            'success': True,
-            'message': 'Unit auto-registered and heartbeat received',
-            'stock': new_unit['stock'] if new_unit else 0
-        }), 201
+            'success': False,
+            'error': 'Unit not registered. Please contact administrator.',
+            'message': '未登録の子機です。管理者に登録を依頼してください。',
+            'stock': 0
+        }), 403
 
     # 2. 登録済みの子機の場合、パスワードを検証
     if unit['password'] != unit_pass:
@@ -812,6 +825,73 @@ def unit_heartbeat():
         'message': 'Heartbeat received',
         'stock': unit['stock']
     }), 200
+
+@app.route('/api/unregistered_units', methods=['GET'])
+def get_unregistered_units():
+    """未登録の子機一覧を取得（自動探知用）"""
+    # 過去5分以内にハートビートを送ってきた未登録子機のみ表示
+    current_time = datetime.now()
+    active_units = []
+    
+    for unit_name, info in list(unregistered_units.items()):
+        last_seen = datetime.strptime(info['last_seen'], "%Y-%m-%d %H:%M:%S")
+        time_diff = (current_time - last_seen).total_seconds()
+        
+        if time_diff < 300:  # 5分以内
+            active_units.append({
+                'name': unit_name,
+                'ip_address': info['ip_address'],
+                'first_seen': info['first_seen'],
+                'last_seen': info['last_seen'],
+                'heartbeat_count': info['heartbeat_count'],
+                'seconds_ago': int(time_diff)
+            })
+        else:
+            # 古いエントリは削除
+            del unregistered_units[unit_name]
+    
+    return jsonify({
+        'success': True,
+        'units': active_units,
+        'count': len(active_units)
+    })
+
+@app.route('/api/register_unit', methods=['POST'])
+def register_unit_from_discovery():
+    """自動探知した子機を登録"""
+    data = request.json
+    unit_name = data.get('name')
+    
+    if not unit_name or unit_name not in unregistered_units:
+        return jsonify({'error': '指定された子機が見つかりません'}), 404
+    
+    # 未登録リストから情報を取得
+    unit_info = unregistered_units[unit_name]
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    try:
+        db = get_db()
+        # データベースに登録
+        db.execute(
+            "INSERT INTO units (name, password, stock, connect, available, last_seen, ip_address) VALUES (?, ?, 0, 1, 1, ?, ?)",
+            (unit_name, unit_info['password'], now_str, unit_info['ip_address'])
+        )
+        db.commit()
+        
+        # 履歴に記録
+        add_history(f"子機を登録しました: {unit_name} (IP: {unit_info['ip_address']})")
+        
+        # 未登録リストから削除
+        del unregistered_units[unit_name]
+        
+        return jsonify({
+            'success': True,
+            'message': f'子機 {unit_name} を登録しました'
+        })
+    except Exception as e:
+        return jsonify({
+            'error': f'登録に失敗しました: {str(e)}'
+        }), 500
 
 @app.route("/api/health")
 def health_check():

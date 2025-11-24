@@ -2,13 +2,207 @@
 {% block content %}
 <div class="admin-section">
   <h2>新規子機の登録</h2>
-  <form method="post">
-    <p><label>子機名:<br><input type="text" name="name" required></label></p>
-    <p><label>パスワード:<br><input type="text" name="password" required></label></p>
-    <p><label>初期在庫数:<br><input type="number" name="stock" required></label></p>
-    <p><label>利用可能 (1=可/0=不可):<br><input type="number" name="available" required></label></p>
-    <button type="submit" class="btn">登録</button>
-    <a href="{{ url_for('admin_units') }}" class="btn btn-secondary">キャンセル</a>
-  </form>
+  
+  <!-- 自動探知セクション -->
+  <div style="background: #e3f2fd; padding: 20px; border-radius: 8px; margin-bottom: 30px;">
+    <h3 style="margin-top: 0; display: flex; align-items: center; gap: 10px;">
+      <span>🔍</span>
+      <span>子機の自動探知</span>
+    </h3>
+    <p style="color: #555; margin-bottom: 15px;">
+      ハートビートを送信している未登録の子機を自動的に検出します。
+      子機が起動してからこのボタンを押してください。
+    </p>
+    
+    <button id="scanButton" class="btn btn-primary" onclick="scanUnregisteredUnits()" style="margin-bottom: 15px;">
+      自動探知を開始
+    </button>
+    
+    <div id="scanResult" style="display: none;">
+      <h4 style="margin: 15px 0 10px 0;">検出された未登録子機:</h4>
+      <div id="unregisteredList"></div>
+    </div>
+    
+    <div id="scanStatus" style="margin-top: 10px; font-style: italic; color: #666;"></div>
+  </div>
+
+  <!-- 手動登録セクション -->
+  <div style="border-top: 2px solid #ddd; padding-top: 20px;">
+    <h3>手動で登録</h3>
+    <p style="color: #666; margin-bottom: 15px; font-size: 0.9rem;">
+      自動探知で見つからない場合や、事前に登録したい場合は手動で入力してください。
+    </p>
+    <form method="post">
+      <p><label>子機名:<br><input type="text" name="name" required></label></p>
+      <p><label>パスワード:<br><input type="text" name="password" required></label></p>
+      <p><label>初期在庫数:<br><input type="number" name="stock" required></label></p>
+      <p><label>利用可能 (1=可/0=不可):<br><input type="number" name="available" required></label></p>
+      <button type="submit" class="btn">手動登録</button>
+      <a href="{{ url_for('admin_units') }}" class="btn btn-secondary">キャンセル</a>
+    </form>
+  </div>
 </div>
+
+<style>
+.unit-discovery-card {
+  background: white;
+  border: 2px solid #4CAF50;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.unit-discovery-card:hover {
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.unit-info {
+  flex: 1;
+}
+
+.unit-name {
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: #1f7fc4;
+  margin-bottom: 5px;
+}
+
+.unit-details {
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.unit-details span {
+  display: inline-block;
+  margin-right: 15px;
+}
+
+.register-btn {
+  background: #4CAF50;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background 0.3s;
+}
+
+.register-btn:hover {
+  background: #45a049;
+}
+
+.register-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.no-units-message {
+  text-align: center;
+  padding: 30px;
+  color: #999;
+  font-style: italic;
+}
+</style>
+
+<script>
+async function scanUnregisteredUnits() {
+  const scanButton = document.getElementById('scanButton');
+  const scanStatus = document.getElementById('scanStatus');
+  const scanResult = document.getElementById('scanResult');
+  const unregisteredList = document.getElementById('unregisteredList');
+  
+  scanButton.disabled = true;
+  scanStatus.textContent = '🔍 子機を探索中...';
+  scanStatus.style.color = '#1f7fc4';
+  
+  try {
+    const response = await fetch('/api/unregistered_units');
+    const data = await response.json();
+    
+    if (data.success && data.units.length > 0) {
+      scanStatus.textContent = `✅ ${data.count}台の未登録子機を発見しました`;
+      scanStatus.style.color = '#4CAF50';
+      scanResult.style.display = 'block';
+      
+      // 子機リストを表示
+      unregisteredList.innerHTML = data.units.map(unit => `
+        <div class="unit-discovery-card" id="unit-${unit.name}">
+          <div class="unit-info">
+            <div class="unit-name">📡 ${unit.name}</div>
+            <div class="unit-details">
+              <span><strong>IP:</strong> ${unit.ip_address}</span>
+              <span><strong>初回検出:</strong> ${unit.first_seen}</span>
+              <span><strong>最終通信:</strong> ${unit.seconds_ago}秒前</span>
+              <span><strong>通信回数:</strong> ${unit.heartbeat_count}回</span>
+            </div>
+          </div>
+          <button class="register-btn" onclick="registerUnit('${unit.name}')">
+            この子機を登録
+          </button>
+        </div>
+      `).join('');
+    } else {
+      scanStatus.textContent = '⚠️ 未登録の子機が見つかりませんでした';
+      scanStatus.style.color = '#f44336';
+      scanResult.style.display = 'block';
+      unregisteredList.innerHTML = '<div class="no-units-message">ハートビートを送信している未登録子機がありません。<br>子機が起動していることを確認して、もう一度お試しください。</div>';
+    }
+  } catch (error) {
+    scanStatus.textContent = '❌ エラーが発生しました: ' + error.message;
+    scanStatus.style.color = '#f44336';
+  } finally {
+    scanButton.disabled = false;
+  }
+}
+
+async function registerUnit(unitName) {
+  if (!confirm(`子機「${unitName}」を登録しますか？`)) {
+    return;
+  }
+  
+  const button = document.querySelector(`#unit-${unitName} .register-btn`);
+  button.disabled = true;
+  button.textContent = '登録中...';
+  
+  try {
+    const response = await fetch('/api/register_unit', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ name: unitName })
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      alert(`✅ ${data.message}`);
+      // カードを削除
+      document.getElementById(`unit-${unitName}`).remove();
+      
+      // 全ての子機が登録された場合
+      if (document.querySelectorAll('.unit-discovery-card').length === 0) {
+        document.getElementById('unregisteredList').innerHTML = '<div class="no-units-message">✅ 全ての子機を登録しました</div>';
+      }
+    } else {
+      alert(`❌ エラー: ${data.error}`);
+      button.disabled = false;
+      button.textContent = 'この子機を登録';
+    }
+  } catch (error) {
+    alert(`❌ 登録に失敗しました: ${error.message}`);
+    button.disabled = false;
+    button.textContent = 'この子機を登録';
+  }
+}
+
+// ページロード時に自動的にスキャン（オプション）
+// window.addEventListener('DOMContentLoaded', scanUnregisteredUnits);
+</script>
+
 {% endblock %}
