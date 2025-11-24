@@ -82,6 +82,7 @@ def init_db():
                     last10 TEXT
                 )
             ''')
+            
             # unitsテーブル
             db.execute('''
                 CREATE TABLE units (
@@ -91,40 +92,113 @@ def init_db():
                     stock INTEGER DEFAULT 0,
                     connect INTEGER DEFAULT 0,
                     available INTEGER DEFAULT 1,
-                    last_seen TEXT
+                    last_seen TEXT,
+                    ip_address TEXT
                 )
             ''')
+            
+            # historyテーブル
+            db.execute('''
+                CREATE TABLE history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    txt TEXT NOT NULL,
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            # infoテーブル（管理者情報など）
+            db.execute('''
+                CREATE TABLE info (
+                    id INTEGER PRIMARY KEY,
+                    pass TEXT NOT NULL
+                )
+            ''')
+            
+            # デフォルトの管理者パスワードを設定（admin）
+            default_password = hashlib.sha256('admin'.encode()).hexdigest()
+            db.execute("INSERT INTO info (id, pass) VALUES (1, ?)", (default_password,))
+            
+            db.commit()
+            print("データベースの初期化が完了しました。")
+            print("デフォルト管理者パスワード: admin")
 # --- DBマイグレーション ---
 def migrate_db():
     """
-    データベーススキーマをチェックし、不足しているカラムがあれば追加する。
+    データベーススキーマをチェックし、不足しているテーブルやカラムがあれば追加する。
     """
     print("データベースの構造をチェック・更新します...")
     with app.app_context():
         db = get_db()
         cursor = db.cursor()
-        # unitsテーブルに 'last_seen' カラムが存在するか確認
-        cursor.execute("PRAGMA table_info(units)")
-        columns = [row['name'] for row in cursor.fetchall()]
         
-        if 'last_seen' not in columns:
-            print("  -> 更新: unitsテーブルに 'last_seen' カラムを追加します。")
-            try:
-                cursor.execute("ALTER TABLE units ADD COLUMN last_seen TEXT")
-                db.commit()
-                print("  -> 更新完了。")
-            except Exception as e:
-                print(f"  -> エラー: カラムの追加に失敗しました: {e}")
+        # 既存のテーブルを確認
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        existing_tables = [row[0] for row in cursor.fetchall()]
         
-        if 'ip_address' not in columns:
-            print("  -> 更新: unitsテーブルに 'ip_address' カラムを追加します。")
+        updated = False
+        
+        # historyテーブルが存在しない場合は作成
+        if 'history' not in existing_tables:
+            print("  -> 更新: historyテーブルを作成します。")
             try:
-                cursor.execute("ALTER TABLE units ADD COLUMN ip_address TEXT")
+                cursor.execute('''
+                    CREATE TABLE history (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        txt TEXT NOT NULL,
+                        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
                 db.commit()
-                print("  -> 更新完了。")
+                updated = True
+                print("  -> historyテーブルを作成しました。")
             except Exception as e:
-                print(f"  -> エラー: カラムの追加に失敗しました: {e}")
-        else:
+                print(f"  -> エラー: historyテーブルの作成に失敗しました: {e}")
+        
+        # infoテーブルが存在しない場合は作成
+        if 'info' not in existing_tables:
+            print("  -> 更新: infoテーブルを作成します。")
+            try:
+                cursor.execute('''
+                    CREATE TABLE info (
+                        id INTEGER PRIMARY KEY,
+                        pass TEXT NOT NULL
+                    )
+                ''')
+                # デフォルトの管理者パスワードを設定（admin）
+                default_password = hashlib.sha256('admin'.encode()).hexdigest()
+                cursor.execute("INSERT INTO info (id, pass) VALUES (1, ?)", (default_password,))
+                db.commit()
+                updated = True
+                print("  -> infoテーブルを作成しました。(デフォルトパスワード: admin)")
+            except Exception as e:
+                print(f"  -> エラー: infoテーブルの作成に失敗しました: {e}")
+        
+        # unitsテーブルのカラムを確認
+        if 'units' in existing_tables:
+            cursor.execute("PRAGMA table_info(units)")
+            columns = [row['name'] for row in cursor.fetchall()]
+            
+            if 'last_seen' not in columns:
+                print("  -> 更新: unitsテーブルに 'last_seen' カラムを追加します。")
+                try:
+                    cursor.execute("ALTER TABLE units ADD COLUMN last_seen TEXT")
+                    db.commit()
+                    updated = True
+                    print("  -> last_seenカラムを追加しました。")
+                except Exception as e:
+                    print(f"  -> エラー: カラムの追加に失敗しました: {e}")
+            
+            if 'ip_address' not in columns:
+                print("  -> 更新: unitsテーブルに 'ip_address' カラムを追加します。")
+                try:
+                    cursor.execute("ALTER TABLE units ADD COLUMN ip_address TEXT")
+                    db.commit()
+                    updated = True
+                    print("  -> ip_addressカラムを追加しました。")
+                except Exception as e:
+                    print(f"  -> エラー: カラムの追加に失敗しました: {e}")
+        
+        if not updated:
             print("  -> データベースは最新です。")
 
 # --- ユーティリティ関数 ---
@@ -948,6 +1022,7 @@ def api_record_usage():
         return jsonify({'error': f'Database error: {e}'}), 500
 
 if __name__ == '__main__':
+    init_db()    # データベースの初期化（テーブル作成）
     migrate_db() # データベースのマイグレーションを実行
     heartbeat_thread = threading.Thread(target=broadcast_server_info, daemon=True)
     heartbeat_thread.start()
