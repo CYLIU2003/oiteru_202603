@@ -873,6 +873,9 @@ def run_cui_mode():
     global GREEN_LED_PIN, RED_LED_PIN, SENSOR_PIN, ARDUINO_PORT
     global MOTOR_SPEED, MOTOR_DURATION, MOTOR_REVERSE
     
+    # 停止イベントを作成
+    stop_event = threading.Event()
+    
     print("=" * 60)
     print("  OITERU子機クライアント - CUIモード")
     print("=" * 60)
@@ -945,6 +948,9 @@ def run_cui_mode():
     print("=" * 60)
     print("\n[Ctrl+C] で終了します\n")
     
+    # CUIモード用のキューを作成
+    cui_queue = queue.Queue()
+    
     # CUI用の簡易キュー処理
     def cui_queue_handler(q):
         """キューからメッセージを受け取ってコンソールに表示"""
@@ -960,12 +966,12 @@ def run_cui_mode():
                 print(f"[ERROR] キュー処理エラー: {e}")
     
     # キュー処理スレッドを起動
-    queue_thread = threading.Thread(target=cui_queue_handler, args=(gui_queue,), daemon=True)
+    queue_thread = threading.Thread(target=cui_queue_handler, args=(cui_queue,), daemon=True)
     queue_thread.start()
     
     # メインスレッドを起動
     try:
-        main_thread()
+        run_client(config, stop_event, cui_queue)
     except KeyboardInterrupt:
         print("\n\n[!] 終了シグナルを受信しました")
         stop_event.set()
