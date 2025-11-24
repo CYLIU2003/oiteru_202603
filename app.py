@@ -102,10 +102,20 @@ def migrate_db():
         # unitsテーブルに 'last_seen' カラムが存在するか確認
         cursor.execute("PRAGMA table_info(units)")
         columns = [row['name'] for row in cursor.fetchall()]
+        
         if 'last_seen' not in columns:
             print("  -> 更新: unitsテーブルに 'last_seen' カラムを追加します。")
             try:
                 cursor.execute("ALTER TABLE units ADD COLUMN last_seen TEXT")
+                db.commit()
+                print("  -> 更新完了。")
+            except Exception as e:
+                print(f"  -> エラー: カラムの追加に失敗しました: {e}")
+        
+        if 'ip_address' not in columns:
+            print("  -> 更新: unitsテーブルに 'ip_address' カラムを追加します。")
+            try:
+                cursor.execute("ALTER TABLE units ADD COLUMN ip_address TEXT")
                 db.commit()
                 print("  -> 更新完了。")
             except Exception as e:
@@ -670,10 +680,18 @@ def unit_heartbeat():
     data = request.json
     unit_name = data.get('name')
     unit_pass = data.get('password')
+    unit_ip = data.get('ip_address') # 子機のIPアドレスを受け取る
+    client_reported_stock = data.get('stock') # 子機が認識している在庫数
 
     if not all([unit_name, unit_pass]):
         return jsonify({'error': 'Name and password are required'}), 400
     
+    # 特定のTailscale IPからのアクセスをログに記録
+    TARGET_IPS = ['100.111.98.81', '100.100.238.109', '100.95.107.112']
+    if unit_ip in TARGET_IPS:
+        # 必要であればここで特別な処理を行う
+        pass
+
     db = get_db()
     unit = db.execute("SELECT * FROM units WHERE name = ?", (unit_name,)).fetchone()
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -681,11 +699,11 @@ def unit_heartbeat():
     # 1. もし子機が未登録だったら、自動で新規登録する
     if unit is None:
         db.execute(
-            "INSERT INTO units (name, password, stock, connect, available, last_seen) VALUES (?, ?, 0, 1, 1, ?)",
-            (unit_name, unit_pass, now_str)
+            "INSERT INTO units (name, password, stock, connect, available, last_seen, ip_address) VALUES (?, ?, 0, 1, 1, ?, ?)",
+            (unit_name, unit_pass, now_str, unit_ip)
         )
         db.commit()
-        add_history(f"子機を自動登録しました: {unit_name}")
+        add_history(f"子機を自動登録しました: {unit_name} (IP: {unit_ip})")
         # 新規登録された子機の情報を取得して返す
         new_unit = db.execute("SELECT stock FROM units WHERE name = ?", (unit_name,)).fetchone()
         return jsonify({
@@ -698,11 +716,16 @@ def unit_heartbeat():
     if unit['password'] != unit_pass:
         return jsonify({'error': 'Invalid credentials'}), 401
 
-    # 3. 接続状態と最終接続時刻を更新
+    # 3. 接続状態と最終接続時刻、IPアドレスを更新
     db.execute(
-        "UPDATE units SET connect = 1, last_seen = ? WHERE id = ?",
-        (now_str, unit['id'])
+        "UPDATE units SET connect = 1, last_seen = ?, ip_address = ? WHERE id = ?",
+        (now_str, unit_ip, unit['id'])
     )
+    
+    # 子機からの在庫報告があり、かつサーバー側と食い違っている場合
+    # 基本はサーバー正だが、ログに残すなどの処理が可能
+    # ここではサーバーの値を正として返すので、DB更新は行わない（サーバー主導）
+    
     db.commit()
     
     # 4. 最新の在庫情報を付けて応答する
@@ -818,7 +841,7 @@ def api_record_usage():
         return jsonify({'error': f'Database error: {e}'}), 500
 
 if __name__ == '__main__':
-    # migrate_db() # データベースのマイグレーションが必要な場合はコメントを外す
+    migrate_db() # データベースのマイグレーションを実行
     heartbeat_thread = threading.Thread(target=broadcast_server_info, daemon=True)
     heartbeat_thread.start()
     app.run(host='0.0.0.0', port=5000, debug=True)

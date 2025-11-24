@@ -195,7 +195,7 @@ class SettingsGUI:
         
         status_frame = ttk.LabelFrame(main_frame, text="子機状態", padding="10")
         status_frame.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 10))
-        self.stock_status = tk.StringVar(value="---")
+        self.stock_status = tk.StringVar(value="WAIT")
         self.nfc_status = tk.StringVar(value="停止中")
         ttk.Label(status_frame, text="NFCリーダー:").grid(row=0, column=0, sticky=tk.W)
         ttk.Label(status_frame, textvariable=self.nfc_status).grid(row=0, column=1, sticky=tk.W, padx=5)
@@ -336,6 +336,8 @@ class SettingsGUI:
                     self.entries["SERVER_URL"].insert(0, server_url)
                     self.config["SERVER_URL"] = server_url
                     save_config(self.config)
+                    # 親機が見つかったので、自動的にクライアントを起動する（オプション）
+                    # self.toggle_client_run() 
                 self.is_auto_scanning = False
         except queue.Empty:
             pass
@@ -492,17 +494,20 @@ class SettingsGUI:
         self.server_scan_status.set("親機を検索中...")
 
         def worker():
-            servers = scan_for_servers()
-            if servers:
-                self.gui_queue.put({
-                    'auto_server': servers[0],
-                    'auto_scan_message': f"自動検出: {servers[0]}"
-                })
-            else:
-                self.gui_queue.put({
-                    'auto_server': None,
-                    'auto_scan_message': "親機が見つかりませんでした"
-                })
+            # 親機が見つかるまでループする（ユーザーが停止するまで）
+            while self.is_auto_scanning:
+                servers = scan_for_servers(timeout=3)
+                if servers:
+                    self.gui_queue.put({
+                        'auto_server': servers[0],
+                        'auto_scan_message': f"自動検出: {servers[0]}"
+                    })
+                    break # 見つかったらループ終了
+                else:
+                    self.gui_queue.put({
+                        'auto_scan_message': "親機を探しています..."
+                    })
+                    time.sleep(2) # 少し待って再試行
 
         threading.Thread(target=worker, daemon=True).start()
         self.master.after(100, self.process_gui_queue)
@@ -551,18 +556,45 @@ def run_client(config, stop_event, gui_queue):
             PLATFORM_RUNTIME = 'PC'
 
     def send_heartbeat():
+        # 自身のIPアドレスを取得（Tailscale優先）
+        my_ip = "unknown"
+        try:
+            # Tailscale IPの取得を試みる
+            result = subprocess.run(['tailscale', 'ip', '-4'], capture_output=True, text=True)
+            if result.returncode == 0:
+                my_ip = result.stdout.strip()
+            else:
+                # Tailscaleがない場合はローカルIP
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s.connect(("8.8.8.8", 80))
+                my_ip = s.getsockname()[0]
+                s.close()
+        except Exception:
+            pass
+
         while not stop_event.is_set():
             try:
-                payload = {"name": UNIT_NAME, "password": UNIT_PASSWORD}
+                # 現在の在庫数（GUI表示用だが、サーバーに報告するため取得）
+                # ただし、このクライアントは内部で在庫カウントを持っていないため、
+                # サーバーからの同期がメインとなる。報告用には前回の取得値を使うか、Noneを送る。
+                # ここではIPアドレスの通知が重要。
+                payload = {
+                    "name": UNIT_NAME, 
+                    "password": UNIT_PASSWORD,
+                    "ip_address": my_ip
+                }
                 response = requests.post(f"{SERVER_URL}/api/unit/heartbeat", json=payload, timeout=5)
                 if response.status_code == 200:
                     data = response.json()
                     if 'stock' in data:
+                        # サーバーからの在庫数で同期（GUI更新）
                         gui_queue.put({'stock': data['stock']})
                 else:
                     gui_queue.put({'stock': '--- (サーバーエラー)'})
             except requests.exceptions.RequestException:
                 gui_queue.put({'stock': '--- (通信エラー)'})
+            
+            # 30秒待機
             for _ in range(30):
                 if stop_event.is_set(): break
                 time.sleep(1)
