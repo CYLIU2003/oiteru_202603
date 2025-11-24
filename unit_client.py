@@ -725,24 +725,253 @@ def run_client(config, stop_event, gui_queue):
     heartbeat_thread.start()
 
     clf = None
+    retry_count = 0
+    max_retries = 5
+    retry_delay = 3  # 秒
+    
+    def init_nfc_reader():
+        """NFCリーダーを初期化（リトライ機能付き）"""
+        attempts = 0
+        last_error = None
+        
+        while attempts < max_retries:
+            try:
+                attempts += 1
+                gui_queue.put({'nfc': f'リーダー接続中... ({attempts}/{max_retries})'})
+                send_log_to_server(f"NFCリーダー初期化試行 {attempts}/{max_retries}")
+                
+                # 複数のUSBパスを試行
+                usb_paths = [
+                    'usb',           # 自動検出
+                    'usb:054c:06c3',  # Sony PaSoRi RC-S380
+                    'usb:054c:06c1',  # Sony PaSoRi RC-S370
+                ]
+                
+                for path in usb_paths:
+                    try:
+                        clf = nfc.ContactlessFrontend(path)
+                        if clf:
+                            gui_queue.put({'nfc': f'✅ リーダー接続完了 ({path})'})
+                            send_log_to_server(f"NFCリーダー初期化成功: {path}")
+                            return clf
+                    except Exception as path_error:
+                        last_error = path_error
+                        continue
+                
+                # すべてのパスで失敗した場合
+                raise last_error if last_error else Exception("すべてのUSBパスで接続失敗")
+                
+            except Exception as e:
+                last_error = e
+                error_msg = str(e)
+                send_log_to_server(f"NFCリーダー初期化失敗 ({attempts}): {error_msg}")
+                
+                if attempts < max_retries:
+                    gui_queue.put({'nfc': f'⚠️ 再試行まで{retry_delay}秒... ({error_msg[:30]})'})
+                    time.sleep(retry_delay)
+                else:
+                    gui_queue.put({'nfc': f'❌ リーダー接続失敗: {error_msg[:50]}'})
+                    raise
+        
+        return None
+    
     try:
         if PLATFORM_RUNTIME == "RASPI":
-            clf = nfc.ContactlessFrontend('usb')
-            gui_queue.put({'nfc': '✅ リーダー接続完了'})
+            # NFCリーダーの初期化（リトライ付き）
+            clf = init_nfc_reader()
+            
+            if not clf:
+                gui_queue.put({'nfc': '❌ NFCリーダーが利用できません'})
+                stop_event.wait()
+                return
+            
+            # メインループ: カード読み取り
+            consecutive_errors = 0
+            max_consecutive_errors = 3
+            
             while not stop_event.is_set():
-                if clf.connect(rdwr={'on-connect': handle_card_touch}, terminate=lambda: stop_event.is_set()):
-                    time.sleep(0.1)
-                else:
-                    time.sleep(0.5)
+                try:
+                    # カード読み取り試行
+                    connected = clf.connect(
+                        rdwr={'on-connect': handle_card_touch},
+                        terminate=lambda: stop_event.is_set()
+                    )
+                    
+                    if connected:
+                        consecutive_errors = 0  # 成功したらエラーカウントリセット
+                        time.sleep(0.1)
+                    else:
+                        time.sleep(0.5)
+                        
+                except Exception as e:
+                    consecutive_errors += 1
+                    error_msg = str(e)
+                    
+                    # デバイス切断エラーの検知
+                    if "No such device" in error_msg or "Errno 19" in error_msg:
+                        send_log_to_server(f"NFCリーダー切断を検知: {error_msg}")
+                        gui_queue.put({'nfc': '⚠️ リーダー切断検知、再接続中...'})
+                        
+                        # 古いclfをクローズ
+                        try:
+                            if clf:
+                                clf.close()
+                        except:
+                            pass
+                        
+                        # 短い待機後に再初期化
+                        time.sleep(2)
+                        try:
+                            clf = init_nfc_reader()
+                            consecutive_errors = 0
+                            continue
+                        except Exception as reinit_error:
+                            gui_queue.put({'nfc': f'❌ 再接続失敗: {str(reinit_error)[:30]}'})
+                            break
+                    
+                    # その他のエラー
+                    if consecutive_errors >= max_consecutive_errors:
+                        send_log_to_server(f"連続エラー上限到達: {error_msg}")
+                        gui_queue.put({'nfc': f'❌ エラー多発のため停止: {error_msg[:30]}'})
+                        break
+                    
+                    gui_queue.put({'nfc': f'⚠️ エラー({consecutive_errors}): {error_msg[:30]}'})
+                    time.sleep(1)
         else:
             gui_queue.put({'nfc': 'PCモードのためNFC利用不可'})
             stop_event.wait()
+            
     except Exception as e:
-        gui_queue.put({'nfc': f'❌ リーダーエラー: {e}'})
+        error_msg = str(e)
+        gui_queue.put({'nfc': f'❌ 致命的エラー: {error_msg[:50]}'})
+        send_log_to_server(f"NFCスレッド致命的エラー: {error_msg}")
+        
     finally:
-        if clf: clf.close()
-        if PLATFORM_RUNTIME == 'RASPI' and GPIO_runtime: GPIO_runtime.cleanup()
+        # クリーンアップ
+        if clf:
+            try:
+                clf.close()
+                send_log_to_server("NFCリーダーをクローズしました")
+            except:
+                pass
+        
+        if PLATFORM_RUNTIME == 'RASPI' and GPIO_runtime:
+            try:
+                GPIO_runtime.cleanup()
+            except:
+                pass
+        
         print("--- スクリプトを終了します ---")
+
+# --------------------------------------------------------------------------
+# --- CUIモード実装 ---
+# --------------------------------------------------------------------------
+def run_cui_mode():
+    """CUIモードで子機を起動（GUIなし）"""
+    global SERVER_URL, UNIT_NAME, UNIT_PASSWORD
+    global MOTOR_TYPE, CONTROL_METHOD, USE_SENSOR
+    global GREEN_LED_PIN, RED_LED_PIN, SENSOR_PIN, ARDUINO_PORT
+    global MOTOR_SPEED, MOTOR_DURATION, MOTOR_REVERSE
+    
+    print("=" * 60)
+    print("  OITERU子機クライアント - CUIモード")
+    print("=" * 60)
+    
+    # 設定ファイルを読み込み
+    config = load_config()
+    
+    # 設定を表示
+    print("\n[現在の設定]")
+    print(f"  サーバーURL: {config['SERVER_URL']}")
+    print(f"  子機名: {config['UNIT_NAME']}")
+    print(f"  モーター種類: {config['MOTOR_TYPE']}")
+    print(f"  制御方法: {config['CONTROL_METHOD']}")
+    print(f"  センサー使用: {config['USE_SENSOR']}")
+    
+    # 設定の確認
+    if '--auto' not in sys.argv:
+        print("\n設定を変更しますか？ [y/N]: ", end='')
+        try:
+            response = input().strip().lower()
+            if response == 'y':
+                print("\n[設定変更]")
+                
+                # サーバーURL
+                print(f"サーバーURL [{config['SERVER_URL']}]: ", end='')
+                url = input().strip()
+                if url:
+                    config['SERVER_URL'] = url
+                
+                # 子機名
+                print(f"子機名 [{config['UNIT_NAME']}]: ", end='')
+                name = input().strip()
+                if name:
+                    config['UNIT_NAME'] = name
+                
+                # パスワード
+                print(f"パスワード [現在のまま]: ", end='')
+                password = input().strip()
+                if password:
+                    config['UNIT_PASSWORD'] = password
+                
+                # 設定を保存
+                if save_config(config):
+                    print("\n✓ 設定を保存しました")
+                else:
+                    print("\n✗ 設定の保存に失敗しました")
+        except (EOFError, KeyboardInterrupt):
+            print("\n")
+    
+    # グローバル変数に設定を適用
+    SERVER_URL = config['SERVER_URL']
+    UNIT_NAME = config['UNIT_NAME']
+    UNIT_PASSWORD = config['UNIT_PASSWORD']
+    MOTOR_TYPE = config['MOTOR_TYPE']
+    CONTROL_METHOD = config['CONTROL_METHOD']
+    USE_SENSOR = config['USE_SENSOR']
+    GREEN_LED_PIN = config['GREEN_LED_PIN']
+    RED_LED_PIN = config['RED_LED_PIN']
+    SENSOR_PIN = config['SENSOR_PIN']
+    ARDUINO_PORT = config['ARDUINO_PORT']
+    MOTOR_SPEED = config['MOTOR_SPEED']
+    MOTOR_DURATION = config['MOTOR_DURATION']
+    MOTOR_REVERSE = config['MOTOR_REVERSE']
+    
+    print("\n" + "=" * 60)
+    print("  子機を起動しています...")
+    print("=" * 60)
+    print(f"  サーバー: {SERVER_URL}")
+    print(f"  子機名: {UNIT_NAME}")
+    print("=" * 60)
+    print("\n[Ctrl+C] で終了します\n")
+    
+    # CUI用の簡易キュー処理
+    def cui_queue_handler(q):
+        """キューからメッセージを受け取ってコンソールに表示"""
+        while not stop_event.is_set():
+            try:
+                msg = q.get(timeout=0.5)
+                if 'nfc' in msg:
+                    timestamp = time.strftime("%H:%M:%S")
+                    print(f"[{timestamp}] NFC: {msg['nfc']}")
+            except queue.Empty:
+                continue
+            except Exception as e:
+                print(f"[ERROR] キュー処理エラー: {e}")
+    
+    # キュー処理スレッドを起動
+    queue_thread = threading.Thread(target=cui_queue_handler, args=(gui_queue,), daemon=True)
+    queue_thread.start()
+    
+    # メインスレッドを起動
+    try:
+        main_thread()
+    except KeyboardInterrupt:
+        print("\n\n[!] 終了シグナルを受信しました")
+        stop_event.set()
+        print("[!] クリーンアップ中...")
+        time.sleep(1)
+        print("[✓] 終了しました")
 
 # --------------------------------------------------------------------------
 # --- 起動処理 ---
@@ -751,9 +980,11 @@ if __name__ == "__main__":
     if PLATFORM == "RASPI":
         ensure_root_privileges()
 
-    if '--no-gui' not in sys.argv and HAS_TKINTER:
+    if '--no-gui' in sys.argv or not HAS_TKINTER:
+        # CUIモードで起動
+        run_cui_mode()
+    else:
+        # GUIモードで起動
         root = tk.Tk()
         app = SettingsGUI(root)
         root.mainloop()
-    else:
-        print("CUIモードは現在サポートされていません。")

@@ -18,11 +18,24 @@
             <h1>オイテル登録システム</h1>
           </div>
         </div>
-        <div class="status-card" id="reader-status" role="status" aria-live="polite">
-          <span class="status-light" id="reader-light" aria-hidden="true"></span>
-          <div class="status-copy">
-            <span class="status-label">ICカードリーダー</span>
-            <span class="status-value" id="reader-text">接続状態を確認しています...</span>
+        
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <!-- 親機PC接続のNFCリーダー -->
+          <div class="status-card" id="local-reader-status" role="status" aria-live="polite">
+            <span class="status-light" id="local-reader-light" aria-hidden="true"></span>
+            <div class="status-copy">
+              <span class="status-label">親機NFCリーダー</span>
+              <span class="status-value" id="local-reader-text">確認中...</span>
+            </div>
+          </div>
+          
+          <!-- 子機の接続状態 -->
+          <div class="status-card" id="units-status" role="status" aria-live="polite">
+            <span class="status-light" id="units-light" aria-hidden="true"></span>
+            <div class="status-copy">
+              <span class="status-label">接続中の子機</span>
+              <span class="status-value" id="units-text">確認中...</span>
+            </div>
           </div>
         </div>
       </div>
@@ -55,44 +68,75 @@
 
   <script>
     document.addEventListener("DOMContentLoaded", function() {
-        const statusLight = document.getElementById("reader-light");
-        const statusText = document.getElementById("reader-text");
+        // 親機PC接続のNFCリーダー状態
+        const localReaderLight = document.getElementById("local-reader-light");
+        const localReaderText = document.getElementById("local-reader-text");
+        
+        // 子機の接続状態
+        const unitsLight = document.getElementById("units-light");
+        const unitsText = document.getElementById("units-text");
 
-        statusLight.style.backgroundColor = "#FFB300";
-        statusLight.style.boxShadow = "0 0 0 6px rgba(255, 179, 0, 0.22)";
+        // 初期状態（確認中）
+        localReaderLight.style.backgroundColor = "#FFB300";
+        localReaderLight.style.boxShadow = "0 0 0 6px rgba(255, 179, 0, 0.22)";
+        unitsLight.style.backgroundColor = "#FFB300";
+        unitsLight.style.boxShadow = "0 0 0 6px rgba(255, 179, 0, 0.22)";
 
-        function checkReaderStatus() {
-            fetch("/api/reader_status")
-                .then(response => {
-                    if (!response.ok) {
-                        return response.json().then(errorData => {
-                            throw new Error(errorData.error || `サーバーエラー (HTTP ${response.status})`);
-                        });
-                    }
-                    return response.json();
-                })
+        // 親機PC接続のNFCリーダー状態を確認
+        function checkLocalNFCReader() {
+            fetch("/api/local_nfc_reader")
+                .then(response => response.json())
                 .then(data => {
                     if (data.connected) {
-                        statusLight.style.backgroundColor = "#4CAF50"; // Green
-                        statusLight.style.boxShadow = "0 0 0 6px rgba(76, 175, 80, 0.18)";
-                        statusText.textContent = "ICカードリーダー接続";
+                        localReaderLight.style.backgroundColor = "#4CAF50"; // Green
+                        localReaderLight.style.boxShadow = "0 0 0 6px rgba(76, 175, 80, 0.18)";
+                        localReaderText.textContent = "接続中 (RC-S380)";
                     } else {
-                        statusLight.style.backgroundColor = "#F44336"; // Red
-                        statusLight.style.boxShadow = "0 0 0 6px rgba(244, 67, 54, 0.18)";
-                        statusText.textContent = data.error || "ICカードリーダー未接続";
+                        localReaderLight.style.backgroundColor = "#9E9E9E"; // Gray
+                        localReaderLight.style.boxShadow = "0 0 0 6px rgba(158, 158, 158, 0.18)";
+                        localReaderText.textContent = "未接続";
                     }
                 })
                 .catch(error => {
-                    console.error("リーダー状態の確認中にエラー:", error);
-                    statusLight.style.backgroundColor = "#F44336"; // Red
-                    statusLight.style.boxShadow = "0 0 0 6px rgba(244, 67, 54, 0.18)";
-                    statusText.textContent = error.message;
+                    console.error("親機NFCリーダー確認エラー:", error);
+                    localReaderLight.style.backgroundColor = "#9E9E9E";
+                    localReaderLight.style.boxShadow = "0 0 0 6px rgba(158, 158, 158, 0.18)";
+                    localReaderText.textContent = "未接続";
                 });
         }
 
-        // Check status immediately and then every 5 seconds
-        checkReaderStatus();
-        setInterval(checkReaderStatus, 5000);
+        // 子機の接続状態を確認
+        function checkUnitsStatus() {
+            fetch("/api/reader_status")
+                .then(response => response.json())
+                .then(data => {
+                    if (data.connected && data.active_units && data.active_units.length > 0) {
+                        unitsLight.style.backgroundColor = "#4CAF50"; // Green
+                        unitsLight.style.boxShadow = "0 0 0 6px rgba(76, 175, 80, 0.18)";
+                        
+                        const count = data.active_units.length;
+                        const names = data.active_units.map(u => u.unit_name).join(", ");
+                        unitsText.textContent = `${count}台 (${names})`;
+                    } else {
+                        unitsLight.style.backgroundColor = "#F44336"; // Red
+                        unitsLight.style.boxShadow = "0 0 0 6px rgba(244, 67, 54, 0.18)";
+                        unitsText.textContent = "子機未接続";
+                    }
+                })
+                .catch(error => {
+                    console.error("子機状態確認エラー:", error);
+                    unitsLight.style.backgroundColor = "#F44336";
+                    unitsLight.style.boxShadow = "0 0 0 6px rgba(244, 67, 54, 0.18)";
+                    unitsText.textContent = "確認エラー";
+                });
+        }
+
+        // 初回チェックと定期チェック
+        checkLocalNFCReader();
+        checkUnitsStatus();
+        
+        setInterval(checkLocalNFCReader, 10000);  // 10秒ごと（頻繁にチェックする必要なし）
+        setInterval(checkUnitsStatus, 5000);       // 5秒ごと
     });
   </script>
 </body>

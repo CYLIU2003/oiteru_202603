@@ -17,6 +17,10 @@ from flask import (
     Flask, request, jsonify, render_template,
     redirect, url_for, session, flash, g, send_file
 )
+
+# 注意: 親機（サーバー）ではNFCリーダーを直接使用しません
+# NFCリーダーは子機（Raspberry Pi）にのみ接続されています
+# nfcpyのインポートは互換性のためのみ残していますが、使用しません
 try:
     import nfc
 except ImportError:
@@ -739,22 +743,125 @@ def unit_heartbeat():
 def health_check():
     """サーバーの生存確認用エンドポイント"""
     return jsonify({"status": "ok", "timestamp": datetime.now().isoformat()})
+
 @app.route("/api/reader_status")
 def reader_status():
+    """
+    NFCリーダーの状態を確認するエンドポイント
+    
+    注意: 親機（サーバー）にはNFCリーダーは接続されていません。
+    NFCリーダーは子機（Raspberry Pi）に接続されており、
+    子機からのハートビートで状態が報告されます。
+    
+    このエンドポイントは、接続中の子機のNFC状態を返します。
+    """
     try:
-        if nfc is None:
-            raise ImportError("nfcpy not installed")
-        clf = nfc.ContactlessFrontend('usb')
-        if clf:
-            clf.close()
-            return jsonify({"connected": True, "error": None})
+        db = get_db()
+        cursor = db.cursor()
+        
+        # 最近アクティブな子機（過去1分以内に接続確認）を取得
+        # unitsテーブルのカラム: id, name, password, stock, connect, available, last_seen
+        cursor.execute('''
+            SELECT name, last_seen, stock, connect,
+                   (julianday('now') - julianday(last_seen)) * 86400.0 as seconds_ago
+            FROM units
+            WHERE last_seen IS NOT NULL 
+              AND (julianday('now') - julianday(last_seen)) * 86400.0 < 60
+            ORDER BY last_seen DESC
+        ''')
+        
+        active_units = []
+        for row in cursor.fetchall():
+            active_units.append({
+                "unit_name": row['name'],
+                "last_seen": row['last_seen'],
+                "stock": row['stock'],
+                "connected": bool(row['connect']),
+                "seconds_ago": round(row['seconds_ago'], 1),
+                "status": "online"
+            })
+        
+        if active_units:
+            return jsonify({
+                "connected": True,
+                "active_units": active_units,
+                "message": f"{len(active_units)}台の子機がオンライン",
+                "note": "親機にはNFCリーダーは接続されていません。子機のステータスを表示しています。"
+            })
+        else:
+            return jsonify({
+                "connected": False,
+                "active_units": [],
+                "error": "オンラインの子機が見つかりません（過去60秒以内にハートビートなし）",
+                "note": "親機にはNFCリーダーは接続されていません。子機が接続されると状態が表示されます。"
+            }), 503  # Service Unavailable
+            
     except Exception as e:
         error_message = str(e)
-        print(f"リーダー接続エラー: {error_message}")
+        print(f"リーダーステータス取得エラー: {error_message}")
         print(traceback.format_exc())
         return jsonify({
             "connected": False,
-            "error": f"リーダー初期化失敗: {error_message}"
+            "error": f"ステータス取得失敗: {error_message}"
+        }), 500
+
+@app.route("/api/local_nfc_reader")
+def local_nfc_reader():
+    """
+    親機PC（ホストマシン）に接続されたNFCリーダー（RC-S380など）を検出
+    
+    注意: これは子機のNFCリーダーとは別で、親機PCに直接接続された
+    カードリーダーの状態を確認します。
+    """
+    try:
+        if nfc is None:
+            return jsonify({
+                "connected": False,
+                "error": "nfcpyがインストールされていません",
+                "note": "親機でNFCリーダーを使用する場合は 'pip install nfcpy' を実行してください"
+            }), 503
+        
+        # 複数のUSBパスを試行
+        usb_paths = [
+            'usb',           # 自動検出
+            'usb:054c:06c3',  # Sony PaSoRi RC-S380
+            'usb:054c:06c1',  # Sony PaSoRi RC-S370
+            'usb:054c:02e1',  # Sony PaSoRi RC-S330
+        ]
+        
+        for path in usb_paths:
+            try:
+                clf = nfc.ContactlessFrontend(path)
+                if clf:
+                    # リーダー情報を取得
+                    device_info = str(clf.device) if hasattr(clf, 'device') else "不明なデバイス"
+                    clf.close()
+                    
+                    return jsonify({
+                        "connected": True,
+                        "device_path": path,
+                        "device_info": device_info,
+                        "message": "親機PCのNFCリーダーが検出されました",
+                        "note": "これは親機PCに接続されたリーダーです（子機とは別）"
+                    })
+            except Exception:
+                continue
+        
+        # すべて失敗
+        return jsonify({
+            "connected": False,
+            "error": "親機PCにNFCリーダーが接続されていません",
+            "tried_paths": usb_paths,
+            "note": "RC-S380などのNFCリーダーをPCに接続してください"
+        }), 404
+        
+    except Exception as e:
+        error_message = str(e)
+        print(f"ローカルNFCリーダー検出エラー: {error_message}")
+        print(traceback.format_exc())
+        return jsonify({
+            "connected": False,
+            "error": f"検出失敗: {error_message}"
         }), 500
 
 @app.route('/api/users', methods=['GET'])

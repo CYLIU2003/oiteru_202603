@@ -1,0 +1,48 @@
+# Systemd service file for OITERU unit client
+# Installation:
+#   sudo cp oiteru-unit.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable oiteru-unit.service
+#   sudo systemctl start oiteru-unit.service
+#
+# Check status:
+#   sudo systemctl status oiteru-unit.service
+#
+# View logs:
+#   sudo journalctl -u oiteru-unit.service -f
+
+[Unit]
+Description=OITERU Unit Client (NFC + Motor Control)
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/pi/oiteru_250827_restAPI
+ExecStart=/usr/bin/python3 /home/pi/oiteru_250827_restAPI/unit_client.py --no-gui
+
+# 自動再起動設定
+Restart=always
+RestartSec=10s
+StartLimitInterval=300s
+StartLimitBurst=5
+
+# プロセスが異常終了した場合のみ再起動
+RestartPreventExitStatus=0
+
+# リソース制限
+MemoryLimit=512M
+CPUQuota=50%
+
+# ログ設定
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=oiteru-unit
+
+# セキュリティ設定（必要に応じてコメントアウト）
+# NoNewPrivileges=true
+# PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
