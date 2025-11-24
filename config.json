@@ -1,0 +1,15 @@
+{
+    "SERVER_URL": "http://127.0.0.1:5000",
+    "UNIT_NAME": "rpi2",
+    "UNIT_PASSWORD": "password123",
+    "MOTOR_TYPE": "SERVO",
+    "CONTROL_METHOD": "RASPI_DIRECT",
+    "USE_SENSOR": true,
+    "GREEN_LED_PIN": 17,
+    "RED_LED_PIN": 27,
+    "SENSOR_PIN": 22,
+    "ARDUINO_PORT": "/dev/ttyACM0",
+    "MOTOR_SPEED": 100,
+    "MOTOR_DURATION": 2.0,
+    "MOTOR_REVERSE": false
+}
