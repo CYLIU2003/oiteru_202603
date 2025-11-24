@@ -1,12 +1,69 @@
 import time
-import requests
-import nfc
 import sys
 import threading
 import json
 import os
 import socket
 import subprocess # Tailscale対応のため追加
+from pathlib import Path
+
+# --------------------------------------------------------------------------
+# --- 仮想環境の自動セットアップ ---
+# --------------------------------------------------------------------------
+def setup_virtualenv():
+    """~/.hirameki仮想環境を自動作成・適用"""
+    venv_path = Path.home() / ".hirameki"
+    python_bin = venv_path / "bin" / "python"
+    pip_bin = venv_path / "bin" / "pip"
+    
+    # 既に仮想環境内で実行されているかチェック
+    if hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
+        # 仮想環境内で実行中
+        return
+    
+    # .hirameki仮想環境が存在するかチェック
+    if not venv_path.exists() or not python_bin.exists():
+        print("=" * 60)
+        print("  仮想環境 ~/.hirameki が見つかりません")
+        print("  自動作成を開始します...")
+        print("=" * 60)
+        try:
+            # 仮想環境を作成
+            subprocess.run([sys.executable, "-m", "venv", str(venv_path)], check=True)
+            print("✓ 仮想環境を作成しました")
+            
+            # pipをアップグレード
+            subprocess.run([str(pip_bin), "install", "--upgrade", "pip"], check=True)
+            print("✓ pipをアップグレードしました")
+            
+            # 必要なパッケージをインストール
+            packages = [
+                "nfcpy", "requests", "flask", "pandas", "openpyxl", "numpy",
+                "RPi.GPIO", "Adafruit-PCA9685", "pyserial"
+            ]
+            print(f"✓ 必要なパッケージをインストール中... ({', '.join(packages)})")
+            subprocess.run([str(pip_bin), "install"] + packages, check=True)
+            print("✓ パッケージのインストールが完了しました")
+            
+        except subprocess.CalledProcessError as e:
+            print(f"✗ 仮想環境のセットアップに失敗しました: {e}")
+            print("  手動でセットアップしてください:")
+            print(f"    python3 -m venv {venv_path}")
+            print(f"    source {venv_path}/bin/activate")
+            print("    pip install nfcpy requests flask pandas openpyxl numpy RPi.GPIO Adafruit-PCA9685 pyserial")
+            sys.exit(1)
+    
+    # 仮想環境のPythonで再実行
+    print(f"INFO: 仮想環境 {venv_path} を使用します")
+    os.execv(str(python_bin), [str(python_bin)] + sys.argv)
+
+# スクリプト起動時に仮想環境をセットアップ
+if '--no-venv' not in sys.argv:
+    setup_virtualenv()
+
+# 仮想環境内でのインポート
+import requests
+import nfc
 
 # --- GUIライブラリのインポート ---
 try:
@@ -43,10 +100,21 @@ def ensure_root_privileges():
         return  # 既にroot権限
 
     print("INFO: ハードウェア制御にはroot権限が必要です。sudo経由で再起動します...")
+    
+    # 仮想環境のPythonパスを取得
+    venv_python = Path.home() / ".hirameki" / "bin" / "python"
+    if venv_python.exists():
+        python_exec = str(venv_python)
+    else:
+        python_exec = sys.executable
+    
     try:
-        os.execvp("sudo", ["sudo", sys.executable] + sys.argv)
+        # 環境変数を引き継いでsudoを実行
+        env_vars = os.environ.copy()
+        os.execvpe("sudo", ["sudo", "-E", python_exec] + sys.argv, env_vars)
     except FileNotFoundError:
         print("ERROR: sudoコマンドが見つかりません。sudoをインストールするか、手動でroot権限を付与して実行してください。")
+        print(f"  実行コマンド例: sudo {python_exec} {' '.join(sys.argv)}")
     except Exception as exc:
         print(f"ERROR: sudoによる再実行に失敗しました: {exc}")
 
