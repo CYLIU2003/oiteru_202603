@@ -866,6 +866,183 @@ def run_client(config, stop_event, gui_queue):
 # --------------------------------------------------------------------------
 # --- CUIモード実装 ---
 # --------------------------------------------------------------------------
+def show_cui_menu(config):
+    """CUIモードの設定メニューを表示"""
+    while True:
+        print("\n" + "=" * 60)
+        print("  設定メニュー")
+        print("=" * 60)
+        print(f"  1. サーバーURL     : {config['SERVER_URL']}")
+        print(f"  2. 子機名          : {config['UNIT_NAME']}")
+        print(f"  3. パスワード      : {'*' * len(config.get('UNIT_PASSWORD', ''))}")
+        print(f"  4. モーター種類    : {config['MOTOR_TYPE']}")
+        print(f"  5. 制御方法        : {config['CONTROL_METHOD']}")
+        print(f"  6. センサー使用    : {config['USE_SENSOR']}")
+        print(f"  7. 緑LED PIN       : {config['GREEN_LED_PIN']}")
+        print(f"  8. 赤LED PIN       : {config['RED_LED_PIN']}")
+        print(f"  9. センサーPIN     : {config['SENSOR_PIN']}")
+        print(f" 10. Arduino PORT    : {config['ARDUINO_PORT']}")
+        print(f" 11. モーター速度    : {config['MOTOR_SPEED']}")
+        print(f" 12. モーター時間    : {config['MOTOR_DURATION']}秒")
+        print(f" 13. モーター反転    : {config['MOTOR_REVERSE']}")
+        print("=" * 60)
+        print("  a. 親機自動探知")
+        print("  d. ハードウェア診断")
+        print("  s. 設定を保存して起動")
+        print("  q. 保存せずに起動")
+        print("=" * 60)
+        
+        choice = input("\n選択 [1-13/a/d/s/q]: ").strip().lower()
+        
+        if choice == '1':
+            new_val = input(f"サーバーURL [{config['SERVER_URL']}]: ").strip()
+            if new_val:
+                config['SERVER_URL'] = new_val
+        elif choice == '2':
+            new_val = input(f"子機名 [{config['UNIT_NAME']}]: ").strip()
+            if new_val:
+                config['UNIT_NAME'] = new_val
+        elif choice == '3':
+            new_val = input("パスワード: ").strip()
+            if new_val:
+                config['UNIT_PASSWORD'] = new_val
+        elif choice == '4':
+            print("\nモーター種類:")
+            print("  1. SERVO (サーボモーター)")
+            print("  2. STEPPER (ステッピングモーター)")
+            motor_choice = input("選択 [1-2]: ").strip()
+            if motor_choice == '1':
+                config['MOTOR_TYPE'] = 'SERVO'
+            elif motor_choice == '2':
+                config['MOTOR_TYPE'] = 'STEPPER'
+        elif choice == '5':
+            print("\n制御方法:")
+            print("  1. RASPI_DIRECT (ラズパイ直結・PCA9685)")
+            print("  2. ARDUINO (Arduino経由)")
+            control_choice = input("選択 [1-2]: ").strip()
+            if control_choice == '1':
+                config['CONTROL_METHOD'] = 'RASPI_DIRECT'
+            elif control_choice == '2':
+                config['CONTROL_METHOD'] = 'ARDUINO'
+        elif choice == '6':
+            print("\nセンサー使用:")
+            print("  1. 使用する")
+            print("  2. 使用しない")
+            sensor_choice = input("選択 [1-2]: ").strip()
+            if sensor_choice == '1':
+                config['USE_SENSOR'] = True
+            elif sensor_choice == '2':
+                config['USE_SENSOR'] = False
+        elif choice == '7':
+            new_val = input(f"緑LED PIN (BCM) [{config['GREEN_LED_PIN']}]: ").strip()
+            if new_val.isdigit():
+                config['GREEN_LED_PIN'] = int(new_val)
+        elif choice == '8':
+            new_val = input(f"赤LED PIN (BCM) [{config['RED_LED_PIN']}]: ").strip()
+            if new_val.isdigit():
+                config['RED_LED_PIN'] = int(new_val)
+        elif choice == '9':
+            new_val = input(f"センサーPIN (BCM) [{config['SENSOR_PIN']}]: ").strip()
+            if new_val.isdigit():
+                config['SENSOR_PIN'] = int(new_val)
+        elif choice == '10':
+            new_val = input(f"Arduino PORT [{config['ARDUINO_PORT']}]: ").strip()
+            if new_val:
+                config['ARDUINO_PORT'] = new_val
+        elif choice == '11':
+            new_val = input(f"モーター速度 (0-100) [{config['MOTOR_SPEED']}]: ").strip()
+            if new_val.isdigit():
+                config['MOTOR_SPEED'] = int(new_val)
+        elif choice == '12':
+            new_val = input(f"モーター時間 (秒) [{config['MOTOR_DURATION']}]: ").strip()
+            try:
+                config['MOTOR_DURATION'] = float(new_val)
+            except ValueError:
+                pass
+        elif choice == '13':
+            print("\nモーター反転:")
+            print("  1. 正転")
+            print("  2. 逆転")
+            reverse_choice = input("選択 [1-2]: ").strip()
+            if reverse_choice == '1':
+                config['MOTOR_REVERSE'] = False
+            elif reverse_choice == '2':
+                config['MOTOR_REVERSE'] = True
+        elif choice == 'a':
+            print("\n" + "=" * 60)
+            print("  親機自動探知を開始します...")
+            print("=" * 60)
+            servers = scan_for_servers(timeout=5)
+            if servers:
+                print(f"\n{len(servers)}台の親機を発見しました:")
+                for idx, server_url in enumerate(servers, 1):
+                    print(f"  {idx}. {server_url}")
+                
+                print("\n使用する親機を選択してください:")
+                server_choice = input(f"選択 [1-{len(servers)}] または Enter でキャンセル: ").strip()
+                try:
+                    server_idx = int(server_choice) - 1
+                    if 0 <= server_idx < len(servers):
+                        config['SERVER_URL'] = servers[server_idx]
+                        print(f"\n✓ サーバーURLを {servers[server_idx]} に設定しました")
+                    else:
+                        print("\n✗ 無効な選択です")
+                except ValueError:
+                    print("\n✗ キャンセルしました")
+            else:
+                print("\n✗ 親機が見つかりませんでした")
+                print("  ヒント:")
+                print("  - 親機サーバー(app.py)が起動していることを確認してください")
+                print("  - 同一ネットワークまたはTailscaleで接続されていることを確認してください")
+            input("\nEnterキーで戻る...")
+        elif choice == 'd':
+            print("\n" + "=" * 60)
+            print("  ハードウェア診断中...")
+            print("=" * 60)
+            run_cui_diagnostics(config)
+        elif choice == 's':
+            if save_config(config):
+                print("\n✓ 設定を保存しました")
+            else:
+                print("\n✗ 設定の保存に失敗しました")
+            return config
+        elif choice == 'q':
+            return config
+        else:
+            print("\n✗ 無効な選択です")
+
+def run_cui_diagnostics(config):
+    """CUIモードでハードウェア診断を実行"""
+    if PLATFORM == "PC":
+        print("\n[PCA9685] PCモードのため診断不可")
+        print("[センサー] PCモードのため診断不可")
+        return
+    
+    # センサー診断
+    try:
+        if config['USE_SENSOR']:
+            GPIO.setup(config['SENSOR_PIN'], GPIO.IN, pull_up_down=GPIO.PUD_UP)
+            sensor_state = GPIO.input(config['SENSOR_PIN'])
+            sensor_msg = "正常" if sensor_state in [0, 1] else "異常"
+            print(f"\n[センサー] PIN {config['SENSOR_PIN']}: {sensor_msg} (値: {sensor_state})")
+        else:
+            print("\n[センサー] 使用しない設定")
+    except Exception as e:
+        print(f"\n[センサー] エラー: {e}")
+    
+    # PCA9685診断
+    if config['CONTROL_METHOD'] == 'RASPI_DIRECT':
+        try:
+            test_pwm = Adafruit_PCA9685.PCA9685()
+            test_pwm.set_pwm_freq(50)
+            print("[PCA9685] 正常に初期化されました")
+        except Exception as e:
+            print(f"[PCA9685] エラー: {e}")
+    else:
+        print("[PCA9685] Arduino制御のため診断スキップ")
+    
+    input("\nEnterキーで戻る...")
+
 def run_cui_mode():
     """CUIモードで子機を起動（GUIなし）"""
     global SERVER_URL, UNIT_NAME, UNIT_PASSWORD
@@ -883,45 +1060,54 @@ def run_cui_mode():
     # 設定ファイルを読み込み
     config = load_config()
     
-    # 設定を表示
-    print("\n[現在の設定]")
-    print(f"  サーバーURL: {config['SERVER_URL']}")
-    print(f"  子機名: {config['UNIT_NAME']}")
-    print(f"  モーター種類: {config['MOTOR_TYPE']}")
-    print(f"  制御方法: {config['CONTROL_METHOD']}")
-    print(f"  センサー使用: {config['USE_SENSOR']}")
+    # 自動探知モードのチェック
+    if '--find-server' in sys.argv:
+        print("\n親機自動探知モードで起動します...")
+        servers = scan_for_servers(timeout=5)
+        if servers:
+            config['SERVER_URL'] = servers[0]
+            print(f"✓ 親機を自動検出しました: {servers[0]}")
+            if save_config(config):
+                print("✓ 設定を保存しました")
+        else:
+            print("✗ 親機が見つかりませんでした。現在の設定で続行します。")
     
-    # 設定の確認
-    if '--auto' not in sys.argv:
-        print("\n設定を変更しますか？ [y/N]: ", end='')
+    # 設定メニューの表示
+    if '--auto' not in sys.argv and '--find-server' not in sys.argv:
+        print("\nオプションを選択してください:")
+        print("  1. そのまま起動")
+        print("  2. 設定メニューを開く")
+        print("  3. 親機を自動探知して起動")
         try:
-            response = input().strip().lower()
-            if response == 'y':
-                print("\n[設定変更]")
-                
-                # サーバーURL
-                print(f"サーバーURL [{config['SERVER_URL']}]: ", end='')
-                url = input().strip()
-                if url:
-                    config['SERVER_URL'] = url
-                
-                # 子機名
-                print(f"子機名 [{config['UNIT_NAME']}]: ", end='')
-                name = input().strip()
-                if name:
-                    config['UNIT_NAME'] = name
-                
-                # パスワード
-                print(f"パスワード [現在のまま]: ", end='')
-                password = input().strip()
-                if password:
-                    config['UNIT_PASSWORD'] = password
-                
-                # 設定を保存
-                if save_config(config):
-                    print("\n✓ 設定を保存しました")
+            response = input("選択 [1-3]: ").strip()
+            if response == '2':
+                config = show_cui_menu(config)
+            elif response == '3':
+                print("\n親機自動探知を開始します...")
+                servers = scan_for_servers(timeout=5)
+                if servers:
+                    print(f"\n{len(servers)}台の親機を発見しました:")
+                    for idx, server_url in enumerate(servers, 1):
+                        print(f"  {idx}. {server_url}")
+                    
+                    if len(servers) == 1:
+                        config['SERVER_URL'] = servers[0]
+                        print(f"\n✓ サーバーURLを {servers[0]} に設定しました")
+                        if save_config(config):
+                            print("✓ 設定を保存しました")
+                    else:
+                        server_choice = input(f"\n使用する親機を選択 [1-{len(servers)}]: ").strip()
+                        try:
+                            server_idx = int(server_choice) - 1
+                            if 0 <= server_idx < len(servers):
+                                config['SERVER_URL'] = servers[server_idx]
+                                print(f"\n✓ サーバーURLを {servers[server_idx]} に設定しました")
+                                if save_config(config):
+                                    print("✓ 設定を保存しました")
+                        except ValueError:
+                            print("\n✗ 無効な選択です。現在の設定で続行します。")
                 else:
-                    print("\n✗ 設定の保存に失敗しました")
+                    print("\n✗ 親機が見つかりませんでした。現在の設定で続行します。")
         except (EOFError, KeyboardInterrupt):
             print("\n")
     
@@ -957,9 +1143,11 @@ def run_cui_mode():
         while not stop_event.is_set():
             try:
                 msg = q.get(timeout=0.5)
+                timestamp = time.strftime("%H:%M:%S")
                 if 'nfc' in msg:
-                    timestamp = time.strftime("%H:%M:%S")
                     print(f"[{timestamp}] NFC: {msg['nfc']}")
+                elif 'stock' in msg:
+                    print(f"[{timestamp}] 在庫: {msg['stock']}")
             except queue.Empty:
                 continue
             except Exception as e:
