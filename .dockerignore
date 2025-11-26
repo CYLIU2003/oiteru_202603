@@ -15,8 +15,8 @@ build/
 *.log
 desktop.ini
 tempCodeRunnerFile.py
-unit_client.py
 unit_client.py.new
 copilot-instructions.md
 CHANGELOG.md
 注釈付コード/
+取説書/
