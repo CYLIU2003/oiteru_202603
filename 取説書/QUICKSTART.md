@@ -43,7 +43,18 @@ python app.py
 1. プロジェクトフォルダをRaspberry Piにコピー
 2. NFCリーダーをUSBポートに接続
 
-### 起動（すべて自動！）
+### 起動方法A: 起動スクリプト使用（推奨）
+
+```bash
+cd oiteru_250827_restAPI
+./start_unit.sh
+```
+
+起動スクリプトで以下を選択できます：
+- **通常起動** - 仮想環境を自動作成（初回のみ数分）
+- **Docker起動** - コンテナで実行（環境構築不要）
+
+### 起動方法B: 直接起動
 
 ```bash
 cd oiteru_250827_restAPI
@@ -109,6 +120,12 @@ docker-compose up -d
 
 ### 子機の起動オプション
 
+**起動スクリプト（推奨）:**
+```bash
+./start_unit.sh
+```
+
+**直接起動:**
 ```bash
 # CUIモード（対話型設定）
 python unit_client.py --no-gui
@@ -121,6 +138,18 @@ python unit_client.py --no-gui --find-server
 
 # GUIモード（デスクトップ環境）
 python unit_client.py
+```
+
+**Docker起動:**
+```bash
+# バックグラウンドで起動
+docker-compose -f docker-compose.unit.yml up -d
+
+# ログ表示
+docker-compose -f docker-compose.unit.yml logs -f
+
+# 停止
+docker-compose -f docker-compose.unit.yml down
 ```
 
 ### 親機の管理

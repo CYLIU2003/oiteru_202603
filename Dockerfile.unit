@@ -12,18 +12,22 @@ RUN apt-get update && apt-get install -y \
     i2c-tools \
     && rm -rf /var/lib/apt/lists/*
 
-# Pythonパッケージをインストール
-COPY requirements.txt .
+# Pythonパッケージをインストール（requirements.txtがある場合）
+COPY requirements.txt* ./
 RUN pip install --no-cache-dir \
     nfcpy \
     requests \
     RPi.GPIO \
     Adafruit-PCA9685 \
-    pyserial
+    pyserial \
+    flask \
+    pandas \
+    openpyxl \
+    numpy
 
 # アプリケーションファイルをコピー
-COPY unit_client.py .
-COPY config.json* ./
+COPY unit_client.py ./
+COPY config.json* ./ 2>/dev/null || true
 
 # udevルールを設定（NFCリーダー用）
 RUN echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="054c", ATTRS{idProduct}=="06c1", MODE="0666", GROUP="plugdev"' > /etc/udev/rules.d/99-nfc-reader.rules
