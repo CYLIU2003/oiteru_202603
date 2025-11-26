@@ -1,5 +1,5 @@
 {
-    "SERVER_URL": "http://127.0.0.1:5000",
+    "SERVER_URL": "http://100.114.99.67:5000",
     "UNIT_NAME": "rpi2",
     "UNIT_PASSWORD": "password123",
     "MOTOR_TYPE": "SERVO",

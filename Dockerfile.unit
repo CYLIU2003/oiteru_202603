@@ -1,0 +1,35 @@
+# Raspberry Pi対応 子機クライアント用Dockerfile
+FROM python:3.11-slim
+
+# 作業ディレクトリを設定
+WORKDIR /app
+
+# システムパッケージのインストール（NFCリーダー、GPIO、I2C対応）
+RUN apt-get update && apt-get install -y \
+    libusb-1.0-0 \
+    libusb-1.0-0-dev \
+    udev \
+    i2c-tools \
+    && rm -rf /var/lib/apt/lists/*
+
+# Pythonパッケージをインストール
+COPY requirements.txt .
+RUN pip install --no-cache-dir \
+    nfcpy \
+    requests \
+    RPi.GPIO \
+    Adafruit-PCA9685 \
+    pyserial
+
+# アプリケーションファイルをコピー
+COPY unit_client.py .
+COPY config.json* ./
+
+# udevルールを設定（NFCリーダー用）
+RUN echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="054c", ATTRS{idProduct}=="06c1", MODE="0666", GROUP="plugdev"' > /etc/udev/rules.d/99-nfc-reader.rules
+
+# 環境変数を設定
+ENV PYTHONUNBUFFERED=1
+
+# デフォルトコマンド
+CMD ["python", "unit_client.py", "--no-gui", "--no-venv", "--auto"]
