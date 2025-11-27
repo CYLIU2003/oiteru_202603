@@ -32,6 +32,8 @@ services:
       - ./diagnostics.py:/app/diagnostics.py
       - ./data_viewer.py:/app/data_viewer.py
       - ./db_adapter.py:/app/db_adapter.py
+      - ./templates:/app/templates
+      - ./static:/app/static
       - /run/pcscd/pcscd.comm:/run/pcscd/pcscd.comm
     ports:
       - "5000:5000"
