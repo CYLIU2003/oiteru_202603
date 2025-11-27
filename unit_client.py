@@ -751,29 +751,36 @@ def run_client(config, stop_event, gui_queue):
             print(f"警告: GPIO初期化失敗: {e}。")
             PLATFORM_RUNTIME = 'PC'
 
-    def send_heartbeat():
-        # 自身のIPアドレスを取得（Tailscale優先）
-        my_ip = "unknown"
+    def get_my_ip():
+        """自身のIPアドレスを取得（Tailscale優先）"""
         try:
             # Tailscale IPの取得を試みる
-            result = subprocess.run(['tailscale', 'ip', '-4'], capture_output=True, text=True)
-            if result.returncode == 0:
-                my_ip = result.stdout.strip()
-            else:
-                # Tailscaleがない場合はローカルIP
-                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                s.connect(("8.8.8.8", 80))
-                my_ip = s.getsockname()[0]
-                s.close()
-        except Exception:
-            pass
+            result = subprocess.run(['tailscale', 'ip', '-4'], capture_output=True, text=True, timeout=2)
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout.strip()
+        except Exception as e:
+            print(f"Tailscale IP取得エラー: {e}")
+        
+        try:
+            # Tailscaleがない場合はローカルIPを取得
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.settimeout(2)
+            s.connect(("8.8.8.8", 80))
+            local_ip = s.getsockname()[0]
+            s.close()
+            return local_ip
+        except Exception as e:
+            print(f"ローカルIP取得エラー: {e}")
+        
+        return "unknown"
 
+    def send_heartbeat():
         while not stop_event.is_set():
             try:
-                # 現在の在庫数（GUI表示用だが、サーバーに報告するため取得）
-                # ただし、このクライアントは内部で在庫カウントを持っていないため、
-                # サーバーからの同期がメインとなる。報告用には前回の取得値を使うか、Noneを送る。
-                # ここではIPアドレスの通知が重要。
+                # IPアドレスを毎回取得（ネットワーク変更に対応）
+                my_ip = get_my_ip()
+                
+                # サーバーにハートビートを送信
                 payload = {
                     "name": UNIT_NAME, 
                     "password": UNIT_PASSWORD,
