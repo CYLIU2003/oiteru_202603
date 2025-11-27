@@ -214,10 +214,14 @@ def migrate_db():
                 print("  -> データベースは最新です。")
 
 # --- ユーティリティ関数 ---
-def add_history(text):
+def add_history(text, log_type='usage'):
+    """
+    履歴を追加
+    log_type: 'usage'=利用履歴, 'system'=システムログ, 'heartbeat'=ハートビート
+    """
     with get_connection() as conn:
         now = datetime.now().strftime("%Y-%m-%d %H:%M")
-        db.execute(conn, "INSERT INTO history (txt) VALUES (?)", (f"{now}: {text}",))
+        db.execute(conn, "INSERT INTO history (txt, type) VALUES (?, ?)", (f"{now}: {text}", log_type))
 
 def check_password(password):
     with get_connection() as conn:
@@ -491,11 +495,12 @@ def admin_log_export():
 
 @app.route("/admin/history")
 def admin_history():
-    """全ての操作履歴を表示するページ"""
+    """利用履歴を表示するページ（usageのみ）"""
     if not session.get('admin_logged_in'):
         return redirect(url_for('admin_login'))
     with get_connection() as conn:
-        history = db.fetchall(conn, "SELECT * FROM history ORDER BY id DESC")
+        # usageタイプのログのみを取得
+        history = db.fetchall(conn, "SELECT * FROM history WHERE type = 'usage' ORDER BY created_at DESC LIMIT 100")
     return render_template("admin_history.html", history=history)
 
 @app.route("/admin/diagnostics")
@@ -555,7 +560,7 @@ def register():
                     # DBに新しいユーザーを登録
                     now = datetime.now().strftime("%Y-%m-%d %H:%M")
                     db.execute(conn, "INSERT INTO users (card_id, entry) VALUES (?, ?)", (card_id, now))
-                add_history(f"新規登録({card_id})")
+                add_history(f"新規登録({card_id})", 'system')
                 flash(f"登録が完了しました。(カードID: {card_id})", "success")
             except DatabaseError:
                 # "UNIQUE"制約違反エラーを捕捉し、登録済みであることをユーザーに通知
@@ -661,7 +666,7 @@ def admin_user_detail(uid):
             # --- 削除処理 ---
             if request.form.get("action") == "delete":
                 db.execute(conn, "DELETE FROM users WHERE id = ?", (uid,))
-                add_history(f"利用者を手動削除しました (ID:{uid})")
+                add_history(f"利用者を手動削除しました (ID:{uid})", 'system')
                 flash(f"利用者(ID:{uid})を削除しました。", "success")
                 return redirect(url_for("admin_users"))
             # --- 更新処理 ---
@@ -672,7 +677,7 @@ def admin_user_detail(uid):
                 "UPDATE users SET card_id = ?, allow = ?, stock = ? WHERE id = ?",
                 (card_id, allow, stock, uid)
             )
-        add_history(f"利用者情報を更新しました (ID:{uid})")
+        add_history(f"利用者情報を更新しました (ID:{uid})", 'system')
         flash(f"利用者(ID:{uid})の情報を更新しました。", "success")
         return redirect(url_for("admin_user_detail", uid=uid))
     
@@ -706,7 +711,7 @@ def admin_units():
                     if now - last_seen_dt > HEARTBEAT_TIMEOUT:
                         # タイムアウトした場合、接続状態をオフライン(0)に更新
                         db.execute(conn, "UPDATE units SET connect = ? WHERE id = ?", (0, unit['id']))
-                        add_history(f"子機がタイムアウトしました: {unit['name']}")
+                        add_history(f"子機がタイムアウトしました: {unit['name']}", 'system')
                 except ValueError:
                     # 日付の形式が不正な場合はスキップ
                     continue
@@ -1191,15 +1196,19 @@ def api_record_usage():
             
             if unit['stock'] <= 0 or unit['available'] == 0:
                 # 在庫がない場合、ログを記録してエラーを返す
-                message = f"在庫不足のため利用不可 ({card_id})"
-                add_history(f"[{unit_name}] {message}")
+                message = f"[{unit_name}] 在庫不足のため利用不可 (カードID: {card_id})"
+                add_history(message, 'usage')
                 return jsonify({'error': 'Unit has no stock remaining'}), 400
 
             # --- 2. 利用者の利用資格を確認 ---
             user = db.fetchone(conn, "SELECT * FROM users WHERE card_id = ?", (card_id,))
             if not user:
+                message = f"[{unit_name}] 未登録カード (カードID: {card_id})"
+                add_history(message, 'usage')
                 return jsonify({'error': 'User not found'}), 404
             if user['stock'] <= 0:
+                message = f"[{unit_name}] 残数不足 (カードID: {card_id})"
+                add_history(message, 'usage')
                 return jsonify({'error': 'User has no stock remaining'}), 400
 
             # --- 3. 両方の残数/在庫を更新 ---
@@ -1214,10 +1223,14 @@ def api_record_usage():
             db.execute(conn, "UPDATE units SET stock = ? WHERE name = ?", 
                        (new_unit_stock, unit_name))
 
+            # 利用記録を追加
+            message = f"[{unit_name}] 利用成功 (カードID: {card_id}, 残数: {new_user_stock})"
+            add_history(message, 'usage')
+
             # もし子機の在庫が0になったら、利用不可(available=0)にする
             if new_unit_stock <= 0:
                 db.execute(conn, "UPDATE units SET available = 0 WHERE name = ?", (unit_name,))
-                add_history(f"[{unit_name}] 在庫が0になったため、自動的に排出を停止しました。")
+                add_history(f"[{unit_name}] 在庫が0になったため、自動的に排出を停止しました。", 'system')
 
             # with文を抜けると自動コミット
             return jsonify({'success': True, 'message': 'Usage recorded and unit stock updated.'})

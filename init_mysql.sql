@@ -46,8 +46,10 @@ CREATE TABLE IF NOT EXISTS units (
 CREATE TABLE IF NOT EXISTS history (
     id INT AUTO_INCREMENT PRIMARY KEY,
     txt TEXT NOT NULL,
+    type VARCHAR(20) DEFAULT 'usage',  -- 'usage'=利用履歴, 'system'=システムログ, 'heartbeat'=ハートビート
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_created_at (created_at)
+    INDEX idx_created_at (created_at),
+    INDEX idx_type (type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- infoテーブル（システム情報）
