@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# OITELU 親機起動スクリプト（診断機能付き）
+# OITELU 親機起動スクリプト（MySQL版・診断機能付き）
 
 echo "========================================"
-echo "  OITELU 親機起動スクリプト"
+echo "  OITELU 親機起動スクリプト (MySQL版)"
 echo "========================================"
 echo ""
 
@@ -45,9 +45,9 @@ fi
 echo -e "${GREEN}  ✓ Docker が利用可能です${NC}"
 echo ""
 
-# 3. Dockerコンテナ起動
-echo -e "${YELLOW}[3/5] Docker コンテナを起動中...${NC}"
-docker-compose up -d
+# 3. Dockerコンテナ起動（MySQL版）
+echo -e "${YELLOW}[3/5] Docker コンテナを起動中 (MySQL版)...${NC}"
+docker-compose -f docker-compose.mysql.yml up -d
 
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}  ✓ コンテナを起動しました${NC}"
@@ -59,11 +59,23 @@ echo ""
 
 # 4. カードリーダー初期化（Docker内）
 echo -e "${YELLOW}[4/5] カードリーダーを初期化中...${NC}"
+# MySQLコンテナの起動を待つ
+echo -e "${CYAN}  MySQLコンテナの起動を待機中...${NC}"
+sleep 5
+
 if docker ps | grep -q oiteru_flask; then
     # pcscdを起動
     docker exec oiteru_flask bash -c "pkill -9 pcscd 2>/dev/null; pcscd 2>/dev/null" &
     sleep 2
     echo -e "${GREEN}  ✓ カードリーダーサービスを起動しました${NC}"
+    
+    # カードリーダー動作確認
+    if docker exec oiteru_flask timeout 2 pcsc_scan 2>&1 | grep -q "Reader 0:"; then
+        echo -e "${GREEN}  ✓ カードリーダーが正常に動作しています${NC}"
+    else
+        echo -e "${YELLOW}  ⚠ カードリーダーの動作確認ができませんでした${NC}"
+        echo -e "${YELLOW}    コンテナ内で確認してください: docker exec -it oiteru_flask pcsc_scan${NC}"
+    fi
 else
     echo -e "${YELLOW}  ⚠ Flaskコンテナが起動していません${NC}"
 fi
@@ -87,10 +99,14 @@ echo -e "  起動完了！"
 echo -e "========================================${NC}"
 echo ""
 echo -e "${CYAN}管理画面: http://localhost:5000/admin${NC}"
+echo -e "${CYAN}データベース: MySQL (localhost:3306)${NC}"
 echo ""
 echo -e "${YELLOW}コンテナを停止する場合:${NC}"
-echo -e "  docker-compose down"
+echo -e "  docker-compose -f docker-compose.mysql.yml down"
 echo ""
 echo -e "${YELLOW}ログを確認する場合:${NC}"
-echo -e "  docker-compose logs -f"
+echo -e "  docker-compose -f docker-compose.mysql.yml logs -f"
+echo ""
+echo -e "${YELLOW}カードリーダーをテストする場合:${NC}"
+echo -e "  docker exec -it oiteru_flask pcsc_scan"
 echo ""
