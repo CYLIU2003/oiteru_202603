@@ -132,7 +132,11 @@ DEFAULT_CONFIG = {
     "CONTROL_METHOD": "RASPI_DIRECT", "USE_SENSOR": True,
     "GREEN_LED_PIN": 17, "RED_LED_PIN": 27, "SENSOR_PIN": 22,
     "ARDUINO_PORT": "/dev/ttyACM0",
-    "MOTOR_SPEED": 100, "MOTOR_DURATION": 2.0, "MOTOR_REVERSE": False
+    "MOTOR_SPEED": 100, "MOTOR_DURATION": 2.0, "MOTOR_REVERSE": False,
+    "SENSOR_CHECK_PRE": True,  # 回転前のセンサーチェック
+    "SENSOR_CHECK_POST": True,  # 回転後のセンサーチェック
+    "JAM_CLEAR_ATTEMPTS": 3,  # 詰まり解消の最大試行回数
+    "SENSOR_STABILIZE_TIME": 0.3  # センサー安定待ち時間（秒）
 }
 
 def save_config(config):
@@ -721,6 +725,10 @@ def run_client(config, stop_event, gui_queue):
     MOTOR_SPEED = config.get('MOTOR_SPEED', 100)
     MOTOR_DURATION = config.get('MOTOR_DURATION', 2.0)
     MOTOR_REVERSE = config.get('MOTOR_REVERSE', False)
+    SENSOR_CHECK_PRE = config.get('SENSOR_CHECK_PRE', True)
+    SENSOR_CHECK_POST = config.get('SENSOR_CHECK_POST', True)
+    JAM_CLEAR_ATTEMPTS = config.get('JAM_CLEAR_ATTEMPTS', 3)
+    SENSOR_STABILIZE_TIME = config.get('SENSOR_STABILIZE_TIME', 0.3)
 
     # 起動時診断を実行
     diagnostics = startup_diagnostics(config)
@@ -817,6 +825,20 @@ def run_client(config, stop_event, gui_queue):
             GPIO_runtime.output(pin, GPIO_runtime.LOW)
         except Exception: pass
 
+    def check_sensor(description=""):
+        """フォトリフレクタの状態をチェック
+        Returns: True=物体検知なし（クリア）, False=物体検知（詰まり）
+        """
+        if not USE_SENSOR or PLATFORM_RUNTIME != 'RASPI':
+            return True
+        
+        sensor_val = GPIO_runtime.input(SENSOR_PIN)
+        # LBR-127HLD: LOW=物体検知, HIGH=クリア
+        is_clear = (sensor_val == 1)
+        status = "クリア" if is_clear else "物体検知"
+        print(f"[センサーチェック{description}] 値={sensor_val} ({status})")
+        return is_clear
+
     def dispense_item():
         if PLATFORM_RUNTIME != 'RASPI':
             print("INFO: PCモードのためモーターは動作しません。")
@@ -839,33 +861,72 @@ def run_client(config, stop_event, gui_queue):
 
                 if USE_SENSOR:
                     print("INFO: センサー付きで排出を開始します。")
-                    attempts = 0
-                    while not stop_event.is_set():
-                        sensor_val = GPIO_runtime.input(SENSOR_PIN)
-                        print(f'センサー値: {sensor_val}')
+                    
+                    # ========== 【1. モーター回転前のチェック】 ==========
+                    if SENSOR_CHECK_PRE:
+                        print("\n--- ステップ1: 回転前のセンサーチェック ---")
+                        if not check_sensor("(回転前)"):
+                            print("⚠ 警告: 回転前に物体を検知。排出口に残留物がある可能性")
+                            send_log_to_server("警告: 排出前に残留物検知")
+                            # 詰まり解消を試みる
+                            for attempt in range(JAM_CLEAR_ATTEMPTS):
+                                print(f"詰まり解消試行 {attempt+1}/{JAM_CLEAR_ATTEMPTS}")
+                                pwm.set_pwm(15, 0, jam_clear_pwm)
+                                time.sleep(0.3)
+                                pwm.set_pwm(15, 0, 0)
+                                time.sleep(0.5)
+                                
+                                if check_sensor("(解消確認)"):
+                                    print("✓ 詰まり解消成功")
+                                    break
+                            else:
+                                print("✗ 詰まり解消失敗。強制的に排出を試みます。")
+                                send_log_to_server("エラー: 初期詰まり解消失敗")
+                        else:
+                            print("✓ 回転前チェック: 排出口クリア")
+                    
+                    # ========== 【2. モーター回転】 ==========
+                    print(f"\n--- ステップ2: モーター回転 ({MOTOR_DURATION}秒) ---")
+                    pwm.set_pwm(15, 0, final_push_pwm)
+                    time.sleep(MOTOR_DURATION)
+                    pwm.set_pwm(15, 0, 0)
+                    print("✓ モーター回転完了")
+                    
+                    # ========== 【3. モーター回転後のチェック】 ==========
+                    if SENSOR_CHECK_POST:
+                        print("\n--- ステップ3: 回転後のセンサーチェック ---")
+                        time.sleep(SENSOR_STABILIZE_TIME)  # センサー安定待ち
                         
-                        # ▼▼▼ 詰まり検知ロジック ▼▼▼
-                        if sensor_val == 0: # センサーが反応 = 物が詰まっている
-                            # 詰まり解消のため、小刻みにモーターを動かす
-                            pwm.set_pwm(15, 0, jam_clear_pwm)
-                            time.sleep(0.4)
-                            pwm.set_pwm(15, 0, 0)
-                            time.sleep(1)
-                            attempts += 1
-                            if attempts >= 5: # 5回試行しても解消しない場合
-                                print("排出リミットに達しました。詰まっている可能性があります。")
-                                send_log_to_server("排出リミット到達 (詰まりの可能性)")
-                                break # ループを抜けて排出を中止
-                        else: # センサーが反応なし = 正常に排出された
-                            # 最後の押し出し動作
-                            print(f"INFO: センサーがクリア。設定時間({MOTOR_DURATION}秒)で最終排出します。")
-                            pwm.set_pwm(15, 0, final_push_pwm)
-                            time.sleep(MOTOR_DURATION)
-                            pwm.set_pwm(15, 0, 0)
-                            time.sleep(0.1)
-                            print("排出が完了しました。")
-                            send_log_to_server("排出完了")
-                            break # 排出成功なのでループを抜ける
+                        if check_sensor("(回転後)"):
+                            print("✓ 回転後チェック: 正常に排出されました")
+                            send_log_to_server("排出完了 (正常)")
+                        else:
+                            print("⚠ 警告: 回転後も物体検知。排出失敗の可能性")
+                            send_log_to_server("警告: 排出後に物体残留")
+                            
+                            # 追加の排出試行
+                            print("\n--- 追加排出試行 ---")
+                            for attempt in range(JAM_CLEAR_ATTEMPTS):
+                                print(f"追加排出 {attempt+1}/{JAM_CLEAR_ATTEMPTS}")
+                                pwm.set_pwm(15, 0, jam_clear_pwm)
+                                time.sleep(0.5)
+                                pwm.set_pwm(15, 0, 0)
+                                time.sleep(0.5)
+                                
+                                if check_sensor("(追加確認)"):
+                                    print("✓ 追加排出成功")
+                                    send_log_to_server("排出完了 (追加試行後)")
+                                    break
+                            else:
+                                print("✗ 排出失敗: 物体が詰まっています")
+                                send_log_to_server("エラー: 排出失敗 (詰まり)")
+                                indicate('failure')
+                                return
+                    else:
+                        # SENSOR_CHECK_POSTが無効の場合は成功とみなす
+                        print("✓ 排出完了 (回転後チェック無効)")
+                        send_log_to_server("排出完了 (チェックなし)")
+                    
                 else:
                     print(f"INFO: センサーなしで排出 (速度:{MOTOR_SPEED}, 時間:{MOTOR_DURATION}秒)")
                     pwm.set_pwm(15, 0, final_push_pwm)
