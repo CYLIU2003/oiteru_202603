@@ -511,6 +511,32 @@ def admin_diagnostics():
                          diagnostics=unit_diagnostics,
                          logs=unit_logs)
 
+@app.route("/api/run_diagnostics", methods=['POST'])
+def run_diagnostics_api():
+    """管理画面から親機の診断を実行するAPIエンドポイント"""
+    try:
+        from diagnostics import run_full_diagnostics
+        
+        # 診断を実行（コンソール出力なし）
+        diagnostics_results = run_full_diagnostics(db_path=DB_PATH, verbose=False)
+        
+        return jsonify({
+            'success': True,
+            'diagnostics': diagnostics_results,
+            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }), 200
+        
+    except ImportError:
+        return jsonify({
+            'success': False,
+            'error': 'diagnostics.pyが見つかりません'
+        }), 500
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 # ↑↑↑↑ ここまで貼り付け ↑↑↑↑
 @app.route("/")
 def index():
@@ -1196,8 +1222,40 @@ def api_record_usage():
         return jsonify({'error': f'Database error: {e}'}), 500
 
 if __name__ == '__main__':
+    # システム診断を実行
+    print("\n" + "="*60)
+    print("OITELU親機を起動しています...")
+    print("="*60)
+    
+    try:
+        from diagnostics import run_full_diagnostics, should_continue_startup
+        
+        # 診断実行
+        diagnostics = run_full_diagnostics(db_path=DB_PATH, verbose=True)
+        
+        # 診断結果に基づいて起動判定
+        if not should_continue_startup(diagnostics):
+            print("起動を中止しました。")
+            exit(1)
+    except ImportError:
+        print("警告: diagnostics.pyが見つかりません。診断をスキップします。")
+    except Exception as e:
+        print(f"警告: 診断中にエラーが発生しました: {e}")
+        print("診断をスキップして起動を続行します。")
+    
+    print("\nデータベースを初期化中...")
     init_db()    # データベースの初期化（テーブル作成）
+    
+    print("データベースマイグレーションを実行中...")
     migrate_db() # データベースのマイグレーションを実行
+    
+    print("子機向けブロードキャストスレッドを起動中...")
     heartbeat_thread = threading.Thread(target=broadcast_server_info, daemon=True)
     heartbeat_thread.start()
+    
+    print("\n" + "="*60)
+    print("OITELU親機の起動が完了しました！")
+    print("Webブラウザで http://localhost:5000 にアクセスしてください")
+    print("="*60 + "\n")
+    
     app.run(host='0.0.0.0', port=5000, debug=True)

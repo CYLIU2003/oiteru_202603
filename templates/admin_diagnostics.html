@@ -119,6 +119,22 @@
 </style>
 
 <div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>システム診断</h2>
+        <button id="runServerDiagnostics" class="btn btn-primary">
+            🔍 親機診断を実行
+        </button>
+    </div>
+    
+    <!-- 親機診断結果表示エリア -->
+    <div id="serverDiagnosticsResult" style="display:none;" class="diagnostic-card mb-4">
+        <div class="diagnostic-header">
+            <h3>🖥️ 親機（サーバー）診断結果</h3>
+            <span class="timestamp" id="serverDiagTimestamp"></span>
+        </div>
+        <div id="serverDiagContent"></div>
+    </div>
+    
     <h2 class="mb-4">子機診断情報</h2>
     
     {% if diagnostics %}
@@ -185,6 +201,67 @@
 </div>
 
 <script>
+// 親機診断を実行
+document.getElementById('runServerDiagnostics').addEventListener('click', function() {
+    const button = this;
+    button.disabled = true;
+    button.innerHTML = '🔄 診断実行中...';
+    
+    fetch('/api/run_diagnostics', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 診断結果を表示
+            const resultDiv = document.getElementById('serverDiagnosticsResult');
+            const contentDiv = document.getElementById('serverDiagContent');
+            const timestampSpan = document.getElementById('serverDiagTimestamp');
+            
+            timestampSpan.textContent = '📅 ' + data.timestamp;
+            
+            // 診断結果をHTMLに変換
+            let html = '';
+            data.diagnostics.forEach(diag => {
+                const statusClass = diag.status === 'OK' ? 'ok' : 'error';
+                const icon = diag.status === 'OK' ? '✅' : (diag.status === 'WARNING' ? '⚠️' : '❌');
+                
+                html += `
+                    <div class="diagnostic-item ${statusClass}">
+                        <div class="diagnostic-icon">${icon}</div>
+                        <div class="diagnostic-content">
+                            <div class="component-name">${diag.component}</div>
+                            <div class="component-detail">${diag.detail}</div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            contentDiv.innerHTML = html;
+            resultDiv.style.display = 'block';
+            
+            // サマリー表示
+            const okCount = data.diagnostics.filter(d => d.status === 'OK').length;
+            const warningCount = data.diagnostics.filter(d => d.status === 'WARNING').length;
+            const failCount = data.diagnostics.filter(d => d.status === 'FAIL').length;
+            
+            alert(`診断完了！\n✅ OK: ${okCount}\n⚠️ WARNING: ${warningCount}\n❌ FAIL: ${failCount}`);
+        } else {
+            alert('診断に失敗しました: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('診断中にエラーが発生しました: ' + error);
+    })
+    .finally(() => {
+        button.disabled = false;
+        button.innerHTML = '🔍 親機診断を実行';
+    });
+});
+
 // 30秒ごとに自動更新
 setTimeout(function() {
     location.reload();
