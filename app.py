@@ -1,5 +1,4 @@
 import os
-import sqlite3
 import hashlib
 import random
 import io
@@ -17,6 +16,7 @@ from flask import (
     Flask, request, jsonify, render_template,
     redirect, url_for, session, flash, g, send_file
 )
+from db_adapter import db, get_connection, DatabaseError
 
 # 注意: 親機（サーバー）ではNFCリーダーを直接使用しません
 # NFCリーダーは子機（Raspberry Pi）にのみ接続されています
@@ -48,32 +48,34 @@ unit_logs = {}
 # --- DB Helpers ---
 
 # --- データベース接続ヘルパー ---
-def get_db():
-    db = getattr(g, '_database', None)
-    if db is None:
-        db = g._database = sqlite3.connect(DB_PATH)
-        db.row_factory = sqlite3.Row
-    return db
+# db_adapterを使用するため、get_db()は不要になりましたが、
+# 互換性のため残しています。新しいコードではget_connection()を使用してください。
+def get_db_connection():
+    """データベース接続を取得（db_adapter経由）"""
+    return get_connection()
 
 @app.teardown_appcontext
 def close_connection(exception):
-    db = getattr(g, '_database', None)
-    if db is not None:
-        db.close()
+    # db_adapterが接続管理を行うため、特別な処理は不要
+    pass
 
 # --- データベース初期化 ---
 def init_db():
     """データベースのテーブルを初期化する"""
+    # MySQLの場合はinit_mysql.sqlで初期化されるため、SQLiteの場合のみ実行
+    if db.db_type == 'mysql':
+        print("MySQLモード: init_mysql.sqlでデータベースを初期化してください")
+        return
+        
     if os.path.exists(DB_PATH):
         print("データベースは既に存在します。")
         return
 
     print("新しいデータベースを作成・初期化します...")
     with app.app_context():
-        db = get_db()
-        with db:
+        with get_connection() as conn:
             # usersテーブル
-            db.execute('''
+            db.execute(conn, '''
                 CREATE TABLE users (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     card_id TEXT UNIQUE NOT NULL,
@@ -96,7 +98,7 @@ def init_db():
             ''')
             
             # unitsテーブル
-            db.execute('''
+            db.execute(conn, '''
                 CREATE TABLE units (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT UNIQUE NOT NULL,
@@ -110,7 +112,7 @@ def init_db():
             ''')
             
             # historyテーブル
-            db.execute('''
+            db.execute(conn, '''
                 CREATE TABLE history (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     txt TEXT NOT NULL,
@@ -119,7 +121,7 @@ def init_db():
             ''')
             
             # infoテーブル（管理者情報など）
-            db.execute('''
+            db.execute(conn, '''
                 CREATE TABLE info (
                     id INTEGER PRIMARY KEY,
                     pass TEXT NOT NULL
@@ -128,102 +130,99 @@ def init_db():
             
             # デフォルトの管理者パスワードを設定（admin）
             default_password = hashlib.sha256('admin'.encode()).hexdigest()
-            db.execute("INSERT INTO info (id, pass) VALUES (1, ?)", (default_password,))
+            db.execute(conn, "INSERT INTO info (id, pass) VALUES (?, ?)", (1, default_password))
             
-            db.commit()
             print("データベースの初期化が完了しました。")
             print("デフォルト管理者パスワード: admin")
 # --- DBマイグレーション ---
 def migrate_db():
     """
     データベーススキーマをチェックし、不足しているテーブルやカラムがあれば追加する。
+    MySQLの場合はinit_mysql.sqlで初期化されるため、SQLiteの場合のみ実行。
     """
+    if db.db_type == 'mysql':
+        print("MySQLモード: マイグレーションはスキップします")
+        return
+        
     print("データベースの構造をチェック・更新します...")
     with app.app_context():
-        db = get_db()
-        cursor = db.cursor()
-        
-        # 既存のテーブルを確認
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
-        existing_tables = [row[0] for row in cursor.fetchall()]
-        
-        updated = False
-        
-        # historyテーブルが存在しない場合は作成
-        if 'history' not in existing_tables:
-            print("  -> 更新: historyテーブルを作成します。")
-            try:
-                cursor.execute('''
-                    CREATE TABLE history (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        txt TEXT NOT NULL,
-                        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-                    )
-                ''')
-                db.commit()
-                updated = True
-                print("  -> historyテーブルを作成しました。")
-            except Exception as e:
-                print(f"  -> エラー: historyテーブルの作成に失敗しました: {e}")
-        
-        # infoテーブルが存在しない場合は作成
-        if 'info' not in existing_tables:
-            print("  -> 更新: infoテーブルを作成します。")
-            try:
-                cursor.execute('''
-                    CREATE TABLE info (
-                        id INTEGER PRIMARY KEY,
-                        pass TEXT NOT NULL
-                    )
-                ''')
-                # デフォルトの管理者パスワードを設定（admin）
-                default_password = hashlib.sha256('admin'.encode()).hexdigest()
-                cursor.execute("INSERT INTO info (id, pass) VALUES (1, ?)", (default_password,))
-                db.commit()
-                updated = True
-                print("  -> infoテーブルを作成しました。(デフォルトパスワード: admin)")
-            except Exception as e:
-                print(f"  -> エラー: infoテーブルの作成に失敗しました: {e}")
-        
-        # unitsテーブルのカラムを確認
-        if 'units' in existing_tables:
-            cursor.execute("PRAGMA table_info(units)")
-            columns = [row['name'] for row in cursor.fetchall()]
+        with get_connection() as conn:
+            # 既存のテーブルを確認
+            existing_tables_result = db.fetchall(conn, "SELECT name FROM sqlite_master WHERE type='table'")
+            existing_tables = [row['name'] for row in existing_tables_result]
             
-            if 'last_seen' not in columns:
-                print("  -> 更新: unitsテーブルに 'last_seen' カラムを追加します。")
-                try:
-                    cursor.execute("ALTER TABLE units ADD COLUMN last_seen TEXT")
-                    db.commit()
-                    updated = True
-                    print("  -> last_seenカラムを追加しました。")
-                except Exception as e:
-                    print(f"  -> エラー: カラムの追加に失敗しました: {e}")
+            updated = False
             
-            if 'ip_address' not in columns:
-                print("  -> 更新: unitsテーブルに 'ip_address' カラムを追加します。")
+            # historyテーブルが存在しない場合は作成
+            if 'history' not in existing_tables:
+                print("  -> 更新: historyテーブルを作成します。")
                 try:
-                    cursor.execute("ALTER TABLE units ADD COLUMN ip_address TEXT")
-                    db.commit()
+                    db.execute(conn, '''
+                        CREATE TABLE history (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            txt TEXT NOT NULL,
+                            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                        )
+                    ''')
                     updated = True
-                    print("  -> ip_addressカラムを追加しました。")
+                    print("  -> historyテーブルを作成しました。")
                 except Exception as e:
-                    print(f"  -> エラー: カラムの追加に失敗しました: {e}")
-        
-        if not updated:
-            print("  -> データベースは最新です。")
+                    print(f"  -> エラー: historyテーブルの作成に失敗しました: {e}")
+            
+            # infoテーブルが存在しない場合は作成
+            if 'info' not in existing_tables:
+                print("  -> 更新: infoテーブルを作成します。")
+                try:
+                    db.execute(conn, '''
+                        CREATE TABLE info (
+                            id INTEGER PRIMARY KEY,
+                            pass TEXT NOT NULL
+                        )
+                    ''')
+                    # デフォルトの管理者パスワードを設定（admin）
+                    default_password = hashlib.sha256('admin'.encode()).hexdigest()
+                    db.execute(conn, "INSERT INTO info (id, pass) VALUES (?, ?)", (1, default_password))
+                    updated = True
+                    print("  -> infoテーブルを作成しました。(デフォルトパスワード: admin)")
+                except Exception as e:
+                    print(f"  -> エラー: infoテーブルの作成に失敗しました: {e}")
+            
+            # unitsテーブルのカラムを確認
+            if 'units' in existing_tables:
+                columns_result = db.fetchall(conn, "PRAGMA table_info(units)")
+                columns = [row['name'] for row in columns_result]
+                
+                if 'last_seen' not in columns:
+                    print("  -> 更新: unitsテーブルに 'last_seen' カラムを追加します。")
+                    try:
+                        db.execute(conn, "ALTER TABLE units ADD COLUMN last_seen TEXT")
+                        updated = True
+                        print("  -> last_seenカラムを追加しました。")
+                    except Exception as e:
+                        print(f"  -> エラー: カラムの追加に失敗しました: {e}")
+                
+                if 'ip_address' not in columns:
+                    print("  -> 更新: unitsテーブルに 'ip_address' カラムを追加します。")
+                    try:
+                        db.execute(conn, "ALTER TABLE units ADD COLUMN ip_address TEXT")
+                        updated = True
+                        print("  -> ip_addressカラムを追加しました。")
+                    except Exception as e:
+                        print(f"  -> エラー: カラムの追加に失敗しました: {e}")
+            
+            if not updated:
+                print("  -> データベースは最新です。")
 
 # --- ユーティリティ関数 ---
 def add_history(text):
-    db = get_db()
-    now = datetime.now().strftime("%Y-%m-%d %H:%M")
-    db.execute("INSERT INTO history (txt) VALUES (?)", (f"{now}: {text}",))
-    db.commit()
+    with get_connection() as conn:
+        now = datetime.now().strftime("%Y-%m-%d %H:%M")
+        db.execute(conn, "INSERT INTO history (txt) VALUES (?)", (f"{now}: {text}",))
 
 def check_password(password):
-    db = get_db()
-    info = db.execute("SELECT pass FROM info WHERE id = 1").fetchone()
-    return info and info['pass'] == hashlib.sha256(password.encode()).hexdigest()
+    with get_connection() as conn:
+        info = db.fetchone(conn, "SELECT pass FROM info WHERE id = ?", (1,))
+        return info and info['pass'] == hashlib.sha256(password.encode()).hexdigest()
 
 
 # --- ▼▼▼ Tailscale対応 ▼▼▼ ---
@@ -324,11 +323,10 @@ def admin_backup_download():
     """管理者向けにユーザーデータをExcel形式でダウンロードさせる"""
     if not session.get("admin_logged_in"):
         return redirect(url_for("admin_login"))
-    db = get_db()
     try:
         # データベースから全ユーザー情報を取得
-        users_cursor = db.execute("SELECT * FROM users ORDER BY id")
-        users = users_cursor.fetchall()
+        with get_connection() as conn:
+            users = db.fetchall(conn, "SELECT * FROM users ORDER BY id")
         users_list = [dict(row) for row in users]
         if not users_list:
             flash("バックアップ対象のユーザーデータがありません。", "warning")
@@ -372,10 +370,9 @@ def admin_restore():
                 if not all(col in df.columns for col in required_columns):
                     flash('Excelファイルの形式が正しくありません。必須カラムが不足しています。', 'error')
                     return redirect(request.url)
-                db = get_db()
-                with db:
-                    db.execute("DELETE FROM users")
-                    df.to_sql('users', db, if_exists='append', index=False)
+                with get_connection() as conn:
+                    db.execute(conn, "DELETE FROM users")
+                    df.to_sql('users', conn, if_exists='append', index=False)
                 add_history("データ復元完了")
                 flash('データベースの復元が正常に完了しました。', 'success')
                 return redirect(url_for('admin_users'))
@@ -396,9 +393,9 @@ def admin_visuals():
     if not session.get('admin_logged_in'):
         return redirect(url_for('admin_login'))
 
-    db = get_db()
-    # 履歴から「利用を記録しました」というログのみを抽出
-    logs = db.execute("SELECT txt FROM history WHERE txt LIKE '%] 利用を記録しました%'").fetchall()
+    with get_connection() as conn:
+        # 履歴から「利用を記録しました」というログのみを抽出
+        logs = db.fetchall(conn, "SELECT txt FROM history WHERE txt LIKE ?", ('%] 利用を記録しました%',))
 
     timestamps = []
     for log in logs:
@@ -435,10 +432,11 @@ def admin_csv_export():
     """利用履歴をCSV形式でダウンロードする"""
     if not session.get('admin_logged_in'):
         return redirect(url_for('admin_login'))
-    db = get_db()
-    logs = db.execute(
-        "SELECT txt FROM history WHERE txt LIKE '%] 利用を記録しました%' ORDER BY id ASC"
-    ).fetchall()
+    with get_connection() as conn:
+        logs = db.fetchall(conn,
+            "SELECT txt FROM history WHERE txt LIKE ? ORDER BY id ASC",
+            ('%] 利用を記録しました%',)
+        )
     if not logs:
         flash("ダウンロード対象の利用履歴がありません。", "warning")
         return redirect(url_for('admin_dashboard'))
@@ -466,9 +464,9 @@ def admin_log_export():
     if not session.get('admin_logged_in'):
         return redirect(url_for('admin_login'))
 
-    db = get_db()
-    # 履歴テーブルから全てのログをIDの昇順（古い順）で取得
-    logs = db.execute("SELECT txt FROM history ORDER BY id ASC").fetchall()
+    with get_connection() as conn:
+        # 履歴テーブルから全てのログをIDの昇順（古い順）で取得
+        logs = db.fetchall(conn, "SELECT txt FROM history ORDER BY id ASC")
 
     if not logs:
         flash("ダウンロード対象のログがありません。", "warning")
@@ -496,8 +494,8 @@ def admin_history():
     """全ての操作履歴を表示するページ"""
     if not session.get('admin_logged_in'):
         return redirect(url_for('admin_login'))
-    db = get_db()
-    history = db.execute("SELECT * FROM history ORDER BY id DESC").fetchall()
+    with get_connection() as conn:
+        history = db.fetchall(conn, "SELECT * FROM history ORDER BY id DESC")
     return render_template("admin_history.html", history=history)
 
 @app.route("/admin/diagnostics")
@@ -552,15 +550,14 @@ def register():
 
         # カードIDが正常に読み取れた場合のみ処理を続行
         if card_id:
-            db = get_db()
             try:
-                # DBに新しいユーザーを登録
-                now = datetime.now().strftime("%Y-%m-%d %H:%M")
-                db.execute("INSERT INTO users (card_id, entry) VALUES (?, ?)", (card_id, now))
-                db.commit()
+                with get_connection() as conn:
+                    # DBに新しいユーザーを登録
+                    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+                    db.execute(conn, "INSERT INTO users (card_id, entry) VALUES (?, ?)", (card_id, now))
                 add_history(f"新規登録({card_id})")
                 flash(f"登録が完了しました。(カードID: {card_id})", "success")
-            except sqlite3.IntegrityError:
+            except DatabaseError:
                 # "UNIQUE"制約違反エラーを捕捉し、登録済みであることをユーザーに通知
                 flash("この学生証は既に登録済みです。", "warning")
             except Exception as e:
@@ -593,14 +590,14 @@ def usage():
         # 課題1で作成した関数で、実際のカードIDを読み取る
         card_id = read_card_id()
         if card_id:
-            db = get_db()
-            user = db.execute("SELECT * FROM users WHERE card_id = ?", (card_id,)).fetchone()
-            if user:
-                # ユーザーが見つかった場合、結果ページを表示
-                return render_template("usage_result.html", **dict(user))
-            else:
-                flash("この学生証は登録されていません。", "warning")
-                return redirect(url_for("usage"))
+            with get_connection() as conn:
+                user = db.fetchone(conn, "SELECT * FROM users WHERE card_id = ?", (card_id,))
+                if user:
+                    # ユーザーが見つかった場合、結果ページを表示
+                    return render_template("usage_result.html", **dict(user))
+                else:
+                    flash("この学生証は登録されていません。", "warning")
+                    return redirect(url_for("usage"))
         else:
             # カードが読み取れなかった場合（エラーはread_card_id内でflash済み）
             return redirect(url_for("usage"))
@@ -635,14 +632,14 @@ def admin_login():
 def admin_dashboard():
     if not session.get("admin_logged_in"):
         return redirect(url_for("admin_login"))
-    db = get_db()
-    users = db.execute("SELECT * FROM users").fetchall()
-    units = db.execute("SELECT * FROM units").fetchall()
-    history = db.execute("SELECT * FROM history ORDER BY id DESC").fetchall()
+    with get_connection() as conn:
+        users = db.fetchall(conn, "SELECT * FROM users")
+        units = db.fetchall(conn, "SELECT * FROM units")
+        history = db.fetchall(conn, "SELECT * FROM history ORDER BY id DESC")
 
-    # ダッシュボードのサマリー表示用に、排出回数のみをカウント
-    usage_count_row = db.execute("SELECT COUNT(id) FROM history WHERE txt LIKE '%] 利用を記録しました%'").fetchone()
-    usage_count = usage_count_row[0] if usage_count_row else 0
+        # ダッシュボードのサマリー表示用に、排出回数のみをカウント
+        usage_count_row = db.fetchone(conn, "SELECT COUNT(id) as count FROM history WHERE txt LIKE ?", ('%] 利用を記録しました%',))
+        usage_count = usage_count_row['count'] if usage_count_row else 0
 
     return render_template("admin_dashboard.html", users=users, units=units, history=history, usage_count=usage_count)
 
@@ -650,36 +647,37 @@ def admin_dashboard():
 def admin_users():
     if not session.get("admin_logged_in"):
         return redirect(url_for("admin_login"))
-    db = get_db()
-    users = db.execute("SELECT * FROM users").fetchall()
+    with get_connection() as conn:
+        users = db.fetchall(conn, "SELECT * FROM users")
     return render_template("admin_users.html", users=users)
 
 @app.route("/admin/user_detail/<int:uid>", methods=["GET", "POST"])
 def admin_user_detail(uid):
     if not session.get("admin_logged_in"):
         return redirect(url_for("admin_login"))
-    db = get_db()
+    
     if request.method == "POST":
-        # --- 削除処理 ---
-        if request.form.get("action") == "delete":
-            db.execute("DELETE FROM users WHERE id = ?", (uid,))
-            db.commit()
-            add_history(f"利用者を手動削除しました (ID:{uid})")
-            flash(f"利用者(ID:{uid})を削除しました。", "success")
-            return redirect(url_for("admin_users"))
-        # --- 更新処理 ---
-        card_id = request.form.get("cardid")
-        allow = request.form.get("allow")
-        stock = request.form.get("stock")
-        db.execute(
-            "UPDATE users SET card_id = ?, allow = ?, stock = ? WHERE id = ?",
-            (card_id, allow, stock, uid)
-        )
-        db.commit()
+        with get_connection() as conn:
+            # --- 削除処理 ---
+            if request.form.get("action") == "delete":
+                db.execute(conn, "DELETE FROM users WHERE id = ?", (uid,))
+                add_history(f"利用者を手動削除しました (ID:{uid})")
+                flash(f"利用者(ID:{uid})を削除しました。", "success")
+                return redirect(url_for("admin_users"))
+            # --- 更新処理 ---
+            card_id = request.form.get("cardid")
+            allow = request.form.get("allow")
+            stock = request.form.get("stock")
+            db.execute(conn,
+                "UPDATE users SET card_id = ?, allow = ?, stock = ? WHERE id = ?",
+                (card_id, allow, stock, uid)
+            )
         add_history(f"利用者情報を更新しました (ID:{uid})")
         flash(f"利用者(ID:{uid})の情報を更新しました。", "success")
         return redirect(url_for("admin_user_detail", uid=uid))
-    user = db.execute("SELECT * FROM users WHERE id = ?", (uid,)).fetchone()
+    
+    with get_connection() as conn:
+        user = db.fetchone(conn, "SELECT * FROM users WHERE id = ?", (uid,))
     if not user:
         flash("指定された利用者は見つかりません。", "error")
         return redirect(url_for("admin_users"))
@@ -689,85 +687,84 @@ def admin_user_detail(uid):
 def admin_units():
     if not session.get('admin_logged_in'):
         return redirect(url_for('admin_login'))
-    db = get_db()
-    # --- ハートビートのタイムアウト処理 ---
-    # 子機クライアント(unit_client.py)は30秒ごとにハートビートを送信するため、
-    # 65秒以上信号がなければオフラインと判断する。
-    HEARTBEAT_TIMEOUT = timedelta(seconds=65) 
-    now = datetime.now()
     
-    # 現在オンライン(connect=1)になっている子機を取得
-    active_units = db.execute("SELECT * FROM units WHERE connect = 1").fetchall()
-    
-    for unit in active_units:
-        if unit['last_seen']:
-            try:
-                last_seen_dt = datetime.strptime(unit['last_seen'], "%Y-%m-%d %H:%M:%S")
-                # 最終接続時刻からタイムアウト時間を経過しているか確認
-                if now - last_seen_dt > HEARTBEAT_TIMEOUT:
-                    # タイムアウトした場合、接続状態をオフライン(0)に更新
-                    db.execute("UPDATE units SET connect = 0 WHERE id = ?", (unit['id'],))
-                    add_history(f"子機がタイムアウトしました: {unit['name']}")
-            except ValueError:
-                # 日付の形式が不正な場合はスキップ
-                continue
-    
-    db.commit() # 状態の更新を確定
-    # --- タイムアウト処理ここまで ---
+    with get_connection() as conn:
+        # --- ハートビートのタイムアウト処理 ---
+        # 子機クライアント(unit_client.py)は30秒ごとにハートビートを送信するため、
+        # 65秒以上信号がなければオフラインと判断する。
+        HEARTBEAT_TIMEOUT = timedelta(seconds=65) 
+        now = datetime.now()
+        
+        # 現在オンライン(connect=1)になっている子機を取得
+        active_units = db.fetchall(conn, "SELECT * FROM units WHERE connect = ?", (1,))
+        
+        for unit in active_units:
+            if unit['last_seen']:
+                try:
+                    last_seen_dt = datetime.strptime(unit['last_seen'], "%Y-%m-%d %H:%M:%S")
+                    # 最終接続時刻からタイムアウト時間を経過しているか確認
+                    if now - last_seen_dt > HEARTBEAT_TIMEOUT:
+                        # タイムアウトした場合、接続状態をオフライン(0)に更新
+                        db.execute(conn, "UPDATE units SET connect = ? WHERE id = ?", (0, unit['id']))
+                        add_history(f"子機がタイムアウトしました: {unit['name']}")
+                except ValueError:
+                    # 日付の形式が不正な場合はスキップ
+                    continue
+        
+        # --- タイムアウト処理ここまで ---
 
-    # 最新の状態をDBから再度取得して表示
-    all_units = db.execute("SELECT * FROM units ORDER BY id").fetchall()
+        # 最新の状態をDBから再度取得して表示
+        all_units = db.fetchall(conn, "SELECT * FROM units ORDER BY id")
     return render_template("admin_units.html", units=all_units)
 
 @app.route("/admin/unit_detail/<int:uid>", methods=["GET", "POST"])
 def admin_unit_detail(uid):
     if not session.get('admin_logged_in'):
         return redirect(url_for('admin_login'))
-    db = get_db()
 
     if request.method == "POST":
-        # --- 削除処理 ---
-        if request.form.get("action") == "delete":
-            unit_to_delete = db.execute("SELECT name FROM units WHERE id = ?", (uid,)).fetchone()
-            db.execute("DELETE FROM units WHERE id = ?", (uid,))
-            db.commit()
-            add_history(f"子機を手動削除しました (ID:{uid}, 名前:{unit_to_delete['name']})")
-            flash(f"子機(ID:{uid})を削除しました。", "success")
-            return redirect(url_for("admin_units"))
+        with get_connection() as conn:
+            # --- 削除処理 ---
+            if request.form.get("action") == "delete":
+                unit_to_delete = db.fetchone(conn, "SELECT name FROM units WHERE id = ?", (uid,))
+                db.execute(conn, "DELETE FROM units WHERE id = ?", (uid,))
+                add_history(f"子機を手動削除しました (ID:{uid}, 名前:{unit_to_delete['name']})")
+                flash(f"子機(ID:{uid})を削除しました。", "success")
+                return redirect(url_for("admin_units"))
 
-        # --- 更新処理 ---
-        name = request.form.get("name")
+            # --- 更新処理 ---
+            name = request.form.get("name")
 
-        # ▼▼▼ 修正点 ▼▼▼
-        # フォームから受け取った値を整数(int)に変換する
-        try:
-            stock = int(request.form.get("stock", 0))
-            available = int(request.form.get("available", 0))
-        except (ValueError, TypeError):
-            # もし数値に変換できない値が入力された場合は、0として扱う
-            stock = 0
-            available = 0
+            # ▼▼▼ 修正点 ▼▼▼
+            # フォームから受け取った値を整数(int)に変換する
+            try:
+                stock = int(request.form.get("stock", 0))
+                available = int(request.form.get("available", 0))
+            except (ValueError, TypeError):
+                # もし数値に変換できない値が入力された場合は、0として扱う
+                stock = 0
+                available = 0
 
-        db.execute(
-            "UPDATE units SET name = ?, stock = ?, available = ? WHERE id = ?",
-            (name, stock, available, uid)
-        )
-        db.commit()
+            db.execute(conn,
+                "UPDATE units SET name = ?, stock = ?, available = ? WHERE id = ?",
+                (name, stock, available, uid)
+            )
         add_history(f"子機情報を更新しました (ID:{uid}, 名前:{name})")
         flash(f"子機(ID:{uid})の情報を更新しました。", "success")
         return redirect(url_for("admin_unit_detail", uid=uid))
 
-    unit = db.execute("SELECT * FROM units WHERE id = ?", (uid,)).fetchone()
-    if not unit:
-        flash("指定された子機が見つかりません。", "error")
-        return redirect(url_for('admin_units'))
+    with get_connection() as conn:
+        unit = db.fetchone(conn, "SELECT * FROM units WHERE id = ?", (uid,))
+        if not unit:
+            flash("指定された子機が見つかりません。", "error")
+            return redirect(url_for('admin_units'))
 
-    unit_name = unit['name']
-    search_pattern = f"%[{unit_name}]%"
-    logs = db.execute(
-        "SELECT txt FROM history WHERE txt LIKE ? ORDER BY id DESC", 
-        (search_pattern,)
-    ).fetchall()
+        unit_name = unit['name']
+        search_pattern = f"%[{unit_name}]%"
+        logs = db.fetchall(conn,
+            "SELECT txt FROM history WHERE txt LIKE ? ORDER BY id DESC", 
+            (search_pattern,)
+        )
     return render_template("admin_unit_detail.html", unit=unit, logs=logs)
 
 @app.route("/admin/new_unit", methods=["GET", "POST"])
@@ -779,17 +776,16 @@ def admin_new_unit():
         password = request.form.get('password')
         stock = request.form.get('stock', 0)
         available = request.form.get('available', 1)
-        db = get_db()
         try:
-            db.execute(
-                "INSERT INTO units (name, password, stock, available, connect) VALUES (?, ?, ?, ?, 0)",
-                (name, password, stock, available)
-            )
-            db.commit()
+            with get_connection() as conn:
+                db.execute(conn,
+                    "INSERT INTO units (name, password, stock, available, connect) VALUES (?, ?, ?, ?, ?)",
+                    (name, password, stock, available, 0)
+                )
             add_history(f"新しい子機を手動登録しました: {name}")
             flash(f"子機「{name}」を登録しました。", "success")
             return redirect(url_for('admin_units'))
-        except sqlite3.IntegrityError:
+        except DatabaseError:
             flash("エラー: 同じ名前の子機が既に存在します。", "error")
             return redirect(request.url)
         except Exception as e:
@@ -819,57 +815,57 @@ def unit_heartbeat():
         # 必要であればここで特別な処理を行う
         pass
 
-    db = get_db()
-    unit = db.execute("SELECT * FROM units WHERE name = ?", (unit_name,)).fetchone()
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with get_connection() as conn:
+        unit = db.fetchone(conn, "SELECT * FROM units WHERE name = ?", (unit_name,))
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # 1. もし子機が未登録だったら、一時保存する（自動登録はしない）
-    if unit is None:
-        # 未登録子機の情報を保存/更新
-        if unit_name not in unregistered_units:
-            unregistered_units[unit_name] = {
-                'password': unit_pass,
-                'ip_address': unit_ip,
-                'first_seen': now_str,
-                'last_seen': now_str,
-                'heartbeat_count': 1
-            }
-            print(f"[新規発見] 未登録子機: {unit_name} (IP: {unit_ip})")
-        else:
-            unregistered_units[unit_name]['last_seen'] = now_str
-            unregistered_units[unit_name]['heartbeat_count'] += 1
-            unregistered_units[unit_name]['ip_address'] = unit_ip  # IPが変わった場合に更新
+        # 1. もし子機が未登録だったら、一時保存する（自動登録はしない）
+        if unit is None:
+            # 未登録子機の情報を保存/更新
+            if unit_name not in unregistered_units:
+                unregistered_units[unit_name] = {
+                    'password': unit_pass,
+                    'ip_address': unit_ip,
+                    'first_seen': now_str,
+                    'last_seen': now_str,
+                    'heartbeat_count': 1
+                }
+                print(f"[新規発見] 未登録子機: {unit_name} (IP: {unit_ip})")
+            else:
+                unregistered_units[unit_name]['last_seen'] = now_str
+                unregistered_units[unit_name]['heartbeat_count'] += 1
+                unregistered_units[unit_name]['ip_address'] = unit_ip  # IPが変わった場合に更新
+            
+            # 未登録なので拒否応答（stock=0で応答）
+            return jsonify({
+                'success': False,
+                'error': 'Unit not registered. Please contact administrator.',
+                'message': '未登録の子機です。管理者に登録を依頼してください。',
+                'stock': 0
+            }), 403
+
+        # 2. 登録済みの子機の場合、パスワードを検証
+        if unit['password'] != unit_pass:
+            return jsonify({'error': 'Invalid credentials'}), 401
+
+        # 3. 接続状態と最終接続時刻、IPアドレスを更新
+        db.execute(conn,
+            "UPDATE units SET connect = ?, last_seen = ?, ip_address = ? WHERE id = ?",
+            (1, now_str, unit_ip, unit['id'])
+        )
         
-        # 未登録なので拒否応答（stock=0で応答）
+        # 子機からの在庫報告があり、かつサーバー側と食い違っている場合
+        # 基本はサーバー正だが、ログに残すなどの処理が可能
+        # ここではサーバーの値を正として返すので、DB更新は行わない（サーバー主導）
+        
+        # with文を抜けると自動コミット
+        
+        # 4. 最新の在庫情報を付けて応答する
         return jsonify({
-            'success': False,
-            'error': 'Unit not registered. Please contact administrator.',
-            'message': '未登録の子機です。管理者に登録を依頼してください。',
-            'stock': 0
-        }), 403
-
-    # 2. 登録済みの子機の場合、パスワードを検証
-    if unit['password'] != unit_pass:
-        return jsonify({'error': 'Invalid credentials'}), 401
-
-    # 3. 接続状態と最終接続時刻、IPアドレスを更新
-    db.execute(
-        "UPDATE units SET connect = 1, last_seen = ?, ip_address = ? WHERE id = ?",
-        (now_str, unit_ip, unit['id'])
-    )
-    
-    # 子機からの在庫報告があり、かつサーバー側と食い違っている場合
-    # 基本はサーバー正だが、ログに残すなどの処理が可能
-    # ここではサーバーの値を正として返すので、DB更新は行わない（サーバー主導）
-    
-    db.commit()
-    
-    # 4. 最新の在庫情報を付けて応答する
-    return jsonify({
-        'success': True,
-        'message': 'Heartbeat received',
-        'stock': unit['stock']
-    }), 200
+            'success': True,
+            'message': 'Heartbeat received',
+            'stock': unit['stock']
+        }), 200
 
 @app.route('/api/diagnostics', methods=['POST'])
 def receive_diagnostics():
@@ -990,13 +986,12 @@ def register_unit_from_discovery():
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
     try:
-        db = get_db()
-        # データベースに登録
-        db.execute(
-            "INSERT INTO units (name, password, stock, connect, available, last_seen, ip_address) VALUES (?, ?, 0, 1, 1, ?, ?)",
-            (unit_name, unit_info['password'], now_str, unit_info['ip_address'])
-        )
-        db.commit()
+        with get_connection() as conn:
+            # データベースに登録
+            db.execute(conn,
+                "INSERT INTO units (name, password, stock, connect, available, last_seen, ip_address) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (unit_name, unit_info['password'], 0, 1, 1, now_str, unit_info['ip_address'])
+            )
         
         # 履歴に記録
         add_history(f"子機を登録しました: {unit_name} (IP: {unit_info['ip_address']})")
@@ -1030,22 +1025,34 @@ def reader_status():
     このエンドポイントは、接続中の子機のNFC状態を返します。
     """
     try:
-        db = get_db()
-        cursor = db.cursor()
-        
-        # 最近アクティブな子機（過去1分以内に接続確認）を取得
-        # unitsテーブルのカラム: id, name, password, stock, connect, available, last_seen
-        cursor.execute('''
-            SELECT name, last_seen, stock, connect,
-                   (julianday('now') - julianday(last_seen)) * 86400.0 as seconds_ago
-            FROM units
-            WHERE last_seen IS NOT NULL 
-              AND (julianday('now') - julianday(last_seen)) * 86400.0 < 60
-            ORDER BY last_seen DESC
-        ''')
+        with get_connection() as conn:
+            # 最近アクティブな子機（過去1分以内に接続確認）を取得
+            # unitsテーブルのカラム: id, name, password, stock, connect, available, last_seen
+            if db.db_type == 'mysql':
+                # MySQL版: TIMESTAMPDIFF関数を使用
+                query = '''
+                    SELECT name, last_seen, stock, connect,
+                           TIMESTAMPDIFF(SECOND, last_seen, NOW()) as seconds_ago
+                    FROM units
+                    WHERE last_seen IS NOT NULL 
+                      AND TIMESTAMPDIFF(SECOND, last_seen, NOW()) < 60
+                    ORDER BY last_seen DESC
+                '''
+            else:
+                # SQLite版: julianday関数を使用
+                query = '''
+                    SELECT name, last_seen, stock, connect,
+                           (julianday('now') - julianday(last_seen)) * 86400.0 as seconds_ago
+                    FROM units
+                    WHERE last_seen IS NOT NULL 
+                      AND (julianday('now') - julianday(last_seen)) * 86400.0 < 60
+                    ORDER BY last_seen DESC
+                '''
+            
+            rows = db.fetchall(conn, query)
         
         active_units = []
-        for row in cursor.fetchall():
+        for row in rows:
             active_units.append({
                 "unit_name": row['name'],
                 "last_seen": row['last_seen'],
@@ -1140,14 +1147,14 @@ def local_nfc_reader():
 
 @app.route('/api/users', methods=['GET'])
 def api_get_users():
-    db = get_db()
-    users = db.execute('SELECT * FROM users').fetchall()
+    with get_connection() as conn:
+        users = db.fetchall(conn, 'SELECT * FROM users')
     return jsonify([dict(row) for row in users])
 
 @app.route('/api/users/<string:card_id>', methods=['GET'])
 def api_get_user_by_card(card_id):
-    db = get_db()
-    user = db.execute('SELECT * FROM users WHERE card_id = ?', (card_id,)).fetchone()
+    with get_connection() as conn:
+        user = db.fetchone(conn, 'SELECT * FROM users WHERE card_id = ?', (card_id,))
     if user:
         return jsonify(dict(user))
     return jsonify({'error': 'User not found'}), 404
@@ -1175,49 +1182,48 @@ def api_record_usage():
     if not all([card_id, unit_name]):
         return jsonify({'error': 'Card ID and Unit Name are required'}), 400
 
-    db = get_db()
-
-    # --- 1. 子機の在庫と利用可能状態を確認 ---
-    unit = db.execute("SELECT * FROM units WHERE name = ?", (unit_name,)).fetchone()
-    if not unit:
-        return jsonify({'error': 'Unit not found'}), 404
-    
-    if unit['stock'] <= 0 or unit['available'] == 0:
-        # 在庫がない場合、ログを記録してエラーを返す
-        message = f"在庫不足のため利用不可 ({card_id})"
-        add_history(f"[{unit_name}] {message}")
-        return jsonify({'error': 'Unit has no stock remaining'}), 400
-
-    # --- 2. 利用者の利用資格を確認 ---
-    user = db.execute("SELECT * FROM users WHERE card_id = ?", (card_id,)).fetchone()
-    if not user:
-        return jsonify({'error': 'User not found'}), 404
-    if user['stock'] <= 0:
-        return jsonify({'error': 'User has no stock remaining'}), 400
-
-    # --- 3. 両方の残数/在庫を更新 ---
     try:
-        # 利用者の残数を減らす
-        new_user_stock = user['stock'] - 1
-        new_total = user['total'] + 1
-        db.execute("UPDATE users SET stock = ?, total = ? WHERE card_id = ?", 
-                   (new_user_stock, new_total, card_id))
-        
-        # 子機の在庫を減らす
-        new_unit_stock = unit['stock'] - 1
-        db.execute("UPDATE units SET stock = ? WHERE name = ?", 
-                   (new_unit_stock, unit_name))
+        with get_connection() as conn:
+            # --- 1. 子機の在庫と利用可能状態を確認 ---
+            unit = db.fetchone(conn, "SELECT * FROM units WHERE name = ?", (unit_name,))
+            if not unit:
+                return jsonify({'error': 'Unit not found'}), 404
+            
+            if unit['stock'] <= 0 or unit['available'] == 0:
+                # 在庫がない場合、ログを記録してエラーを返す
+                message = f"在庫不足のため利用不可 ({card_id})"
+                add_history(f"[{unit_name}] {message}")
+                return jsonify({'error': 'Unit has no stock remaining'}), 400
 
-        # もし子機の在庫が0になったら、利用不可(available=0)にする
-        if new_unit_stock <= 0:
-            db.execute("UPDATE units SET available = 0 WHERE name = ?", (unit_name,))
-            add_history(f"[{unit_name}] 在庫が0になったため、自動的に排出を停止しました。")
+            # --- 2. 利用者の利用資格を確認 ---
+            user = db.fetchone(conn, "SELECT * FROM users WHERE card_id = ?", (card_id,))
+            if not user:
+                return jsonify({'error': 'User not found'}), 404
+            if user['stock'] <= 0:
+                return jsonify({'error': 'User has no stock remaining'}), 400
 
-        db.commit() # トランザクションを確定
-        return jsonify({'success': True, 'message': 'Usage recorded and unit stock updated.'})
+            # --- 3. 両方の残数/在庫を更新 ---
+            # 利用者の残数を減らす
+            new_user_stock = user['stock'] - 1
+            new_total = user['total'] + 1
+            db.execute(conn, "UPDATE users SET stock = ?, total = ? WHERE card_id = ?", 
+                       (new_user_stock, new_total, card_id))
+            
+            # 子機の在庫を減らす
+            new_unit_stock = unit['stock'] - 1
+            db.execute(conn, "UPDATE units SET stock = ? WHERE name = ?", 
+                       (new_unit_stock, unit_name))
+
+            # もし子機の在庫が0になったら、利用不可(available=0)にする
+            if new_unit_stock <= 0:
+                db.execute(conn, "UPDATE units SET available = 0 WHERE name = ?", (unit_name,))
+                add_history(f"[{unit_name}] 在庫が0になったため、自動的に排出を停止しました。")
+
+            # with文を抜けると自動コミット
+            return jsonify({'success': True, 'message': 'Usage recorded and unit stock updated.'})
 
     except Exception as e:
-        db.rollback() # エラーが発生した場合は変更を元に戻す
+        # エラーが発生した場合は自動ロールバック
         print(f"!! 在庫更新エラー: {e}")
         return jsonify({'error': f'Database error: {e}'}), 500
 

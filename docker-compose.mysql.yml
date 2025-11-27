@@ -1,0 +1,56 @@
+services:
+  # MySQLデータベース
+  mysql:
+    image: mysql:8.0
+    container_name: oiteru_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: oiteru_root_password_2025
+      MYSQL_DATABASE: oiteru
+      MYSQL_USER: oiteru_user
+      MYSQL_PASSWORD: oiteru_password_2025
+      MYSQL_ROOT_HOST: '%'
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init_mysql.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "3306:3306"
+    networks:
+      - oiteru_network
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
+  # Flaskアプリケーション
+  flask:
+    build: .
+    container_name: oiteru_flask
+    privileged: true
+    devices:
+      - /dev/bus/usb:/dev/bus/usb
+    volumes:
+      - ./diagnostics.py:/app/diagnostics.py
+      - ./data_viewer.py:/app/data_viewer.py
+      - ./db_adapter.py:/app/db_adapter.py
+      - /run/pcscd/pcscd.comm:/run/pcscd/pcscd.comm
+    ports:
+      - "5000:5000"
+    environment:
+      - DB_TYPE=mysql
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_DATABASE=oiteru
+      - MYSQL_USER=oiteru_user
+      - MYSQL_PASSWORD=oiteru_password_2025
+      - PCSCLITE_SOCKET=/run/pcscd/pcscd.comm
+    depends_on:
+      - mysql
+    restart: unless-stopped
+    networks:
+      - oiteru_network
+
+volumes:
+  mysql_data:
+    driver: local
+
+networks:
+  oiteru_network:
+    driver: bridge
