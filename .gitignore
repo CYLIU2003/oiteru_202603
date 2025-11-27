@@ -1,1 +1,7 @@
 oiteru.sqlite3
+oiteru.sqlite3.backup_*
+*.xlsx
+users_*.xlsx
+stats_*.xlsx
+__pycache__/
+*.pyc
