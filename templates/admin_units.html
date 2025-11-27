@@ -8,19 +8,25 @@
     </tr>
     {% for unit in units %}
     <tr>
-      <td>{{ unit[0] }}</td>
-      <td>{{ unit[1] }}</td>
-      <td>{{ unit[2] }}</td>
-      <td>{{ unit[3] }}</td>
+      <td>{{ unit['id'] }}</td>
+      <td>{{ unit['name'] }}</td>
+      <td>{{ unit['password'] }}</td>
+      <td>{{ unit['stock'] }}</td>
       <td>
-        {% if unit[4] == 1 %}
+        {% if unit['connect'] == 1 %}
           <span style="color: green;">● オンライン</span>
         {% else %}
           <span style="color: red;">● オフライン</span>
         {% endif %}
       </td>
-      <td>{{ unit[5] }}</td>
-      <td><a href="{{ url_for('admin_unit_detail', uid=unit[0]) }}" class="btn btn-secondary">開く</a></td>
+      <td>
+        {% if unit['available'] == 1 %}
+          <span style="color: green;">✓ 有効</span>
+        {% else %}
+          <span style="color: gray;">✗ 無効</span>
+        {% endif %}
+      </td>
+      <td><a href="{{ url_for('admin_unit_detail', uid=unit['id']) }}" class="btn btn-secondary">開く</a></td>
     </tr>
     {% endfor %}
   </table>

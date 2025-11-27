@@ -8,13 +8,13 @@
     </tr>
     {% for u in users %}
     <tr>
-      <td>{{ u[0] }}</td>
-      <td>{{ u[1] }}</td>
-      <td>{{ u[2] }}</td>
-      <td>{{ u[3] }}</td>
-      <td>{{ u[4] }}</td>
-      <td>{{ u[6] }}</td>
-      <td><a href="{{ url_for('admin_user_detail', uid=u[0]) }}">開く</a></td>
+      <td>{{ u['id'] }}</td>
+      <td>{{ u['card_id'] }}</td>
+      <td>{{ u['allow'] }}</td>
+      <td>{{ u['entry'] }}</td>
+      <td>{{ u['stock'] }}</td>
+      <td>{{ u['total'] }}</td>
+      <td><a href="{{ url_for('admin_user_detail', uid=u['id']) }}">開く</a></td>
     </tr>
     {% endfor %}
   </table>

@@ -4,7 +4,7 @@
   <h2>利用履歴</h2>
   <ul class="history-list">
     {% for entry in history %}
-      <li>{{ entry[1] }}</li>
+      <li>{{ entry['txt'] }} <span style="color: gray; font-size: 0.9em;">({{ entry['created_at'] }})</span></li>
     {% endfor %}
   </ul>
   <p><a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">管理者メニューに戻る</a></p>
