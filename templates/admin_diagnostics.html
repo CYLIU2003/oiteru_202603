@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+
+{% block title %}診断情報{% endblock %}
+
+{% block content %}
+<style>
+    .diagnostic-card {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .diagnostic-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid #e0e0e0;
+    }
+    .diagnostic-header h3 {
+        margin: 0;
+        color: #333;
+    }
+    .timestamp {
+        color: #666;
+        font-size: 0.9em;
+    }
+    .diagnostic-item {
+        display: flex;
+        align-items: center;
+        padding: 10px;
+        margin: 5px 0;
+        background: #f8f9fa;
+        border-radius: 4px;
+    }
+    .diagnostic-item.ok {
+        border-left: 4px solid #28a745;
+    }
+    .diagnostic-item.error {
+        border-left: 4px solid #dc3545;
+    }
+    .diagnostic-icon {
+        font-size: 1.5em;
+        margin-right: 15px;
+        min-width: 30px;
+    }
+    .diagnostic-content {
+        flex: 1;
+    }
+    .component-name {
+        font-weight: bold;
+        color: #333;
+        margin-bottom: 3px;
+    }
+    .component-detail {
+        color: #666;
+        font-size: 0.9em;
+    }
+    .log-section {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        margin-top: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .log-entry {
+        padding: 8px;
+        margin: 5px 0;
+        font-family: 'Courier New', monospace;
+        font-size: 0.9em;
+        border-left: 3px solid #ccc;
+        background: #f8f9fa;
+    }
+    .log-entry.INFO {
+        border-left-color: #17a2b8;
+    }
+    .log-entry.WARNING {
+        border-left-color: #ffc107;
+    }
+    .log-entry.ERROR {
+        border-left-color: #dc3545;
+    }
+    .log-entry.DEBUG {
+        border-left-color: #6c757d;
+    }
+    .log-timestamp {
+        color: #666;
+        margin-right: 10px;
+    }
+    .log-level {
+        font-weight: bold;
+        margin-right: 10px;
+        padding: 2px 6px;
+        border-radius: 3px;
+    }
+    .log-level.INFO {
+        background: #d1ecf1;
+        color: #0c5460;
+    }
+    .log-level.WARNING {
+        background: #fff3cd;
+        color: #856404;
+    }
+    .log-level.ERROR {
+        background: #f8d7da;
+        color: #721c24;
+    }
+    .log-level.DEBUG {
+        background: #e2e3e5;
+        color: #383d41;
+    }
+    .no-data {
+        text-align: center;
+        padding: 40px;
+        color: #666;
+    }
+</style>
+
+<div class="container-fluid">
+    <h2 class="mb-4">子機診断情報</h2>
+    
+    {% if diagnostics %}
+        {% for unit_name, diag_info in diagnostics.items() %}
+        <div class="diagnostic-card">
+            <div class="diagnostic-header">
+                <h3>🖥️ {{ unit_name }}</h3>
+                <span class="timestamp">
+                    📅 {{ diag_info.timestamp }} 
+                    | 🌐 {{ diag_info.ip_address }}
+                </span>
+            </div>
+            
+            {% for component, status, detail in diag_info.diagnostics %}
+            <div class="diagnostic-item {% if status == 'OK' %}ok{% else %}error{% endif %}">
+                <div class="diagnostic-icon">
+                    {% if status == 'OK' %}✅{% else %}❌{% endif %}
+                </div>
+                <div class="diagnostic-content">
+                    <div class="component-name">{{ component }}</div>
+                    <div class="component-detail">{{ detail }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="diagnostic-card">
+            <div class="no-data">
+                診断情報がまだ送信されていません。<br>
+                子機が起動すると、ここに診断結果が表示されます。
+            </div>
+        </div>
+    {% endif %}
+    
+    <h2 class="mb-4 mt-5">リアルタイムログ</h2>
+    
+    {% if logs %}
+        {% for unit_name, log_entries in logs.items() %}
+        <div class="log-section">
+            <h4>📝 {{ unit_name }}</h4>
+            {% for log in log_entries[-50:] %}  {# 最新50件を表示 #}
+            <div class="log-entry {{ log.level }}">
+                <span class="log-timestamp">{{ log.timestamp }}</span>
+                <span class="log-level {{ log.level }}">{{ log.level }}</span>
+                <span class="log-message">{{ log.message }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="log-section">
+            <div class="no-data">
+                ログがまだ送信されていません。<br>
+                子機が動作すると、ここにログが表示されます。
+            </div>
+        </div>
+    {% endif %}
+    
+    <div class="mt-4 mb-4">
+        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">ダッシュボードに戻る</a>
+        <button onclick="location.reload()" class="btn btn-primary">🔄 更新</button>
+    </div>
+</div>
+
+<script>
+// 30秒ごとに自動更新
+setTimeout(function() {
+    location.reload();
+}, 30000);
+</script>
+{% endblock %}

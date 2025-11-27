@@ -5,6 +5,7 @@ import json
 import os
 import socket
 import subprocess # Tailscale対応のため追加
+import queue
 from pathlib import Path
 
 # --------------------------------------------------------------------------
@@ -583,6 +584,129 @@ class SettingsGUI:
 # --------------------------------------------------------------------------
 # --- メインクライアント処理 ---
 # --------------------------------------------------------------------------
+def startup_diagnostics(config):
+    """起動時診断 - BIOS風チェック"""
+    print("\n" + "=" * 70)
+    print("  OITERU子機クライアント - 起動診断")
+    print("=" * 70)
+    
+    diagnostics = []
+    
+    # 1. Tailscale接続チェック
+    print("\n[1/6] Tailscale接続チェック...")
+    try:
+        result = subprocess.run(['tailscale', 'status'], capture_output=True, text=True, timeout=5)
+        if result.returncode == 0 and 'online' in result.stdout.lower():
+            tailscale_ip = subprocess.run(['tailscale', 'ip', '-4'], capture_output=True, text=True).stdout.strip()
+            print(f"  ✓ Tailscale接続: OK (IP: {tailscale_ip})")
+            diagnostics.append(("Tailscale", "OK", tailscale_ip))
+        else:
+            print("  ⚠ Tailscale接続: オフライン")
+            diagnostics.append(("Tailscale", "オフライン", "N/A"))
+    except Exception as e:
+        print(f"  ✗ Tailscale接続: 未インストールまたはエラー")
+        diagnostics.append(("Tailscale", "エラー", str(e)[:30]))
+    
+    # 2. NFCリーダーチェック
+    print("\n[2/6] NFCリーダーチェック...")
+    try:
+        import nfc
+        clf = nfc.ContactlessFrontend('usb')
+        if clf:
+            device_path = str(clf.device)
+            print(f"  ✓ NFCリーダー: 検出 ({device_path})")
+            diagnostics.append(("NFCリーダー", "OK", device_path))
+            clf.close()
+        else:
+            print("  ✗ NFCリーダー: 未接続")
+            diagnostics.append(("NFCリーダー", "未接続", "N/A"))
+    except Exception as e:
+        print(f"  ✗ NFCリーダー: エラー ({str(e)[:40]})")
+        diagnostics.append(("NFCリーダー", "エラー", str(e)[:30]))
+    
+    # 3. GPIO/I2Cチェック
+    print("\n[3/6] GPIO/I2Cチェック...")
+    if PLATFORM == "RASPI":
+        try:
+            import RPi.GPIO as GPIO
+            GPIO.setmode(GPIO.BCM)
+            print("  ✓ GPIO: 利用可能")
+            diagnostics.append(("GPIO", "OK", "BCMモード"))
+            
+            # I2Cチェック
+            if config.get('CONTROL_METHOD') == 'RASPI_DIRECT':
+                import Adafruit_PCA9685
+                pwm = Adafruit_PCA9685.PCA9685()
+                pwm.set_pwm_freq(50)
+                print("  ✓ I2C/PCA9685: 利用可能")
+                diagnostics.append(("I2C/PCA9685", "OK", "0x40"))
+        except Exception as e:
+            print(f"  ⚠ GPIO/I2C: エラー ({str(e)[:40]})")
+            diagnostics.append(("GPIO/I2C", "エラー", str(e)[:30]))
+    else:
+        print("  - GPIO/I2C: PCモード (スキップ)")
+        diagnostics.append(("GPIO/I2C", "スキップ", "PCモード"))
+    
+    # 4. 親機サーバー接続チェック
+    print("\n[4/6] 親機サーバー接続チェック...")
+    server_url = config.get('SERVER_URL')
+    try:
+        response = requests.get(f"{server_url}/api/health", timeout=5)
+        if response.status_code == 200:
+            print(f"  ✓ 親機サーバー: 接続OK ({server_url})")
+            diagnostics.append(("親機サーバー", "OK", server_url))
+        else:
+            print(f"  ✗ 親機サーバー: エラー (status={response.status_code})")
+            diagnostics.append(("親機サーバー", "エラー", f"HTTP {response.status_code}"))
+    except Exception as e:
+        print(f"  ✗ 親機サーバー: 接続失敗 ({str(e)[:40]})")
+        diagnostics.append(("親機サーバー", "接続失敗", server_url))
+    
+    # 5. ネットワークチェック
+    print("\n[5/6] ネットワークチェック...")
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        local_ip = s.getsockname()[0]
+        s.close()
+        print(f"  ✓ ローカルネットワーク: OK (IP: {local_ip})")
+        diagnostics.append(("ローカルIP", "OK", local_ip))
+    except Exception:
+        print("  ✗ ローカルネットワーク: 接続不可")
+        diagnostics.append(("ローカルIP", "エラー", "N/A"))
+    
+    # 6. 設定ファイルチェック
+    print("\n[6/6] 設定ファイルチェック...")
+    required_keys = ['SERVER_URL', 'UNIT_NAME', 'MOTOR_TYPE', 'CONTROL_METHOD']
+    missing = [k for k in required_keys if not config.get(k)]
+    if not missing:
+        print("  ✓ 設定ファイル: 完全")
+        diagnostics.append(("設定ファイル", "OK", "すべて設定済み"))
+    else:
+        print(f"  ⚠ 設定ファイル: 不完全 (不足: {', '.join(missing)})")
+        diagnostics.append(("設定ファイル", "不完全", ', '.join(missing)))
+    
+    print("\n" + "=" * 70)
+    print("  診断完了")
+    print("=" * 70)
+    
+    return diagnostics
+
+def send_diagnostics_to_server(server_url, unit_name, diagnostics):
+    """診断結果を親機に送信"""
+    try:
+        payload = {
+            "unit_name": unit_name,
+            "diagnostics": [
+                {"component": d[0], "status": d[1], "detail": d[2]}
+                for d in diagnostics
+            ],
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+        }
+        requests.post(f"{server_url}/api/diagnostics", json=payload, timeout=5)
+    except Exception as e:
+        print(f"  ⚠ 診断結果の送信に失敗: {e}")
+
 def run_client(config, stop_event, gui_queue):
     SERVER_URL = config.get('SERVER_URL')
     UNIT_NAME = config.get('UNIT_NAME')
@@ -597,6 +721,10 @@ def run_client(config, stop_event, gui_queue):
     MOTOR_SPEED = config.get('MOTOR_SPEED', 100)
     MOTOR_DURATION = config.get('MOTOR_DURATION', 2.0)
     MOTOR_REVERSE = config.get('MOTOR_REVERSE', False)
+
+    # 起動時診断を実行
+    diagnostics = startup_diagnostics(config)
+    send_diagnostics_to_server(SERVER_URL, UNIT_NAME, diagnostics)
 
     PLATFORM_RUNTIME = PLATFORM
     serial = None

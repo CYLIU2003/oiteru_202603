@@ -36,6 +36,14 @@ DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'oiteru.sqlit
 # {unit_name: {password, ip_address, first_seen, last_seen, heartbeat_count}}
 unregistered_units = {}
 
+# 子機からの診断情報保存用（メモリ内）
+# {unit_name: {timestamp, diagnostics: [(component, status, detail), ...], ip_address}}
+unit_diagnostics = {}
+
+# 子機からのログ保存用（メモリ内）
+# {unit_name: [{timestamp, level, message, ip_address}, ...]}
+unit_logs = {}
+
 
 # --- DB Helpers ---
 
@@ -492,6 +500,17 @@ def admin_history():
     history = db.execute("SELECT * FROM history ORDER BY id DESC").fetchall()
     return render_template("admin_history.html", history=history)
 
+@app.route("/admin/diagnostics")
+def admin_diagnostics():
+    """子機の起動診断情報を表示するページ"""
+    if not session.get('admin_logged_in'):
+        return redirect(url_for('admin_login'))
+    
+    # 診断情報とログをテンプレートに渡す
+    return render_template("admin_diagnostics.html", 
+                         diagnostics=unit_diagnostics,
+                         logs=unit_logs)
+
 # ↑↑↑↑ ここまで貼り付け ↑↑↑↑
 @app.route("/")
 def index():
@@ -824,6 +843,81 @@ def unit_heartbeat():
         'success': True,
         'message': 'Heartbeat received',
         'stock': unit['stock']
+    }), 200
+
+@app.route('/api/diagnostics', methods=['POST'])
+def receive_diagnostics():
+    """子機からの起動時診断結果を受け取り保存"""
+    data = request.json
+    unit_name = data.get('unit_name')
+    diagnostics = data.get('diagnostics')  # [(component, status, detail), ...]
+    timestamp = data.get('timestamp')
+    
+    if not all([unit_name, diagnostics]):
+        return jsonify({'error': 'unit_name and diagnostics are required'}), 400
+    
+    # 診断情報をメモリに保存（グローバル変数を使用）
+    if 'unit_diagnostics' not in globals():
+        global unit_diagnostics
+        unit_diagnostics = {}
+    
+    unit_diagnostics[unit_name] = {
+        'timestamp': timestamp or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        'diagnostics': diagnostics,
+        'ip_address': request.remote_addr
+    }
+    
+    # ログに記録
+    print(f"[診断情報] {unit_name} から受信:")
+    for component, status, detail in diagnostics:
+        status_icon = "✅" if status == "OK" else "❌"
+        print(f"  {status_icon} {component}: {detail}")
+    
+    return jsonify({
+        'success': True,
+        'message': 'Diagnostics received'
+    }), 200
+
+@app.route('/api/log', methods=['POST'])
+def receive_log():
+    """子機からのリアルタイムログを受け取り保存"""
+    data = request.json
+    unit_name = data.get('unit_name')
+    log_level = data.get('level', 'INFO')  # DEBUG, INFO, WARNING, ERROR
+    message = data.get('message')
+    timestamp = data.get('timestamp')
+    
+    if not all([unit_name, message]):
+        return jsonify({'error': 'unit_name and message are required'}), 400
+    
+    # ログをメモリに保存（グローバル変数を使用）
+    if 'unit_logs' not in globals():
+        global unit_logs
+        unit_logs = {}
+    
+    if unit_name not in unit_logs:
+        unit_logs[unit_name] = []
+    
+    log_entry = {
+        'timestamp': timestamp or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        'level': log_level,
+        'message': message,
+        'ip_address': request.remote_addr
+    }
+    
+    unit_logs[unit_name].append(log_entry)
+    
+    # 最新1000件のみ保持
+    if len(unit_logs[unit_name]) > 1000:
+        unit_logs[unit_name] = unit_logs[unit_name][-1000:]
+    
+    # サーバーコンソールにも出力
+    level_prefix = f"[{log_level}]"
+    print(f"{level_prefix} [{unit_name}] {message}")
+    
+    return jsonify({
+        'success': True,
+        'message': 'Log received'
     }), 200
 
 @app.route('/api/unregistered_units', methods=['GET'])
