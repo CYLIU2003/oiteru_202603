@@ -185,6 +185,35 @@ usbipd attach --wsl --busid <BUSID>
 
 ---
 
+## 📊 データ参照・共有
+
+### 他のPCからデータにアクセスする方法
+
+データベースには個人情報が含まれるため、GitHubには同期しません。以下の方法でデータにアクセスできます。
+
+#### 方法1: データエクスポート（推奨）
+
+親機でExcel形式にエクスポートして共有します。
+
+```bash
+# 全データをExcel出力
+python data_viewer.py export-all
+
+# 出力されたExcelファイルをOneDrive/Google Driveで共有
+```
+
+#### 方法2: Tailscaleリモートアクセス
+
+親機の管理画面にリモートアクセスします。
+
+1. Tailscaleで同じアカウントにログイン
+2. ブラウザで `http://100.x.x.x:5000/admin` にアクセス
+3. データをリアルタイムで確認・ダウンロード
+
+詳細は [REMOTE_ACCESS.md](REMOTE_ACCESS.md) を参照してください。
+
+---
+
 ## ❓ トラブルシューティング
 
 | 現象 | 確認事項 |
@@ -192,6 +221,19 @@ usbipd attach --wsl --busid <BUSID>
 | **親機に繋がらない** | Tailscaleが親機・子機両方で「Connected」になっていますか？<br>親機のファイアウォール設定を確認してください。 |
 | **NFCリーダーが動かない** | USBケーブルはしっかり刺さっていますか？<br>WSL2の場合、`usbipd attach` を忘れていませんか？ |
 | **Permission denied** | Raspberry PiでGPIOを操作するには権限が必要です。<br>`sudo python unit_client.py` で実行してみてください。 |
+| **データが見られない** | `data_viewer.py`を使用してExcel出力してください。<br>詳細は [REMOTE_ACCESS.md](REMOTE_ACCESS.md) を参照。 |
+
+詳しくは [TROUBLESHOOTING.md](TROUBLESHOOTING.md) を参照してください。
+
+---
+
+## 📚 関連ドキュメント
+
+- [DIAGNOSTICS.md](DIAGNOSTICS.md) - システム診断機能
+- [REMOTE_ACCESS.md](REMOTE_ACCESS.md) - リモートアクセス・データ共有
+- [DOCKER_UNIT.md](DOCKER_UNIT.md) - Docker対応の詳細
+- [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - トラブルシューティング
+- [MANUAL.md](MANUAL.md) - 操作マニュアル
 
 ---
 
