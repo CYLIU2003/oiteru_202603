@@ -3,10 +3,17 @@ services:
     build: .
     container_name: oiteru_flask
     privileged: true  # Required for USB device access
+    devices:
+      - /dev/bus/usb:/dev/bus/usb  # USB devices
     volumes:
       - ./oiteru.sqlite3:/app/oiteru.sqlite3
       - ./userdb.sqlite3:/app/userdb.sqlite3
-      - /dev/bus/usb:/dev/bus/usb  # Mount USB devices (WSL2 only)
+      - ./diagnostics.py:/app/diagnostics.py
+      - ./data_viewer.py:/app/data_viewer.py
+      - /run/pcscd/pcscd.comm:/run/pcscd/pcscd.comm  # PC/SC daemon socket
     ports:
       - "5000:5000"
+    environment:
+      - PCSCLITE_SOCKET=/run/pcscd/pcscd.comm
     restart: unless-stopped
+    network_mode: host  # Use host network for better USB access

@@ -136,8 +136,41 @@ def check_network_connectivity() -> Tuple[str, str]:
         return ("WARNING", f"チェック失敗: {str(e)}")
 
 def check_nfc_reader() -> Tuple[str, str]:
-    """NFCリーダーチェック（親機では不要だが情報として）"""
-    # 親機ではNFCリーダーを使用しないため、これは情報提供のみ
+    """NFCリーダーチェック"""
+    # Dockerコンテナ内で実行されているかチェック
+    in_docker = os.path.exists('/.dockerenv')
+    
+    if in_docker:
+        # Docker環境の場合、USBデバイスをチェック
+        usb_dir = '/dev/bus/usb'
+        if not os.path.exists(usb_dir):
+            return ("FAIL", "USBデバイスディレクトリが存在しません (/dev/bus/usb)")
+        
+        # USBデバイスの数を確認
+        usb_devices = []
+        try:
+            for root, dirs, files in os.walk(usb_dir):
+                usb_devices.extend([f for f in files if f.isdigit()])
+        except Exception as e:
+            return ("WARNING", f"USBデバイス確認エラー: {str(e)}")
+        
+        if not usb_devices:
+            return ("WARNING", "USBデバイスが検出されません。docker-compose.ymlの設定を確認してください")
+        else:
+            return ("OK", f"{len(usb_devices)}個のUSBデバイスを検出")
+    else:
+        # ホスト環境の場合、nfcpyで確認
+        try:
+            import nfc
+            try:
+                clf = nfc.ContactlessFrontend('usb')
+                clf.close()
+                return ("OK", "NFCリーダーが接続されています")
+            except IOError:
+                return ("WARNING", "NFCリーダーが見つかりません（オプション）")
+        except ImportError:
+            return ("WARNING", "nfcpyがインストールされていません（オプション）")
+    
     return ("OK", "親機ではNFCリーダー不要（子機で使用）")
 
 def check_static_files() -> Tuple[str, str]:
@@ -214,20 +247,53 @@ def check_config_file() -> Tuple[str, str]:
 
 def check_docker_environment() -> Tuple[str, str]:
     """Docker環境チェック"""
-    try:
-        result = subprocess.run(['docker', '--version'], 
-                              capture_output=True, 
-                              text=True, 
-                              timeout=5)
-        if result.returncode == 0:
-            version = result.stdout.strip()
-            return ("OK", f"Docker利用可能: {version}")
-        else:
-            return ("WARNING", "Dockerコマンド実行エラー")
-    except FileNotFoundError:
-        return ("WARNING", "Dockerがインストールされていません（オプション）")
-    except Exception as e:
-        return ("WARNING", f"Dockerチェック失敗: {str(e)}")
+    # Dockerコンテナ内で実行されているかチェック
+    in_docker = os.path.exists('/.dockerenv')
+    
+    if in_docker:
+        # コンテナ内で実行中
+        docker_info = []
+        
+        # ホスト名を確認
+        try:
+            hostname = socket.gethostname()
+            docker_info.append(f"コンテナ名: {hostname}")
+        except:
+            pass
+        
+        # privilegedモードかチェック
+        try:
+            with open('/proc/self/status', 'r') as f:
+                for line in f:
+                    if line.startswith('CapEff:'):
+                        cap_eff = line.split(':')[1].strip()
+                        # 全権限があればprivilegedモード
+                        if cap_eff == 'ffffffffff' or cap_eff == '0000003fffffffff':
+                            docker_info.append("privilegedモード: 有効")
+                        else:
+                            docker_info.append("privilegedモード: 無効")
+                        break
+        except:
+            pass
+        
+        info_str = ", ".join(docker_info) if docker_info else "Docker環境で実行中"
+        return ("OK", info_str)
+    else:
+        # ホスト環境でDockerコマンドをチェック
+        try:
+            result = subprocess.run(['docker', '--version'], 
+                                  capture_output=True, 
+                                  text=True, 
+                                  timeout=5)
+            if result.returncode == 0:
+                version = result.stdout.strip()
+                return ("OK", f"Docker利用可能: {version}")
+            else:
+                return ("WARNING", "Dockerコマンド実行エラー")
+        except FileNotFoundError:
+            return ("WARNING", "Dockerがインストールされていません（オプション）")
+        except Exception as e:
+            return ("WARNING", f"Dockerチェック失敗: {str(e)}")
 
 def run_full_diagnostics(db_path: str = 'oiteru.sqlite3', verbose: bool = True) -> List[Dict]:
     """全ての診断を実行"""
