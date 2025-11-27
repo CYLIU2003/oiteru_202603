@@ -57,6 +57,10 @@ class DatabaseConnection:
         
         try:
             yield conn
+            conn.commit()  # 正常終了時はコミット
+        except Exception:
+            conn.rollback()  # エラー時はロールバック
+            raise
         finally:
             conn.close()
     
