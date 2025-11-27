@@ -21,7 +21,9 @@ services:
 
   # Flaskアプリケーション
   flask:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.mysql
     container_name: oiteru_flask
     privileged: true
     devices:

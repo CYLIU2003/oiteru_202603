@@ -1,5 +1,5 @@
 """
-データベース抽象化レイヤー
+データベース抽張化レイヤー
 SQLiteとMySQLの両方をサポート
 """
 
@@ -16,6 +16,11 @@ if DB_TYPE == 'mysql':
     pymysql.install_as_MySQLdb()
     import MySQLdb
     from MySQLdb.cursors import DictCursor
+    # MySQLのIntegrityErrorを使用
+    DatabaseError = MySQLdb.IntegrityError
+else:
+    # SQLiteのIntegrityErrorを使用
+    DatabaseError = sqlite3.IntegrityError
 
 class DatabaseConnection:
     """データベース接続を管理するクラス"""

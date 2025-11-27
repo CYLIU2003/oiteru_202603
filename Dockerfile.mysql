@@ -1,0 +1,53 @@
+# Use Python 3.11 slim image
+FROM python:3.11-slim
+
+# Install system dependencies for USB/NFC reader support
+# libusb, pcscd (PC/SC daemon for smart card readers), and related tools
+RUN apt-get update && \
+    apt-get install -y \
+    libusb-1.0-0 \
+    libusb-1.0-0-dev \
+    pcscd \
+    pcsc-tools \
+    libnfc6 \
+    libnfc-dev \
+    udev \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy MySQL requirements and install
+COPY requirements.mysql.txt .
+RUN pip install --no-cache-dir -r requirements.mysql.txt
+
+# Copy application code and resources
+COPY app.py .
+COPY diagnostics.py .
+COPY data_viewer.py .
+COPY db_adapter.py .
+COPY init_card_reader.sh .
+COPY static/ ./static/
+COPY templates/ ./templates/
+
+# Make init script executable
+RUN chmod +x init_card_reader.sh
+
+# Create startup script that initializes pcscd before running Flask
+RUN echo '#!/bin/bash\n\
+echo "Starting OITELU Server..."\n\
+echo ""\n\
+if command -v pcscd >/dev/null 2>&1; then\n\
+    echo "Starting PC/SC daemon..."\n\
+    pcscd --auto-exit\n\
+    sleep 2\n\
+fi\n\
+echo ""\n\
+echo "Starting Flask application..."\n\
+python app.py' > /app/start.sh && chmod +x /app/start.sh
+
+# Expose Flask port
+EXPOSE 5000
+
+# Run the startup script
+CMD ["/app/start.sh"]
