@@ -1,3 +1,7 @@
+# UTF-8エンコーディングを設定
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
 # ========================================
 # ポート3306の開放状態を確認するスクリプト（Windows）
 # ========================================
@@ -14,57 +18,57 @@ param(
 )
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  MySQL Port 3306 接続チェック" -ForegroundColor Cyan
+Write-Host "  MySQL Port 3306 Connection Check" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
 # ========================================
-# 1. ローカルファイアウォールルールの確認
+# 1. Local Firewall Rules Check
 # ========================================
-Write-Host "[1] Windowsファイアウォールルールの確認" -ForegroundColor Yellow
+Write-Host "[1] Windows Firewall Rules Check" -ForegroundColor Yellow
 Write-Host ""
 
 $rules = Get-NetFirewallRule -DisplayName "MySQL*" -ErrorAction SilentlyContinue
 
 if ($rules) {
-    Write-Host "[OK] MySQLファイアウォールルールが見つかりました:" -ForegroundColor Green
+    Write-Host "[OK] MySQL firewall rules found:" -ForegroundColor Green
     $rules | Format-Table DisplayName, Enabled, Direction, Action -AutoSize
 } else {
-    Write-Host "[警告] MySQLファイアウォールルールが見つかりません。" -ForegroundColor Yellow
-    Write-Host "以下のコマンドでルールを追加できます:" -ForegroundColor White
+    Write-Host "[WARNING] MySQL firewall rules not found." -ForegroundColor Yellow
+    Write-Host "You can add rules with:" -ForegroundColor White
     Write-Host "  .\scripts\open_mysql_port_windows.ps1" -ForegroundColor Cyan
 }
 
 Write-Host ""
 
 # ========================================
-# 2. ポートリスニング状態の確認
+# 2. Port 3306 Listening Status Check
 # ========================================
-Write-Host "[2] ポート3306のリスニング状態を確認" -ForegroundColor Yellow
+Write-Host "[2] Port 3306 Listening Status Check" -ForegroundColor Yellow
 Write-Host ""
 
 $listening = Get-NetTCPConnection -LocalPort 3306 -State Listen -ErrorAction SilentlyContinue
 
 if ($listening) {
-    Write-Host "[OK] ポート3306でリスニング中:" -ForegroundColor Green
+    Write-Host "[OK] Listening on port 3306:" -ForegroundColor Green
     $listening | Format-Table LocalAddress, LocalPort, State, OwningProcess -AutoSize
     
-    # プロセス名を取得
+    # Get process name
     $listening | ForEach-Object {
         $process = Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue
         if ($process) {
-            Write-Host "  プロセス: $($process.ProcessName) (PID: $($process.Id))" -ForegroundColor Cyan
+            Write-Host "  Process: $($process.ProcessName) (PID: $($process.Id))" -ForegroundColor Cyan
         }
     }
 } else {
-    Write-Host "[警告] ポート3306でリスニングしているプロセスが見つかりません。" -ForegroundColor Yellow
-    Write-Host "MySQLサーバーが起動していない可能性があります。" -ForegroundColor White
+    Write-Host "[WARNING] No process listening on port 3306." -ForegroundColor Yellow
+    Write-Host "MySQL server may not be running." -ForegroundColor White
 }
 
 Write-Host ""
 
 # ========================================
-# 3. リモートホストへの接続テスト
+# 3. Remote Host Connection Test
 # ========================================
 Write-Host "[3] リモートホストへの接続テスト: $TargetHost" -ForegroundColor Yellow
 Write-Host ""
@@ -77,59 +81,59 @@ try {
     if ($waitHandle.WaitOne(3000, $false)) {
         try {
             $tcpClient.EndConnect($asyncResult)
-            Write-Host "[OK] $TargetHost:3306 への接続に成功しました。" -ForegroundColor Green
+            Write-Host "[OK] Successfully connected to ${TargetHost}:3306" -ForegroundColor Green
             $tcpClient.Close()
         } catch {
-            Write-Host "[エラー] $TargetHost:3306 への接続に失敗しました: $_" -ForegroundColor Red
+            Write-Host "[ERROR] Failed to connect to ${TargetHost}:3306: $_" -ForegroundColor Red
         }
     } else {
-        Write-Host "[エラー] $TargetHost:3306 への接続がタイムアウトしました（3秒）。" -ForegroundColor Red
+        Write-Host "[ERROR] Connection to ${TargetHost}:3306 timed out (3 seconds)" -ForegroundColor Red
         $tcpClient.Close()
     }
 } catch {
-    Write-Host "[エラー] 接続テスト中にエラーが発生しました: $_" -ForegroundColor Red
+    Write-Host "[ERROR] Error during connection test: $_" -ForegroundColor Red
 }
 
 Write-Host ""
 
 # ========================================
-# 4. Dockerコンテナの確認
+# 4. Docker Container Check
 # ========================================
-Write-Host "[4] Dockerコンテナの確認" -ForegroundColor Yellow
+Write-Host "[4] Docker Container Check" -ForegroundColor Yellow
 Write-Host ""
 
 try {
     $containers = docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | Select-String "mysql|3306"
     
     if ($containers) {
-        Write-Host "[OK] MySQL関連のコンテナが見つかりました:" -ForegroundColor Green
+        Write-Host "[OK] MySQL-related containers found:" -ForegroundColor Green
         $containers | ForEach-Object { Write-Host "  $_" -ForegroundColor Cyan }
     } else {
-        Write-Host "[警告] MySQL関連のコンテナが見つかりません。" -ForegroundColor Yellow
-        Write-Host "以下のコマンドでコンテナを起動できます:" -ForegroundColor White
+        Write-Host "[WARNING] No MySQL-related containers found." -ForegroundColor Yellow
+        Write-Host "You can start containers with:" -ForegroundColor White
         Write-Host "  docker-compose -f docker-compose.multi-server.yml up -d" -ForegroundColor Cyan
     }
 } catch {
-    Write-Host "[情報] Docker環境が見つかりません。" -ForegroundColor Gray
+    Write-Host "[INFO] Docker environment not found." -ForegroundColor Gray
 }
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  チェック完了" -ForegroundColor Cyan
+Write-Host "  Check Complete" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
 # ========================================
-# トラブルシューティング
+# Troubleshooting
 # ========================================
-Write-Host "[トラブルシューティング]" -ForegroundColor Yellow
+Write-Host "[Troubleshooting]" -ForegroundColor Yellow
 Write-Host ""
-Write-Host "接続できない場合の確認事項:" -ForegroundColor White
-Write-Host "1. ファイアウォールルールが有効になっているか" -ForegroundColor White
-Write-Host "2. MySQLサーバーが起動しているか (docker ps)" -ForegroundColor White
-Write-Host "3. MySQLの設定でbind-address=0.0.0.0になっているか" -ForegroundColor White
-Write-Host "4. MySQL側のユーザー権限が正しく設定されているか" -ForegroundColor White
+Write-Host "If connection fails, check:" -ForegroundColor White
+Write-Host "1. Firewall rules are enabled" -ForegroundColor White
+Write-Host "2. MySQL server is running (docker ps)" -ForegroundColor White
+Write-Host "3. MySQL bind-address=0.0.0.0 in configuration" -ForegroundColor White
+Write-Host "4. MySQL user permissions are correct" -ForegroundColor White
 Write-Host ""
-Write-Host "詳細な接続テスト:" -ForegroundColor White
-Write-Host "  .\scripts\check_mysql_port.ps1 -TargetHost <IPアドレス>" -ForegroundColor Cyan
+Write-Host "Detailed connection test:" -ForegroundColor White
+Write-Host "  .\scripts\check_mysql_port.ps1 -TargetHost <IP Address>" -ForegroundColor Cyan
 Write-Host ""
