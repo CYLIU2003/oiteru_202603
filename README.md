@@ -12,10 +12,10 @@
 
 ```bash
 # MySQL版を起動(推奨)
-./scripts/start_oiteru_mysql.sh
-
-# またはDocker Composeで直接起動
 docker-compose -f docker-compose.mysql.yml up -d
+
+# または複数親機構成(同一マシン上)
+docker-compose -f docker-compose.multi-server.yml up -d
 ```
 
 管理画面: http://localhost:5000/admin (パスワード: `admin`)
@@ -38,9 +38,9 @@ sudo python unit_client.py --no-gui
 
 | スクリプト | 説明 |
 |-----------|------|
-| `start_oiteru_mysql.sh` | 親機(MySQL版)を起動 |
-| `start_unit.sh` | 子機を起動 |
-| `setup_multi_server.sh` | 複数親機構成のセットアップ |
+| `open_mysql_port_windows.ps1` | **新規** Windowsファイアウォールでポート3306を開く |
+| `open_mysql_port_linux.sh` | **新規** Linuxファイアウォールでポート3306を開く |
+| `check_mysql_port.ps1` | **新規** MySQL接続状態をチェック |
 | `auto_attach_card_reader.sh` | NFCリーダーの自動接続(WSL2用) |
 
 ### Docker設定ファイル
@@ -48,8 +48,9 @@ sudo python unit_client.py --no-gui
 | ファイル | 用途 |
 |---------|------|
 | `docker-compose.mysql.yml` | **推奨** MySQL版(本番環境) |
-| `docker-compose.multi-server.yml` | 複数親機構成 |
-| `docker-compose.external-db.yml` | 外部MySQL接続 |
+| `docker-compose.multi-server.yml` | **新機能** 複数親機構成(同一マシン) |
+| `docker-compose.external-db.yml` | **新機能** 外部MySQL接続(別マシン) |
+| `docker-compose.yml` | SQLite版(開発・テスト用) |
 
 ### Pythonスクリプト
 
@@ -57,6 +58,7 @@ sudo python unit_client.py --no-gui
 |-----------|------|
 | `app.py` | Flask REST APIサーバー(親機) |
 | `unit_client.py` | 子機クライアント |
+| `db_adapter.py` | **新規** データベース抽象化レイヤー(SQLite/MySQL対応) |
 | `data_viewer.py` | データビューアー |
 | `diagnostics.py` | システム診断 |
 | `test_sensor.py` | センサーテストツール |
@@ -75,11 +77,11 @@ sudo python unit_client.py --no-gui
 **親機セットアップ:**
 ```bash
 # リポジトリをクローン
-git clone <repository-url>
+git clone https://github.com/CYLIU2003/oiteru_250827_restAPI
 cd oiteru_250827_restAPI
 
-# 起動
-./scripts/start_oiteru_mysql.sh
+# 起動(MySQL版)
+docker-compose -f docker-compose.mysql.yml up -d
 ```
 
 **子機セットアップ:**
@@ -114,6 +116,7 @@ http://localhost:5000/admin (パスワード: `admin`)
 - 利用履歴の確認
 - データのバックアップ/復元
 - 利用状況の可視化
+- システム診断情報の確認
 
 ---
 
@@ -126,17 +129,20 @@ http://localhost:5000/admin (パスワード: `admin`)
 - Web管理画面
 
 ### ✅ 高度な機能
-- **複数親機対応** - 複数の親機で同じデータベースを共有
-- **MySQL対応** - SQLiteまたはMySQLを選択可能
+- **複数親機対応** - 複数の親機で同じMySQLデータベースを共有
+- **外部MySQL接続** - 別マシンのMySQLサーバーに接続
+- **MySQL/SQLite対応** - データベースエンジンを選択可能
 - **Tailscale対応** - リモートアクセス可能
-- **システム診断** - 自動診断機能
+- **システム診断** - 起動時自動診断機能
 - **センサー機能** - 詰まり検知(LBR-127HLD)
 - **Docker対応** - 簡単デプロイ
+- **未登録子機の自動探知** - 新しい子機を自動的に検出
 
 ---
 
 ## 🏗️ システム構成
 
+### シングル親機構成
 ```
 ┌─────────────┐
 │  Webブラウザ │ ← http://localhost:5000/admin
@@ -157,14 +163,74 @@ http://localhost:5000/admin (パスワード: `admin`)
 └───────────────────┘
 ```
 
+### 複数親機構成 (新機能)
+```
+┌────────────┐  ┌────────────┐  ┌────────────┐
+│ 親機1号機   │  │ 親機2号機   │  │ 親機3号機   │
+│ :5000      │  │ :5001      │  │ (外部PC)   │
+└─────┬──────┘  └─────┬──────┘  └─────┬──────┘
+      │               │               │
+      └───────────────┼───────────────┘
+                      │
+                ┌─────▼──────┐
+                │  MySQL DB  │ ← ポート3306
+                │  (共有)    │
+                └────────────┘
+```
+
 ---
 
 ## 🛠️ 高度な使い方
 
-詳細は [ADVANCED.md](ADVANCED.md) を参照してください:
+### 複数親機の構成
 
-- **複数親機構成** - 複数の場所に親機を設置
-- **MySQL移行** - SQLiteからMySQLへの移行
+**同一マシン上で複数親機:**
+```bash
+# 親機1号機(:5000) と 親機2号機(:5001) を起動
+docker-compose -f docker-compose.multi-server.yml up -d
+
+# アクセス先
+# 親機1号機: http://localhost:5000
+# 親機2号機: http://localhost:5001
+# phpMyAdmin: http://localhost:8080
+```
+
+**別マシンから外部MySQLに接続:**
+
+1. **メインサーバー側でファイアウォールを開く:**
+```bash
+# Linux
+sudo bash scripts/open_mysql_port_linux.sh
+```
+
+2. **クライアント側(Windows)でファイアウォールを開く:**
+```powershell
+# PowerShellを管理者権限で実行
+.\scripts\open_mysql_port_windows.ps1
+```
+
+3. **接続をテスト:**
+```powershell
+.\scripts\check_mysql_port.ps1 -TargetHost <メインサーバーのIP>
+```
+
+4. **docker-compose.external-db.ymlを編集:**
+```yaml
+environment:
+  - MYSQL_HOST=<メインサーバーのIP>  # 例: 100.114.99.67
+  - SERVER_NAME=親機2号機(外部)
+  - SERVER_LOCATION=7号館1階
+```
+
+5. **外部親機を起動:**
+```bash
+docker-compose -f docker-compose.external-db.yml up -d
+```
+
+詳細は [ADVANCED.md](取説書/ADVANCED.md) を参照してください:
+
+- **複数親機構成の詳細** - セキュリティ設定、トラブルシューティング
+- **MySQL移行** - SQLiteからMySQLへの移行手順
 - **リモートアクセス** - Tailscale経由でのアクセス
 - **API仕様** - REST API の詳細
 - **カスタマイズ** - システムの拡張方法
@@ -176,11 +242,13 @@ http://localhost:5000/admin (パスワード: `admin`)
 | 問題 | 解決方法 |
 |------|---------|
 | 親機に繋がらない | `docker-compose logs` でログ確認 |
+| MySQL接続エラー | `.\scripts\check_mysql_port.ps1 -TargetHost <IP>` で確認 |
+| ポート3306がブロックされる | `.\scripts\open_mysql_port_windows.ps1` 実行(管理者権限) |
 | NFCリーダーが動かない | `./scripts/auto_attach_card_reader.sh` 実行 |
 | Permission denied | `sudo` を付けて実行 |
 | データが見えない | `python data_viewer.py export-all` で確認 |
 
-詳細は [TROUBLESHOOTING.md](TROUBLESHOOTING.md) を参照してください。
+詳細は [TROUBLESHOOTING.md](取説書/TROUBLESHOOTING.md) を参照してください。
 
 ---
 
@@ -189,8 +257,9 @@ http://localhost:5000/admin (パスワード: `admin`)
 | ドキュメント | 説明 |
 |-------------|------|
 | [README.md](README.md) | このファイル(基本ガイド) |
-| [ADVANCED.md](ADVANCED.md) | 上級者向け詳細ガイド |
-| [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | トラブルシューティング |
+| [ADVANCED.md](取説書/ADVANCED.md) | 上級者向け詳細ガイド(複数親機構成など) |
+| [TROUBLESHOOTING.md](取説書/TROUBLESHOOTING.md) | トラブルシューティング |
+| [CHANGELOG.md](取説書/CHANGELOG.md) | 更新履歴 |
 
 ---
 
@@ -199,17 +268,23 @@ http://localhost:5000/admin (パスワード: `admin`)
 ### 親機
 
 ```bash
-# 起動
+# 起動(MySQL版)
 docker-compose -f docker-compose.mysql.yml up -d
 
+# 起動(複数親機構成)
+docker-compose -f docker-compose.multi-server.yml up -d
+
 # 停止
-docker-compose -f docker-compose.mysql.yml down
+docker-compose down
 
 # ログ確認
 docker-compose logs -f
 
 # データビューアー
 python data_viewer.py export-all
+
+# システム診断
+python diagnostics.py
 ```
 
 ### 子機
@@ -228,6 +303,21 @@ sudo python unit_client.py --find-server
 sudo python unit_client.py --test-sensor
 ```
 
+### ファイアウォール設定
+
+```powershell
+# Windows: ポート3306を開く(管理者権限)
+.\scripts\open_mysql_port_windows.ps1
+
+# Windows: 接続をテスト
+.\scripts\check_mysql_port.ps1 -TargetHost 100.114.99.67
+```
+
+```bash
+# Linux: ポート3306を開く
+sudo bash scripts/open_mysql_port_linux.sh
+```
+
 ---
 
 ## 📦 必要なソフトウェア
@@ -235,6 +325,7 @@ sudo python unit_client.py --test-sensor
 ### 親機
 - Docker Desktop
 - Git
+- PowerShell 5.1以上 (Windows)
 
 ### 子機
 - Raspberry Pi OS
@@ -250,14 +341,23 @@ sudo python unit_client.py --test-sensor
 
 1. **このREADME** - 基本的な使い方を理解
 2. **実際に動かす** - 親機と子機を起動してみる
-3. **ADVANCED.md** - より詳しい機能を学ぶ
+3. **ADVANCED.md** - 複数親機構成や詳しい機能を学ぶ
 4. **TROUBLESHOOTING.md** - 問題が起きたら参照
 
 ---
 
 ## 🔄 更新履歴
 
-最新の変更は [CHANGELOG](CHANGELOG.md) を参照してください。
+### v2.5.0 (2025-11-28)
+- **新機能**: 複数親機構成のサポート
+- **新機能**: 外部MySQL接続機能
+- **新規スクリプト**: ポート3306開放スクリプト (Windows/Linux)
+- **新規スクリプト**: MySQL接続チェックツール
+- **改善**: データベース抽象化レイヤー (db_adapter.py)
+- **改善**: Dockerfileの最適化
+- **ドキュメント**: ADVANCED.mdに複数親機構成の詳細を追加
+
+詳細は [CHANGELOG.md](取説書/CHANGELOG.md) を参照してください。
 
 ---
 

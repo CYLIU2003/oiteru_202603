@@ -25,12 +25,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app.py .
 COPY diagnostics.py .
 COPY data_viewer.py .
-COPY init_card_reader.sh .
+COPY db_adapter.py .
 COPY static/ ./static/
 COPY templates/ ./templates/
-
-# Make scripts executable
-RUN chmod +x init_card_reader.sh
 
 # Expose port
 EXPOSE 5000

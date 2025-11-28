@@ -26,12 +26,8 @@ COPY app.py .
 COPY diagnostics.py .
 COPY data_viewer.py .
 COPY db_adapter.py .
-COPY init_card_reader.sh .
 COPY static/ ./static/
 COPY templates/ ./templates/
-
-# Make init script executable
-RUN chmod +x init_card_reader.sh
 
 # Create startup script that initializes pcscd before running Flask
 RUN echo '#!/bin/bash\n\

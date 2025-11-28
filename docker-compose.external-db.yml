@@ -1,5 +1,3 @@
-version: '3.8'
-
 # ========================================
 # 外部MySQL接続設定 - 別マシンの親機用
 # ========================================
@@ -48,15 +46,15 @@ services:
     environment:
       - DB_TYPE=mysql
       # ★★★ ここを実際のメインサーバーのIPアドレスに変更 ★★★
-      - MYSQL_HOST=192.168.1.100
+      - MYSQL_HOST=100.114.99.67
       - MYSQL_PORT=3306
       - MYSQL_DATABASE=oiteru
       - MYSQL_USER=oiteru_user
       - MYSQL_PASSWORD=oiteru_password_2025
       - PCSCLITE_SOCKET=/run/pcscd/pcscd.comm
       # ★★★ サーバー名と設置場所を変更 ★★★
-      - SERVER_NAME=親機3号機(外部)
-      - SERVER_LOCATION=3階会議室
+      - SERVER_NAME=親機2号機(外部)
+      - SERVER_LOCATION=7号館1階
     restart: unless-stopped
     # ネットワークはホストモードを使用(外部MySQL接続のため)
     network_mode: host

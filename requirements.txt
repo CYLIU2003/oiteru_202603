@@ -1,12 +1,5 @@
-# --- 親機用（Flask REST APIサーバー） ---
-# このファイルは親機（Dockerコンテナ / ホストPC）で使用されます
-# 子機（Raspberry Pi）用は requirements-client.txt を使用してください
-
-flask>=2.2.0
-pandas>=2.0.0
-openpyxl>=3.1.0
-numpy>=1.24.0
-
-# 親機PCに直接接続されたNFCリーダー（RC-S380など）の検出用
-# Dockerコンテナ内では動作しませんが、ホストPCでは利用可能です
+flask>=3.0.0
+pandas>=2.2.0
+openpyxl>=3.1.2
+numpy>=1.26.0
 nfcpy>=1.0.4

@@ -124,7 +124,8 @@ def init_db():
                 CREATE TABLE history (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     txt TEXT NOT NULL,
-                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                    type TEXT DEFAULT 'usage',
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
             
@@ -169,6 +170,7 @@ def migrate_db():
                         CREATE TABLE history (
                             id INTEGER PRIMARY KEY AUTOINCREMENT,
                             txt TEXT NOT NULL,
+                            type TEXT DEFAULT 'usage',
                             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
                         )
                     ''')
@@ -176,6 +178,32 @@ def migrate_db():
                     print("  -> historyテーブルを作成しました。")
                 except Exception as e:
                     print(f"  -> エラー: historyテーブルの作成に失敗しました: {e}")
+            else:
+                # historyテーブルにtypeカラムがあるか確認
+                columns_result = db.fetchall(conn, "PRAGMA table_info(history)")
+                columns = [row['name'] for row in columns_result]
+                
+                if 'type' not in columns:
+                    print("  -> 更新: historyテーブルに 'type' カラムを追加します。")
+                    try:
+                        db.execute(conn, "ALTER TABLE history ADD COLUMN type TEXT DEFAULT 'usage'")
+                        updated = True
+                        print("  -> typeカラムを追加しました。")
+                    except Exception as e:
+                        print(f"  -> エラー: カラムの追加に失敗しました: {e}")
+                
+                # created_atカラムの確認（timestampから移行）
+                if 'created_at' not in columns:
+                    print("  -> 更新: historyテーブルに 'created_at' カラムを追加します。")
+                    try:
+                        db.execute(conn, "ALTER TABLE history ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP")
+                        # 既存のtimestampデータをcreated_atにコピー
+                        if 'timestamp' in columns:
+                            db.execute(conn, "UPDATE history SET created_at = timestamp WHERE created_at IS NULL")
+                        updated = True
+                        print("  -> created_atカラムを追加しました。")
+                    except Exception as e:
+                        print(f"  -> エラー: カラムの追加に失敗しました: {e}")
             
             # infoテーブルが存在しない場合は作成
             if 'info' not in existing_tables:
@@ -830,8 +858,6 @@ def admin_new_unit():
             flash(f"登録中にエラーが発生しました: {e}", "error")
             return redirect(request.url)
     return render_template("admin_new_unit.html")
-# ...existing code...
-
 # --- REST API ---
 
 
