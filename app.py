@@ -398,17 +398,21 @@ def admin_visuals():
         return redirect(url_for('admin_login'))
 
     with get_connection() as conn:
-        # 履歴から「利用を記録しました」というログのみを抽出
-        logs = db.fetchall(conn, "SELECT txt FROM history WHERE txt LIKE ?", ('%] 利用を記録しました%',))
+        # 履歴からusageタイプのログのみを抽出(成功・失敗両方含む)
+        logs = db.fetchall(conn, "SELECT txt, created_at FROM history WHERE type = ? ORDER BY created_at DESC", ('usage',))
 
     timestamps = []
     for log in logs:
-        timestamp_str = log['txt'][:16]
-        try:
-            dt = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M")
-            timestamps.append(dt)
-        except (ValueError, TypeError):
-            continue
+        # created_atカラムから直接タイムスタンプを取得
+        ts = log['created_at']
+        if isinstance(ts, str):
+            try:
+                dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+                timestamps.append(dt)
+            except (ValueError, TypeError):
+                continue
+        elif isinstance(ts, datetime):
+            timestamps.append(ts)
 
     hourly_counts = [0] * 24
     daily_counts = {}
@@ -438,8 +442,8 @@ def admin_csv_export():
         return redirect(url_for('admin_login'))
     with get_connection() as conn:
         logs = db.fetchall(conn,
-            "SELECT txt FROM history WHERE txt LIKE ? ORDER BY id ASC",
-            ('%] 利用を記録しました%',)
+            "SELECT txt, created_at FROM history WHERE type = ? ORDER BY created_at ASC",
+            ('usage',)
         )
     if not logs:
         flash("ダウンロード対象の利用履歴がありません。", "warning")
@@ -447,10 +451,18 @@ def admin_csv_export():
     usage_data = []
     for log in logs:
         log_text = log['txt']
-        timestamp_str = log_text[:16]
-        match = re.search(r'\((\w+)\)', log_text)
+        created_at = log['created_at']
+        # タイムスタンプをフォーマット
+        if isinstance(created_at, str):
+            timestamp_str = created_at
+        elif isinstance(created_at, datetime):
+            timestamp_str = created_at.strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            timestamp_str = str(created_at)
+        # カードIDを抽出(新しいフォーマット対応)
+        match = re.search(r'カードID:\s*(\w+)', log_text)
         card_id = match.group(1) if match else '不明'
-        usage_data.append({'timestamp': timestamp_str, 'card_id': card_id})
+        usage_data.append({'timestamp': timestamp_str, 'card_id': card_id, 'message': log_text})
     df = pd.DataFrame(usage_data)
     output = io.StringIO()
     df.to_csv(output, index=False)

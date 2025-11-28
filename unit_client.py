@@ -753,7 +753,9 @@ def run_client(config, stop_event, gui_queue):
                 serial = _serial
 
             if USE_SENSOR:
-                GPIO_runtime.setup(SENSOR_PIN, GPIO_runtime.IN)
+                # LBR-127HLDはオープンコレクタ出力のため、プルアップ抵抗を有効化
+                GPIO_runtime.setup(SENSOR_PIN, GPIO_runtime.IN, pull_up_down=GPIO_runtime.PUD_UP)
+                print(f"INFO: センサーピン GPIO {SENSOR_PIN} をプルアップ抵抗付きで初期化しました")
 
         except Exception as e:
             print(f"警告: GPIO初期化失敗: {e}。")
@@ -825,18 +827,34 @@ def run_client(config, stop_event, gui_queue):
             GPIO_runtime.output(pin, GPIO_runtime.LOW)
         except Exception: pass
 
-    def check_sensor(description=""):
+    def check_sensor(description="", stabilize=True):
         """フォトリフレクタの状態をチェック
         Returns: True=物体検知なし（クリア）, False=物体検知（詰まり）
+        
+        Args:
+            description: ログ出力用の説明文
+            stabilize: 読み取り前に安定化待機を行うか(デフォルト: True)
         """
         if not USE_SENSOR or PLATFORM_RUNTIME != 'RASPI':
             return True
         
-        sensor_val = GPIO_runtime.input(SENSOR_PIN)
+        # センサー安定化待機(ノイズ除去)
+        if stabilize:
+            time.sleep(0.05)  # 50msec待機
+        
+        # 複数回読み取って安定した値を取得(デバウンス)
+        readings = []
+        for _ in range(3):
+            readings.append(GPIO_runtime.input(SENSOR_PIN))
+            time.sleep(0.01)  # 10msec間隔
+        
+        # 多数決で値を決定(ノイズ対策)
+        sensor_val = max(set(readings), key=readings.count)
+        
         # LBR-127HLD: LOW=物体検知, HIGH=クリア
         is_clear = (sensor_val == 1)
         status = "クリア" if is_clear else "物体検知"
-        print(f"[センサーチェック{description}] 値={sensor_val} ({status})")
+        print(f"[センサーチェック{description}] 値={sensor_val} ({status}) [読み取り: {readings}]")
         return is_clear
 
     def dispense_item():
@@ -1432,9 +1450,95 @@ def run_cui_mode():
         print("[✓] 終了しました")
 
 # --------------------------------------------------------------------------
+# --- センサーテストモード ---
+# --------------------------------------------------------------------------
+def run_sensor_test_mode():
+    """センサー単体テストモード"""
+    print("=" * 70)
+    print("  フォトリフレクタセンサーテストモード")
+    print("=" * 70)
+    
+    if PLATFORM != "RASPI":
+        print("エラー: センサーテストはRaspberry Piでのみ実行できます")
+        print("現在のプラットフォーム:", PLATFORM)
+        sys.exit(1)
+    
+    # 設定読み込み
+    config = load_config()
+    sensor_pin = config.get('SENSOR_PIN', 22)
+    use_sensor = config.get('USE_SENSOR', True)
+    
+    if not use_sensor:
+        print("警告: 設定でセンサーが無効になっています")
+        print(f"設定ファイル: {CONFIG_FILE}")
+        response = input("\nそれでもテストを続けますか? [y/N]: ").strip().lower()
+        if response != 'y':
+            print("テストを中止しました")
+            sys.exit(0)
+    
+    print(f"\nセンサーピン: GPIO {sensor_pin} (BCM)")
+    print("センサー種類: LBR-127HLD フォトリフレクタ")
+    print("出力特性: LOW(0)=物体検知, HIGH(1)=クリア")
+    print("\n[Ctrl+C] で終了\n")
+    print("=" * 70)
+    print("")
+    print("状態 | RAW値 | 判定       | タイムスタンプ")
+    print("-" * 70)
+    
+    try:
+        # GPIOセットアップ
+        import RPi.GPIO as GPIO
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setwarnings(False)
+        GPIO.setup(sensor_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        
+        prev_state = None
+        poll_interval = 0.1  # 秒
+        
+        while True:
+            # センサー読み取り
+            raw_value = GPIO.input(sensor_pin)
+            
+            # LBR-127HLD: LOW=物体検知, HIGH=クリア
+            if raw_value == GPIO.LOW:
+                status = "詰まり"
+                symbol = "🔴"
+            else:
+                status = "クリア"
+                symbol = "🟢"
+            
+            # 状態変化時のみ表示
+            if raw_value != prev_state:
+                timestamp = time.strftime("%H:%M:%S")
+                print(f"{symbol}  |  {raw_value}    | {status:10} | {timestamp}")
+                prev_state = raw_value
+            
+            time.sleep(poll_interval)
+            
+    except KeyboardInterrupt:
+        print("\n" + "=" * 70)
+        print("  テスト終了")
+        print("=" * 70)
+    except Exception as e:
+        print(f"\nエラー: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        # GPIO クリーンアップ
+        try:
+            GPIO.cleanup()
+        except:
+            pass
+
+# --------------------------------------------------------------------------
 # --- 起動処理 ---
 # --------------------------------------------------------------------------
 if __name__ == "__main__":
+    # センサーテストモードのチェック
+    if '--test-sensor' in sys.argv:
+        run_sensor_test_mode()
+        sys.exit(0)
+    
     if PLATFORM == "RASPI":
         ensure_root_privileges()
 
