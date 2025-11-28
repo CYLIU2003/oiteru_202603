@@ -1,0 +1,154 @@
+version: '3.8'
+
+# ========================================
+# 複数親機構成 - MySQLデータベース共有設定
+# ========================================
+# 
+# この設定は、複数のFlaskサーバー(親機)が1つのMySQLデータベースを
+# 共有するための構成です。
+#
+# 【使用シーン】
+# - 複数の場所(建物、フロア等)に親機を設置
+# - 全ての親機が同じユーザーデータベースを参照
+# - 負荷分散やバックアップ用に複数サーバーを運用
+#
+# 【起動方法】
+# docker-compose -f docker-compose.multi-server.yml up -d
+#
+# ========================================
+
+services:
+  # ========================================
+  # 共有MySQLデータベース
+  # ========================================
+  mysql:
+    image: mysql:8.0
+    container_name: oiteru_mysql_shared
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: oiteru_root_password_2025
+      MYSQL_DATABASE: oiteru
+      MYSQL_USER: oiteru_user
+      MYSQL_PASSWORD: oiteru_password_2025
+      # すべてのホストからの接続を許可
+      MYSQL_ROOT_HOST: '%'
+    volumes:
+      - mysql_shared_data:/var/lib/mysql
+      - ./init_mysql.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      # 外部ネットワークからもアクセス可能にする
+      - "3306:3306"
+    networks:
+      - oiteru_network
+    command: 
+      - --default-authentication-plugin=mysql_native_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      # 外部接続を許可
+      - --bind-address=0.0.0.0
+      # 最大接続数を増やす(複数親機対応)
+      - --max-connections=200
+
+  # ========================================
+  # 親機1号機 (メインサーバー)
+  # ========================================
+  flask_server1:
+    build:
+      context: .
+      dockerfile: Dockerfile.mysql
+    container_name: oiteru_flask_server1
+    hostname: oiteru-server1
+    privileged: true
+    devices:
+      - /dev/bus/usb:/dev/bus/usb
+    volumes:
+      - ./diagnostics.py:/app/diagnostics.py
+      - ./data_viewer.py:/app/data_viewer.py
+      - ./db_adapter.py:/app/db_adapter.py
+      - ./templates:/app/templates
+      - ./static:/app/static
+      - /run/pcscd/pcscd.comm:/run/pcscd/pcscd.comm
+    ports:
+      # メインサーバーは5000番ポート
+      - "5000:5000"
+    environment:
+      - DB_TYPE=mysql
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_DATABASE=oiteru
+      - MYSQL_USER=oiteru_user
+      - MYSQL_PASSWORD=oiteru_password_2025
+      - PCSCLITE_SOCKET=/run/pcscd/pcscd.comm
+      - SERVER_NAME=親機1号機(メイン)
+      - SERVER_LOCATION=1階受付
+    depends_on:
+      - mysql
+    restart: unless-stopped
+    networks:
+      - oiteru_network
+
+  # ========================================
+  # 親機2号機 (サブサーバー)
+  # ========================================
+  flask_server2:
+    build:
+      context: .
+      dockerfile: Dockerfile.mysql
+    container_name: oiteru_flask_server2
+    hostname: oiteru-server2
+    privileged: true
+    devices:
+      - /dev/bus/usb:/dev/bus/usb
+    volumes:
+      - ./diagnostics.py:/app/diagnostics.py
+      - ./data_viewer.py:/app/data_viewer.py
+      - ./db_adapter.py:/app/db_adapter.py
+      - ./templates:/app/templates
+      - ./static:/app/static
+      - /run/pcscd/pcscd.comm:/run/pcscd/pcscd.comm
+    ports:
+      # サブサーバーは5001番ポート
+      - "5001:5000"
+    environment:
+      - DB_TYPE=mysql
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_DATABASE=oiteru
+      - MYSQL_USER=oiteru_user
+      - MYSQL_PASSWORD=oiteru_password_2025
+      - PCSCLITE_SOCKET=/run/pcscd/pcscd.comm
+      - SERVER_NAME=親機2号機(サブ)
+      - SERVER_LOCATION=2階ロビー
+    depends_on:
+      - mysql
+    restart: unless-stopped
+    networks:
+      - oiteru_network
+
+  # ========================================
+  # phpMyAdmin (データベース管理ツール)
+  # ========================================
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: oiteru_phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      PMA_USER: oiteru_user
+      PMA_PASSWORD: oiteru_password_2025
+      MYSQL_ROOT_PASSWORD: oiteru_root_password_2025
+    ports:
+      - "8080:80"
+    depends_on:
+      - mysql
+    networks:
+      - oiteru_network
+
+volumes:
+  mysql_shared_data:
+    driver: local
+
+networks:
+  oiteru_network:
+    driver: bridge

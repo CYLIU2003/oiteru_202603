@@ -32,6 +32,14 @@ app = Flask(__name__, template_folder='templates', static_folder='static')
 app.secret_key = 'oiteru_secret_key_2025_final'
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'oiteru.sqlite3')
 
+# ========================================
+# 複数親機対応: サーバー識別情報
+# ========================================
+# 環境変数から取得、未設定の場合はデフォルト値
+SERVER_NAME = os.getenv('SERVER_NAME', 'OITERU親機')
+SERVER_LOCATION = os.getenv('SERVER_LOCATION', '未設定')
+SERVER_ID = os.getenv('HOSTNAME', socket.gethostname())  # コンテナのホスト名
+
 # 未登録子機の一時保存用（メモリ内）
 # {unit_name: {password, ip_address, first_seen, last_seen, heartbeat_count}}
 unregistered_units = {}
@@ -658,7 +666,20 @@ def admin_dashboard():
         usage_count_row = db.fetchone(conn, "SELECT COUNT(id) as count FROM history WHERE txt LIKE ?", ('%] 利用を記録しました%',))
         usage_count = usage_count_row['count'] if usage_count_row else 0
 
-    return render_template("admin_dashboard.html", users=users, units=units, history=history, usage_count=usage_count)
+    # サーバー情報を追加
+    server_info = {
+        'name': SERVER_NAME,
+        'location': SERVER_LOCATION,
+        'id': SERVER_ID,
+        'db_type': db.db_type.upper()
+    }
+
+    return render_template("admin_dashboard.html", 
+                         users=users, 
+                         units=units, 
+                         history=history, 
+                         usage_count=usage_count,
+                         server_info=server_info)
 
 @app.route("/admin/users")
 def admin_users():

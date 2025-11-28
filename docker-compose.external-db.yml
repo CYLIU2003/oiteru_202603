@@ -1,0 +1,62 @@
+version: '3.8'
+
+# ========================================
+# 外部MySQL接続設定 - 別マシンの親機用
+# ========================================
+# 
+# この設定は、別のマシンで動作する親機が、
+# メインサーバーのMySQLデータベースに接続するための構成です。
+#
+# 【前提条件】
+# 1. メインサーバーでdocker-compose.multi-server.ymlが起動済み
+# 2. メインサーバーのIPアドレスが判明している
+# 3. ネットワークでポート3306が通信可能
+#
+# 【設定方法】
+# 1. 下記の MYSQL_HOST を実際のメインサーバーIPに変更
+#    例: MYSQL_HOST=192.168.1.100
+#    例: MYSQL_HOST=100.111.98.81 (Tailscale IP)
+# 
+# 2. SERVER_NAME と SERVER_LOCATION を変更
+#
+# 3. 起動: docker-compose -f docker-compose.external-db.yml up -d
+#
+# ========================================
+
+services:
+  # ========================================
+  # 親機 (外部MySQLに接続)
+  # ========================================
+  flask_external:
+    build:
+      context: .
+      dockerfile: Dockerfile.mysql
+    container_name: oiteru_flask_external
+    hostname: oiteru-external
+    privileged: true
+    devices:
+      - /dev/bus/usb:/dev/bus/usb
+    volumes:
+      - ./diagnostics.py:/app/diagnostics.py
+      - ./data_viewer.py:/app/data_viewer.py
+      - ./db_adapter.py:/app/db_adapter.py
+      - ./templates:/app/templates
+      - ./static:/app/static
+      - /run/pcscd/pcscd.comm:/run/pcscd/pcscd.comm
+    ports:
+      - "5000:5000"
+    environment:
+      - DB_TYPE=mysql
+      # ★★★ ここを実際のメインサーバーのIPアドレスに変更 ★★★
+      - MYSQL_HOST=192.168.1.100
+      - MYSQL_PORT=3306
+      - MYSQL_DATABASE=oiteru
+      - MYSQL_USER=oiteru_user
+      - MYSQL_PASSWORD=oiteru_password_2025
+      - PCSCLITE_SOCKET=/run/pcscd/pcscd.comm
+      # ★★★ サーバー名と設置場所を変更 ★★★
+      - SERVER_NAME=親機3号機(外部)
+      - SERVER_LOCATION=3階会議室
+    restart: unless-stopped
+    # ネットワークはホストモードを使用(外部MySQL接続のため)
+    network_mode: host

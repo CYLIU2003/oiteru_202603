@@ -2,6 +2,20 @@
 {% block content %}
 <div class="admin-dashboard">
   <h2>管理者ダッシュボード</h2>
+  
+  <!-- サーバー情報 (複数親機対応) -->
+  {% if server_info %}
+  <div class="server-info" style="background: #e3f2fd; padding: 15px; margin-bottom: 20px; border-radius: 5px; border-left: 4px solid #2196F3;">
+    <h3 style="margin-top: 0; color: #1976D2;">📡 このサーバーの情報</h3>
+    <div style="display: grid; grid-template-columns: auto 1fr; gap: 10px; font-size: 14px;">
+      <strong>サーバー名:</strong> <span>{{ server_info.name }}</span>
+      <strong>設置場所:</strong> <span>{{ server_info.location }}</span>
+      <strong>サーバーID:</strong> <span><code>{{ server_info.id }}</code></span>
+      <strong>データベース:</strong> <span>{{ server_info.db_type }}</span>
+    </div>
+  </div>
+  {% endif %}
+  
   <div class="stats">
     <div><strong>利用者数:</strong> {{ users|length }}</div>
     <div><strong>子機数:</strong> {{ units|length }}</div>
