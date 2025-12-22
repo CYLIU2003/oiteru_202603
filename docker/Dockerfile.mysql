@@ -18,14 +18,13 @@ RUN apt-get update && \
 WORKDIR /app
 
 # Copy MySQL requirements and install
-COPY requirements.mysql.txt .
+COPY docker/requirements.mysql.txt .
 RUN pip install --no-cache-dir -r requirements.mysql.txt
 
 # Copy application code and resources
-COPY app.py .
-COPY diagnostics.py .
-COPY data_viewer.py .
+COPY server.py .
 COPY db_adapter.py .
+COPY db_server.py .
 COPY static/ ./static/
 COPY templates/ ./templates/
 
@@ -40,7 +39,7 @@ if command -v pcscd >/dev/null 2>&1; then\n\
 fi\n\
 echo ""\n\
 echo "Starting Flask application..."\n\
-python app.py' > /app/start.sh && chmod +x /app/start.sh
+python server.py' > /app/start.sh && chmod +x /app/start.sh
 
 # Expose Flask port
 EXPOSE 5000

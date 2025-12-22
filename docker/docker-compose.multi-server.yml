@@ -52,19 +52,19 @@ services:
   # ========================================
   flask_server1:
     build:
-      context: .
-      dockerfile: Dockerfile.mysql
+      context: ..
+      dockerfile: docker/Dockerfile.mysql
     container_name: oiteru_flask_server1
     hostname: oiteru-server1
     privileged: true
     devices:
       - /dev/bus/usb:/dev/bus/usb
     volumes:
-      - ./diagnostics.py:/app/diagnostics.py
-      - ./data_viewer.py:/app/data_viewer.py
-      - ./db_adapter.py:/app/db_adapter.py
-      - ./templates:/app/templates
-      - ./static:/app/static
+      - ../server.py:/app/server.py
+      - ../db_adapter.py:/app/db_adapter.py
+      - ../db_server.py:/app/db_server.py
+      - ../templates:/app/templates
+      - ../static:/app/static
       - /run/pcscd/pcscd.comm:/run/pcscd/pcscd.comm
     ports:
       # メインサーバーは5000番ポート
@@ -88,21 +88,23 @@ services:
   # ========================================
   # 親機2号機 (サブサーバー)
   # ========================================
+  # 親機2号機 (サブサーバー)
+  # ========================================
   flask_server2:
     build:
-      context: .
-      dockerfile: Dockerfile.mysql
+      context: ..
+      dockerfile: docker/Dockerfile.mysql
     container_name: oiteru_flask_server2
     hostname: oiteru-server2
     privileged: true
     devices:
       - /dev/bus/usb:/dev/bus/usb
     volumes:
-      - ./diagnostics.py:/app/diagnostics.py
-      - ./data_viewer.py:/app/data_viewer.py
-      - ./db_adapter.py:/app/db_adapter.py
-      - ./templates:/app/templates
-      - ./static:/app/static
+      - ../server.py:/app/server.py
+      - ../db_adapter.py:/app/db_adapter.py
+      - ../db_server.py:/app/db_server.py
+      - ../templates:/app/templates
+      - ../static:/app/static
       - /run/pcscd/pcscd.comm:/run/pcscd/pcscd.comm
     ports:
       # サブサーバーは5001番ポート
