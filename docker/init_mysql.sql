@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS info (
 
 -- デフォルトの管理者パスワードを設定（SHA256ハッシュ: "Yume2Tsubasa"）
 -- 実運用時は必ず変更してください
-INSERT INTO info (id, pass) VALUES (1, 'c1b2169971e65007dea2905a92b3f93cceea332f35baf0d1acc74c0dbb3426368')
+INSERT INTO info (id, pass) VALUES (1, '1b2169971e65007dea2905a92b3f93cceea332f35baf0d1acc74c0dbb3426368')
 ON DUPLICATE KEY UPDATE pass = VALUES(pass);
 
 -- インデックスの最適化
