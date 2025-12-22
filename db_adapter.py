@@ -49,20 +49,36 @@ class DatabaseConnection:
     @contextmanager
     def get_connection(self):
         """データベース接続を取得（コンテキストマネージャー）"""
-        if self.db_type == 'mysql':
-            conn = MySQLdb.connect(**self.config)
-        else:
-            conn = sqlite3.connect(self.db_path)
-            conn.row_factory = sqlite3.Row
+        conn = None
+        max_retries = 5
+        retry_delay = 2
+        
+        for attempt in range(max_retries):
+            try:
+                if self.db_type == 'mysql':
+                    conn = MySQLdb.connect(**self.config)
+                else:
+                    conn = sqlite3.connect(self.db_path)
+                    conn.row_factory = sqlite3.Row
+                break
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    import time
+                    print(f"DB接続失敗 (試行 {attempt + 1}/{max_retries}): {e}")
+                    time.sleep(retry_delay)
+                else:
+                    raise
         
         try:
             yield conn
             conn.commit()  # 正常終了時はコミット
         except Exception:
-            conn.rollback()  # エラー時はロールバック
+            if conn:
+                conn.rollback()  # エラー時はロールバック
             raise
         finally:
-            conn.close()
+            if conn:
+                conn.close()
     
     def get_cursor(self, conn):
         """カーソルを取得"""

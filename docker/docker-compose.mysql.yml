@@ -1,5 +1,5 @@
 services:
-  # MySQLデータベース
+  # MySQLデータベース (親機のみ)
   mysql:
     image: mysql:8.0
     container_name: oiteru_mysql
@@ -18,6 +18,12 @@ services:
     networks:
       - oiteru_network
     command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "oiteru_user", "-poiteru_password_2025"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
   # Flaskアプリケーション
   flask:
@@ -46,7 +52,8 @@ services:
       - MYSQL_PASSWORD=oiteru_password_2025
       - PCSCLITE_SOCKET=/run/pcscd/pcscd.comm
     depends_on:
-      - mysql
+      mysql:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - oiteru_network

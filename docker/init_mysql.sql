@@ -59,9 +59,9 @@ CREATE TABLE IF NOT EXISTS info (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- デフォルトの管理者パスワードを設定（SHA256ハッシュ: "admin"）
+-- デフォルトの管理者パスワードを設定（SHA256ハッシュ: "Yume2Tsubasa"）
 -- 実運用時は必ず変更してください
-INSERT INTO info (id, pass) VALUES (1, '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918')
+INSERT INTO info (id, pass) VALUES (1, 'c1b2169971e65007dea2905a92b3f93cceea332f35baf0d1acc74c0dbb3426368')
 ON DUPLICATE KEY UPDATE pass = VALUES(pass);
 
 -- インデックスの最適化
