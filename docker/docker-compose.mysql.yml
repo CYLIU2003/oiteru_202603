@@ -12,7 +12,7 @@ services:
       MYSQL_ROOT_HOST: '%'
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./init_mysql.sql:/docker-entrypoint-initdb.d/init.sql
+      - ../init_mysql.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
       - "3306:3306"
     networks:
@@ -22,18 +22,18 @@ services:
   # Flaskアプリケーション
   flask:
     build:
-      context: .
-      dockerfile: Dockerfile.mysql
+      context: ..
+      dockerfile: docker/Dockerfile.mysql
     container_name: oiteru_flask
     privileged: true
     devices:
       - /dev/bus/usb:/dev/bus/usb
     volumes:
-      - ./diagnostics.py:/app/diagnostics.py
-      - ./data_viewer.py:/app/data_viewer.py
-      - ./db_adapter.py:/app/db_adapter.py
-      - ./templates:/app/templates
-      - ./static:/app/static
+      - ../server.py:/app/server.py
+      - ../db_adapter.py:/app/db_adapter.py
+      - ../db_server.py:/app/db_server.py
+      - ../templates:/app/templates
+      - ../static:/app/static
       - /run/pcscd/pcscd.comm:/run/pcscd/pcscd.comm
     ports:
       - "5000:5000"

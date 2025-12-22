@@ -3,8 +3,8 @@ version: '3.8'
 services:
   unit-client:
     build:
-      context: ./
-      dockerfile: Dockerfile.unit
+      context: ../
+      dockerfile: docker/Dockerfile.unit
     container_name: oiteru_unit_client
     privileged: true  # GPIO/I2C/USBアクセスに必要
     network_mode: host  # ホストネットワークを使用（Tailscale対応）
@@ -13,7 +13,7 @@ services:
       - /dev/i2c-1:/dev/i2c-1      # I2Cデバイス（PCA9685用）
       - /dev/gpiomem:/dev/gpiomem  # GPIO
     volumes:
-      - ./:/app  # プロジェクトフォルダ全体をマウント（設定ファイル含む）
+      - ../:/app  # プロジェクトフォルダ全体をマウント（設定ファイル含む）
       - /dev:/dev  # デバイスファイル全体をマウント
     restart: unless-stopped
     environment:

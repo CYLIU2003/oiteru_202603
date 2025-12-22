@@ -29,7 +29,7 @@ RUN pip install --no-cache-dir \
     numpy
 
 # アプリケーションファイルをコピー
-COPY unit_client.py ./
+COPY unit.py ./
 
 # udevルールを設定（NFCリーダー用）
 RUN echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="054c", ATTRS{idProduct}=="06c1", MODE="0666", GROUP="plugdev"' > /etc/udev/rules.d/99-nfc-reader.rules
@@ -38,4 +38,4 @@ RUN echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="054c", ATTRS{idProduct}=="06c1", M
 ENV PYTHONUNBUFFERED=1
 
 # デフォルトコマンド
-CMD ["python", "unit_client.py", "--no-gui", "--no-venv", "--auto"]
+CMD ["python", "unit.py", "--no-gui", "--no-venv", "--auto"]
