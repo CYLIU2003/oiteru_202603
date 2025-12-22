@@ -14,6 +14,20 @@
       <strong>データベース:</strong> <span>{{ server_info.db_type }}</span>
     </div>
   </div>
+  
+  <!-- 自動登録モード状態 -->
+  <div class="auto-register-info" style="background: {% if server_info.auto_register %}#e8f5e9{% else %}#fff3e0{% endif %}; padding: 15px; margin-bottom: 20px; border-radius: 5px; border-left: 4px solid {% if server_info.auto_register %}#4CAF50{% else %}#FF9800{% endif %};">
+    <h3 style="margin-top: 0; color: {% if server_info.auto_register %}#2E7D32{% else %}#E65100{% endif %};">
+      {% if server_info.auto_register %}✅ 自動登録モード: 有効{% else %}⚠️ 自動登録モード: 無効{% endif %}
+    </h3>
+    <div style="font-size: 14px;">
+      {% if server_info.auto_register %}
+        <p style="margin: 0;">未登録カードがタッチされると自動でユーザー登録されます。初期残数: <strong>{{ server_info.auto_register_stock }}</strong></p>
+      {% else %}
+        <p style="margin: 0;">事前にカード登録が必要です。<a href="{{ url_for('admin_settings') }}">設定を変更</a></p>
+      {% endif %}
+    </div>
+  </div>
   {% endif %}
   
   <div class="stats">
@@ -22,6 +36,7 @@
     <div><strong>履歴件数:</strong> {{ history|length }}</div>
   </div>
   <div class="admin-menu">
+    <a href="{{ url_for('admin_settings') }}" class="btn" style="background: #9C27B0; color: white;">⚙️ システム設定</a>
     <a href="{{ url_for('admin_users') }}" class="btn">利用者一覧</a>
     <a href="{{ url_for('admin_units') }}" class="btn">子機一覧</a>
     <a href="{{ url_for('admin_diagnostics') }}" class="btn">🔧 診断情報</a>
