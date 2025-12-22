@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="admin-dashboard">
-  <h2>管理者ダッシュボード</h2>
+  <h2>🎛️ 管理者ダッシュボード</h2>
   
-  <!-- サーバー情報 (複数親機対応) -->
+  <!-- サーバー情報 -->
   {% if server_info %}
-  <div class="server-info" style="background: #e3f2fd; padding: 15px; margin-bottom: 20px; border-radius: 5px; border-left: 4px solid #2196F3;">
-    <h3 style="margin-top: 0; color: #1976D2;">📡 このサーバーの情報</h3>
-    <div style="display: grid; grid-template-columns: auto 1fr; gap: 10px; font-size: 14px;">
+  <div class="info-card">
+    <h3>📡 このサーバーの情報</h3>
+    <div class="info-grid">
       <strong>サーバー名:</strong> <span>{{ server_info.name }}</span>
       <strong>設置場所:</strong> <span>{{ server_info.location }}</span>
       <strong>サーバーID:</strong> <span><code>{{ server_info.id }}</code></span>
@@ -16,37 +16,52 @@
   </div>
   
   <!-- 自動登録モード状態 -->
-  <div class="auto-register-info" style="background: {% if server_info.auto_register %}#e8f5e9{% else %}#fff3e0{% endif %}; padding: 15px; margin-bottom: 20px; border-radius: 5px; border-left: 4px solid {% if server_info.auto_register %}#4CAF50{% else %}#FF9800{% endif %};">
-    <h3 style="margin-top: 0; color: {% if server_info.auto_register %}#2E7D32{% else %}#E65100{% endif %};">
+  <div class="info-card {% if server_info.auto_register %}success{% else %}warning{% endif %}">
+    <h3>
       {% if server_info.auto_register %}✅ 自動登録モード: 有効{% else %}⚠️ 自動登録モード: 無効{% endif %}
     </h3>
-    <div style="font-size: 14px;">
+    <div>
       {% if server_info.auto_register %}
         <p style="margin: 0;">未登録カードがタッチされると自動でユーザー登録されます。初期残数: <strong>{{ server_info.auto_register_stock }}</strong></p>
       {% else %}
-        <p style="margin: 0;">事前にカード登録が必要です。<a href="{{ url_for('admin_settings') }}">設定を変更</a></p>
+        <p style="margin: 0;">事前にカード登録が必要です。<a href="{{ url_for('admin_settings') }}">設定を変更 →</a></p>
       {% endif %}
     </div>
   </div>
   {% endif %}
   
-  <div class="stats">
-    <div><strong>利用者数:</strong> {{ users|length }}</div>
-    <div><strong>子機数:</strong> {{ units|length }}</div>
-    <div><strong>履歴件数:</strong> {{ history|length }}</div>
+  <!-- 統計情報 -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-icon">👥</div>
+      <div class="stat-value">{{ users|length }}</div>
+      <div class="stat-label">登録ユーザー</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">📦</div>
+      <div class="stat-value">{{ units|length }}</div>
+      <div class="stat-label">子機</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">✅</div>
+      <div class="stat-value">{{ history|length }}</div>
+      <div class="stat-label">排出成功</div>
+    </div>
   </div>
-  <div class="admin-menu">
-    <a href="{{ url_for('admin_settings') }}" class="btn" style="background: #9C27B0; color: white;">⚙️ システム設定</a>
-    <a href="{{ url_for('admin_users') }}" class="btn">利用者一覧</a>
-    <a href="{{ url_for('admin_units') }}" class="btn">子機一覧</a>
-    <a href="{{ url_for('admin_diagnostics') }}" class="btn">🔧 診断情報</a>
-    <a href="{{ url_for('admin_history') }}" class="btn">利用履歴</a>
-    <a href="{{ url_for('admin_visuals') }}" class="btn">利用状況の可視化</a>
-    <a href="{{ url_for('admin_csv_export') }}" class="btn">利用履歴CSVダウンロード</a>
-    <a href="{{ url_for('admin_log_export') }}" class="btn">全ログダウンロード</a>
-    <a href="{{ url_for('admin_backup_download') }}" class="btn">データバックアップ</a>
-    <a href="{{ url_for('admin_restore') }}" class="btn">データ復元</a>
-    <a href="{{ url_for('admin_login') }}?logout=1" class="btn btn-secondary">ログアウト</a>
+  
+  <!-- メニュー -->
+  <div class="menu-grid">
+    <a href="{{ url_for('admin_settings') }}" class="menu-btn purple">⚙️ システム設定</a>
+    <a href="{{ url_for('admin_users') }}" class="menu-btn">👥 利用者一覧</a>
+    <a href="{{ url_for('admin_units') }}" class="menu-btn">📦 子機一覧</a>
+    <a href="{{ url_for('admin_diagnostics') }}" class="menu-btn teal">🔧 診断情報</a>
+    <a href="{{ url_for('admin_history') }}" class="menu-btn">📋 利用履歴</a>
+    <a href="{{ url_for('admin_visuals') }}" class="menu-btn orange">📊 グラフ表示</a>
+    <a href="{{ url_for('admin_csv_export') }}" class="menu-btn">📥 CSV出力</a>
+    <a href="{{ url_for('admin_log_export') }}" class="menu-btn">📄 全ログ出力</a>
+    <a href="{{ url_for('admin_backup_download') }}" class="menu-btn">💾 バックアップ</a>
+    <a href="{{ url_for('admin_restore') }}" class="menu-btn">🔄 データ復元</a>
+    <a href="{{ url_for('admin_login') }}?logout=1" class="menu-btn gray">🚪 ログアウト</a>
   </div>
 </div>
 {% endblock %}

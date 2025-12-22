@@ -1,12 +1,32 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="admin-section">
-  <h2>利用履歴</h2>
-  <ul class="history-list">
+<div class="admin-dashboard">
+  <h2>📋 利用履歴（排出成功）</h2>
+  
+  <div class="info-card">
+    <h3>ℹ️ このページについて</h3>
+    <p style="margin: 0;">カードがタッチされ、お菓子が正常に排出された記録のみを表示しています。</p>
+  </div>
+  
+  <div class="history-list" style="margin-top: 24px;">
     {% for entry in history %}
-      <li>{{ entry['txt'] }} <span style="color: gray; font-size: 0.9em;">({{ entry['created_at'] }})</span></li>
+    <div class="history-item">
+      <div class="history-icon">✅</div>
+      <div class="history-content">
+        <div class="history-text">{{ entry['txt'] }}</div>
+        <div class="history-time">{{ entry['created_at'] }}</div>
+      </div>
+    </div>
+    {% else %}
+    <div class="info-card warning">
+      <h3>📭 履歴なし</h3>
+      <p style="margin: 0;">まだ利用履歴がありません。</p>
+    </div>
     {% endfor %}
-  </ul>
-  <p><a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">管理者メニューに戻る</a></p>
+  </div>
+  
+  <div style="margin-top: 32px;">
+    <a href="{{ url_for('admin_dashboard') }}" class="menu-btn gray">← 管理者メニューに戻る</a>
+  </div>
 </div>
 {% endblock %}

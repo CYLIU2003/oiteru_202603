@@ -526,10 +526,11 @@ def admin_new_unit():
 
 @app.route("/admin/history")
 def admin_history():
+    """排出成功の利用履歴を表示（カードタッチ＋排出成功のみカウント）"""
     if not session.get("admin_logged_in"):
         return redirect(url_for("admin_login"))
     with get_connection() as conn:
-        history = db.fetchall(conn, "SELECT * FROM history WHERE type = 'usage' ORDER BY created_at DESC LIMIT 100")
+        history = db.fetchall(conn, "SELECT * FROM history WHERE type = 'success' ORDER BY created_at DESC LIMIT 100")
     return render_template("admin_history.html", history=history)
 
 
@@ -601,12 +602,13 @@ def admin_restore():
 
 @app.route('/admin/visuals')
 def admin_visuals():
-    """利用状況を可視化"""
+    """利用状況を可視化（排出成功のみカウント）"""
     if not session.get('admin_logged_in'):
         return redirect(url_for('admin_login'))
 
     with get_connection() as conn:
-        logs = db.fetchall(conn, "SELECT txt, created_at FROM history WHERE type = ? ORDER BY created_at DESC", ('usage',))
+        # 'success' タイプのみ取得（カードタッチ＋排出成功）
+        logs = db.fetchall(conn, "SELECT txt, created_at FROM history WHERE type = ? ORDER BY created_at DESC", ('success',))
 
     timestamps = []
     for log in logs:
@@ -733,7 +735,7 @@ def api_record_usage():
                        (new_unit_stock, unit_name))
 
             message = f"[{unit_name}] 利用成功 (カードID: {card_id}, 残数: {new_user_stock})"
-            add_history(message, 'usage')
+            add_history(message, 'success')  # 排出成功のみ 'success' タイプで記録
 
             # 子機の在庫が0になったら利用不可に
             if new_unit_stock <= 0:
