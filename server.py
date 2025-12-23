@@ -804,6 +804,61 @@ def api_local_nfc_reader():
         }), 404
 
 
+@app.route('/api/read_card', methods=['GET'])
+def api_read_card():
+    """
+    NFCカードを読み取ってカードIDを返す
+    タイムアウト: 10秒
+    """
+    try:
+        import nfc
+        clf = nfc.ContactlessFrontend('usb')
+        if not clf:
+            return jsonify({
+                "success": False,
+                "error": "NFCリーダーが見つかりません"
+            }), 404
+        
+        card_id = None
+        
+        def on_connect(tag):
+            nonlocal card_id
+            try:
+                # FeliCa (学生証など)
+                if hasattr(tag, 'idm'):
+                    card_id = tag.idm.hex().upper()
+                    return True
+                # NFC-A/B (MIFARE等)
+                if hasattr(tag, 'identifier'):
+                    card_id = tag.identifier.hex().upper()
+                    return True
+            except Exception as e:
+                app.logger.error(f"カード読み取りエラー: {e}")
+            return True
+        
+        # 10秒間待機してカードを読み取り
+        clf.connect(rdwr={'on-connect': on_connect}, terminate=lambda: card_id is not None)
+        clf.close()
+        
+        if card_id:
+            return jsonify({
+                "success": True,
+                "card_id": card_id
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "error": "カードが読み取れませんでした"
+            }), 408
+            
+    except Exception as e:
+        app.logger.error(f"NFCカード読み取りエラー: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
 @app.route('/api/unregistered_units', methods=['GET'])
 def api_unregistered_units():
     """未登録子機の一覧を取得"""

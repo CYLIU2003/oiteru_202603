@@ -9,9 +9,55 @@
       <button type="submit" name="retry" value="1" class="btn">リーダー再接続を試す</button>
     </form>
   {% else %}
-    <form method="post">
-      <button type="submit" class="btn">利用状況を確認</button>
+    <div id="status-message" style="margin-bottom: 1em; padding: 10px; border-radius: 5px; display: none;"></div>
+    <form id="usage-form" method="post">
+      <input type="hidden" name="card_id" id="card_id_input">
+      <button type="button" id="read-card-btn" class="btn">利用状況を確認</button>
     </form>
+    <script>
+      document.getElementById('read-card-btn').addEventListener('click', function() {
+        const btn = this;
+        const statusDiv = document.getElementById('status-message');
+        
+        // ボタンを無効化して読み取り中の表示
+        btn.disabled = true;
+        btn.textContent = 'カード読み取り中...';
+        statusDiv.style.display = 'block';
+        statusDiv.style.backgroundColor = '#e3f2fd';
+        statusDiv.style.color = '#1976d2';
+        statusDiv.textContent = '📖 カードをリーダーにかざしてください...';
+        
+        // カード読み取りAPIを呼び出し
+        fetch('/api/read_card')
+          .then(response => response.json())
+          .then(data => {
+            if (data.success && data.card_id) {
+              // 読み取り成功
+              statusDiv.style.backgroundColor = '#e8f5e9';
+              statusDiv.style.color = '#388e3c';
+              statusDiv.textContent = '✅ カードを読み取りました: ' + data.card_id;
+              
+              // フォームにカードIDをセットして送信
+              document.getElementById('card_id_input').value = data.card_id;
+              document.getElementById('usage-form').submit();
+            } else {
+              // 読み取り失敗
+              statusDiv.style.backgroundColor = '#ffebee';
+              statusDiv.style.color = '#c62828';
+              statusDiv.textContent = '❌ ' + (data.error || 'カードを読み取れませんでした');
+              btn.disabled = false;
+              btn.textContent = '利用状況を確認';
+            }
+          })
+          .catch(error => {
+            statusDiv.style.backgroundColor = '#ffebee';
+            statusDiv.style.color = '#c62828';
+            statusDiv.textContent = '❌ エラー: ' + error.message;
+            btn.disabled = false;
+            btn.textContent = '利用状況を確認';
+          });
+      });
+    </script>
   {% endif %}
   <a href="{{ url_for('index') }}" class="btn btn-secondary">ホームに戻る</a>
 </div>
