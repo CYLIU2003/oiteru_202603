@@ -656,6 +656,12 @@ def admin_visuals():
 # ========================================
 # API エンドポイント
 # ========================================
+@app.route('/api/health', methods=['GET'])
+def api_health():
+    """子機からの親機探知用ヘルスチェックエンドポイント"""
+    return jsonify({'status': 'ok', 'server': 'oiteru'})
+
+
 @app.route('/api/users', methods=['GET'])
 def api_get_users():
     with get_connection() as conn:
