@@ -89,7 +89,9 @@ def load_settings_from_db():
                 server_settings['auto_register_stock'] = int(settings_row.get('auto_register_stock', 2))
                 server_settings['daily_limit'] = int(settings_row.get('daily_limit', 2))
                 settings_version = int(settings_row.get('version', 0))
-                print(f"設定をDBから読み込みました (version: {settings_version})")
+                print(f"[DEBUG] 設定をDBから読み込み: auto_register_mode={server_settings['auto_register_mode']}, version={settings_version}")
+            else:
+                print(f"[DEBUG] settingsテーブルにデータがありません。デフォルト設定を使用します。")
     except Exception as e:
         print(f"設定読み込みエラー（テーブルが未作成の可能性）: {e}")
 
@@ -335,6 +337,32 @@ def register():
     """手動登録ページ（自動登録モードでは使用頻度低）"""
     if request.method == "POST":
         card_id = request.form.get('card_id', '').strip()
+        
+        # カードIDが空の場合、NFCリーダーから読み取る
+        if not card_id:
+            try:
+                import nfc
+                import time
+                
+                clf = nfc.ContactlessFrontend('usb')
+                if clf:
+                    # カードを検出（最大3秒待機）
+                    start_time = time.time()
+                    while time.time() - start_time < 3:
+                        target = clf.sense(nfc.clf.RemoteTarget('106A'), 
+                                          nfc.clf.RemoteTarget('106B'),
+                                          nfc.clf.RemoteTarget('212F'),
+                                          iterations=5, interval=0.1)
+                        if target:
+                            tag = nfc.tag.activate(clf, target)
+                            if tag:
+                                card_id = tag.identifier.hex().upper()
+                                break
+                    clf.close()
+            except Exception as e:
+                flash(f"カード読み取りエラー: {e}", "error")
+                return redirect(url_for("register"))
+        
         if card_id:
             try:
                 with get_connection() as conn:
@@ -347,9 +375,22 @@ def register():
                 flash("この学生証は既に登録済みです。", "warning")
             except Exception as e:
                 flash(f"データベース登録中にエラーが発生しました: {e}", "error")
+        else:
+            flash("カードを読み取れませんでした。カードをリーダーに置いてください。", "warning")
         return redirect(url_for("register"))
     
-    return render_template("register.html", reader_connected=False)
+    # NFCリーダー接続確認
+    reader_connected = False
+    try:
+        import nfc
+        clf = nfc.ContactlessFrontend('usb')
+        if clf:
+            reader_connected = True
+            clf.close()
+    except:
+        pass
+    
+    return render_template("register.html", reader_connected=reader_connected)
 
 
 @app.route("/usage", methods=["GET", "POST"])
@@ -366,7 +407,18 @@ def usage():
                     flash("この学生証は登録されていません。", "warning")
         return redirect(url_for("usage"))
     
-    return render_template("usage.html", reader_connected=False)
+    # NFCリーダー接続確認
+    reader_connected = False
+    try:
+        import nfc
+        clf = nfc.ContactlessFrontend('usb')
+        if clf:
+            reader_connected = True
+            clf.close()
+    except:
+        pass
+    
+    return render_template("usage.html", reader_connected=reader_connected)
 
 
 # ========================================
@@ -728,14 +780,28 @@ def api_reader_status():
 def api_local_nfc_reader():
     """
     親機PCに接続されたNFCリーダーを検出
-    Docker環境ではUSBデバイスへのアクセスが制限されるため、
-    通常は「未接続」を返します。
     """
-    return jsonify({
-        "connected": False,
-        "error": "Docker環境ではNFCリーダーへの直接アクセスは制限されています",
-        "note": "NFCリーダーは子機（Raspberry Pi）に接続してください"
-    }), 404
+    try:
+        import nfc
+        clf = nfc.ContactlessFrontend('usb')
+        if clf:
+            device_info = str(clf)
+            clf.close()
+            return jsonify({
+                "connected": True,
+                "device": device_info,
+                "message": "NFCリーダーが接続されています"
+            })
+        else:
+            return jsonify({
+                "connected": False,
+                "error": "NFCリーダーが見つかりません"
+            }), 404
+    except Exception as e:
+        return jsonify({
+            "connected": False,
+            "error": str(e)
+        }), 404
 
 
 @app.route('/api/unregistered_units', methods=['GET'])
@@ -853,10 +919,14 @@ def api_record_usage():
             user = db.fetchone(conn, "SELECT * FROM users WHERE card_id = ?", (card_id,))
             
             if not user:
+                # デバッグログ
+                print(f"[DEBUG] 未登録カード: {card_id}, auto_register_mode={server_settings['auto_register_mode']}")
+                
                 # 自動登録モードの場合は新規登録
                 if server_settings['auto_register_mode']:
                     now = datetime.now().strftime("%Y-%m-%d %H:%M")
                     initial_stock = server_settings['auto_register_stock']
+                    print(f"[DEBUG] 自動登録実行: card_id={card_id}, initial_stock={initial_stock}")
                     db.execute(conn, 
                         "INSERT INTO users (card_id, entry, stock, allow) VALUES (?, ?, ?, 1)", 
                         (card_id, now, initial_stock))
@@ -1050,6 +1120,8 @@ def admin_settings():
         server_settings['auto_register_mode'] = request.form.get('auto_register_mode') == 'on'
         server_settings['auto_register_stock'] = int(request.form.get('auto_register_stock', 2))
         server_settings['daily_limit'] = int(request.form.get('daily_limit', 2))
+        
+        print(f"[DEBUG] 設定を更新: auto_register_mode={server_settings['auto_register_mode']}")
         
         if save_settings_to_db():
             add_history(f"設定を変更 (自動登録: {'有効' if server_settings['auto_register_mode'] else '無効'})", 'system')

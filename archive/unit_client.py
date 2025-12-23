@@ -858,26 +858,36 @@ def run_client(config, stop_event, gui_queue):
         return is_clear
 
     def dispense_item():
+        # ▼▼▼ 毎回 config から最新の設定を読み取る ▼▼▼
+        current_motor_speed = config.get('MOTOR_SPEED', 100)
+        current_motor_duration = config.get('MOTOR_DURATION', 2.0)
+        current_motor_reverse = config.get('MOTOR_REVERSE', False)
+        current_motor_type = config.get('MOTOR_TYPE', MOTOR_TYPE)
+        current_control_method = config.get('CONTROL_METHOD', CONTROL_METHOD)
+        current_use_sensor = config.get('USE_SENSOR', USE_SENSOR)
+        
+        print(f"[DEBUG] dispense_item: MOTOR_REVERSE={current_motor_reverse}, SPEED={current_motor_speed}, DURATION={current_motor_duration}")
+        
         if PLATFORM_RUNTIME != 'RASPI':
             print("INFO: PCモードのためモーターは動作しません。")
             send_log_to_server("排出完了 (PCモード)")
             return
         
-        if MOTOR_TYPE == 'SERVO' and CONTROL_METHOD == 'RASPI_DIRECT':
+        if current_motor_type == 'SERVO' and current_control_method == 'RASPI_DIRECT':
             try:
                 pwm = Adafruit_PCA9685_runtime.PCA9685(address=0x40, busnum=1)
                 pwm.set_pwm_freq(60)
-                speed_pwm = int(150 + (MOTOR_SPEED / 100.0) * 450)
+                speed_pwm = int(150 + (current_motor_speed / 100.0) * 450)
 
                 # ▼▼▼ 回転方向に応じてPWM値を設定 ▼▼▼
-                if MOTOR_REVERSE:
+                if current_motor_reverse:
                     jam_clear_pwm = speed_pwm 
                     final_push_pwm = int(speed_pwm * 0.5) 
                 else:
                     jam_clear_pwm = int(speed_pwm * 0.5)
                     final_push_pwm = speed_pwm
 
-                if USE_SENSOR:
+                if current_use_sensor:
                     print("INFO: センサー付きで排出を開始します。")
                     
                     # ========== 【1. モーター回転前のチェック】 ==========
@@ -904,9 +914,9 @@ def run_client(config, stop_event, gui_queue):
                             print("✓ 回転前チェック: 排出口クリア")
                     
                     # ========== 【2. モーター回転】 ==========
-                    print(f"\n--- ステップ2: モーター回転 ({MOTOR_DURATION}秒) ---")
+                    print(f"\n--- ステップ2: モーター回転 ({current_motor_duration}秒) ---")
                     pwm.set_pwm(15, 0, final_push_pwm)
-                    time.sleep(MOTOR_DURATION)
+                    time.sleep(current_motor_duration)
                     pwm.set_pwm(15, 0, 0)
                     print("✓ モーター回転完了")
                     
@@ -946,9 +956,9 @@ def run_client(config, stop_event, gui_queue):
                         send_log_to_server("排出完了 (チェックなし)")
                     
                 else:
-                    print(f"INFO: センサーなしで排出 (速度:{MOTOR_SPEED}, 時間:{MOTOR_DURATION}秒)")
+                    print(f"INFO: センサーなしで排出 (速度:{current_motor_speed}, 時間:{current_motor_duration}秒)")
                     pwm.set_pwm(15, 0, final_push_pwm)
-                    time.sleep(MOTOR_DURATION)
+                    time.sleep(current_motor_duration)
                     pwm.set_pwm(15, 0, 0)
                     print("排出動作が完了しました。")
                     send_log_to_server("排出完了 (センサーなし)")
@@ -959,12 +969,12 @@ def run_client(config, stop_event, gui_queue):
                 send_log_to_server(msg)
                 indicate('failure')
 
-        elif CONTROL_METHOD == 'ARDUINO_SERIAL':
+        elif current_control_method == 'ARDUINO_SERIAL':
             try:
                 ser = serial.Serial(ARDUINO_PORT, 9600, timeout=1)
                 time.sleep(2)
-                direction_flag = 1 if MOTOR_REVERSE else 0
-                command = f"S{MOTOR_SPEED}T{MOTOR_DURATION}D{direction_flag}\n"
+                direction_flag = 1 if current_motor_reverse else 0
+                command = f"S{current_motor_speed}T{current_motor_duration}D{direction_flag}\n"
                 ser.write(command.encode('utf-8'))
                 print(f"Arduinoにコマンド送信: {command.strip()}")
                 send_log_to_server(f"Arduinoに排出指令: {command.strip()}")
@@ -975,32 +985,66 @@ def run_client(config, stop_event, gui_queue):
                 send_log_to_server(msg)
                 indicate('failure')
         else:
-            error_message = f"未サポートのモーター設定です: {MOTOR_TYPE}, {CONTROL_METHOD}"
+            error_message = f"未サポートのモーター設定です: {current_motor_type}, {current_control_method}"
             print(f"!! {error_message}")
             send_log_to_server(error_message)
             indicate('failure')
 
     def handle_card_touch(tag):
-        if not isinstance(tag, nfc.tag.tt3.Type3Tag): return False
-        card_id = tag.idm.hex()
+        """NFCカードタッチ時の処理（改良版）"""
+        # Type3Tag (FeliCa) のチェック - Type2Tag等もサポート
+        card_id = None
+        try:
+            if hasattr(tag, 'idm'):
+                # FeliCa (Type3Tag)
+                card_id = tag.idm.hex()
+            elif hasattr(tag, 'identifier'):
+                # NFC-A/B (Type2Tag, Type4Tag等)
+                card_id = tag.identifier.hex()
+            else:
+                send_log_to_server(f"未対応のカードタイプ: {type(tag)}")
+                return False
+        except Exception as e:
+            send_log_to_server(f"カードID取得エラー: {e}")
+            return False
+        
+        if not card_id:
+            return False
+            
         gui_queue.put({'nfc': f'読取中: {card_id}'})
+        send_log_to_server(f"カード検出: {card_id}")
+        
         try:
             payload = {"card_id": card_id, "unit_name": UNIT_NAME}
-            response = requests.post(f"{SERVER_URL}/api/record_usage", json=payload, timeout=5)
+            response = requests.post(f"{SERVER_URL}/api/record_usage", json=payload, timeout=10)
+            
             if response.status_code == 200:
                 send_log_to_server(f"利用を記録 ({card_id})")
                 indicate("success")
                 dispense_item()
             else:
-                error_msg = response.json().get('error', '不明なエラー')
+                # JSONパースエラーを安全に処理
+                try:
+                    error_msg = response.json().get('error', '不明なエラー')
+                except:
+                    error_msg = f"HTTP {response.status_code}"
                 send_log_to_server(f"利用不可 ({error_msg}) ({card_id})")
                 indicate("failure")
-        except requests.exceptions.RequestException:
+                
+        except requests.exceptions.Timeout:
+            send_log_to_server(f"サーバー接続タイムアウト ({card_id})")
+            indicate("failure")
+        except requests.exceptions.ConnectionError:
+            send_log_to_server(f"サーバー接続エラー ({card_id})")
+            indicate("failure")
+        except Exception as e:
+            send_log_to_server(f"予期しないエラー: {e} ({card_id})")
             indicate("failure")
         finally:
             time.sleep(2)
             if not stop_event.is_set():
                 gui_queue.put({'nfc': '待機中...'})
+        
         return True
 
     heartbeat_thread = threading.Thread(target=send_heartbeat, daemon=True)

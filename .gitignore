@@ -5,3 +5,9 @@ users_*.xlsx
 stats_*.xlsx
 __pycache__/
 *.pyc
+
+# 仮想環境
+.venv/
+venv/
+env/
+.env

@@ -1,0 +1,26 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Start Flask Server",
+			"type": "shell",
+			"command": ".venv\\Scripts\\python.exe server.py",
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Install Requirements",
+			"type": "shell",
+			"command": ".venv\\Scripts\\pip.exe install -r requirements.txt",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Start Flask Server (MySQL)",
+			"type": "shell",
+			"command": "$env:DB_TYPE='mysql'; $env:MYSQL_HOST='localhost'; $env:MYSQL_PORT='3306'; $env:MYSQL_DATABASE='oiteru'; $env:MYSQL_USER='oiteru_user'; $env:MYSQL_PASSWORD='oiteru_password_2025'; .venv\\Scripts\\python.exe server.py",
+			"isBackground": true,
+			"problemMatcher": []
+		}
+	]
+}
