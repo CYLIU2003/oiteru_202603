@@ -622,17 +622,35 @@ def admin_visuals():
         elif isinstance(ts, datetime):
             timestamps.append(ts)
 
+    # 時間別カウント
     hourly_counts = {}
     for dt in timestamps:
         hour = dt.hour
         hourly_counts[hour] = hourly_counts.get(hour, 0) + 1
 
+    # 日別カウント
     daily_counts = {}
     for dt in timestamps:
         day = dt.strftime("%Y-%m-%d")
         daily_counts[day] = daily_counts.get(day, 0) + 1
 
-    return render_template("admin_visuals.html", hourly_counts=hourly_counts, daily_counts=daily_counts)
+    # 曜日別カウント
+    weekday_names = ['月', '火', '水', '木', '金', '土', '日']
+    weekly_counts = {i: 0 for i in range(7)}
+    for dt in timestamps:
+        weekly_counts[dt.weekday()] = weekly_counts.get(dt.weekday(), 0) + 1
+
+    # chart_dataオブジェクトを構築
+    chart_data = {
+        'hourly_labels': [f"{h}時" for h in range(24)],
+        'hourly_data': [hourly_counts.get(h, 0) for h in range(24)],
+        'daily_labels': sorted(daily_counts.keys())[-14:] if daily_counts else [],  # 直近14日
+        'daily_data': [daily_counts.get(d, 0) for d in (sorted(daily_counts.keys())[-14:] if daily_counts else [])],
+        'weekly_labels': weekday_names,
+        'weekly_data': [weekly_counts.get(i, 0) for i in range(7)]
+    }
+
+    return render_template("admin_visuals.html", chart_data=chart_data, hourly_counts=hourly_counts, daily_counts=daily_counts)
 
 
 # ========================================
