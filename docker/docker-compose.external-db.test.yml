@@ -1,0 +1,40 @@
+# ========================================
+# 従親機テスト用設定（同一PC上でテスト）
+# ========================================
+# 
+# 親機と同じPCで従親機をテストするための設定
+# ポート5001で起動し、親機のMySQLに接続
+#
+# ========================================
+
+services:
+  # ========================================
+  # 従親機 (親機のMySQLに接続)
+  # ========================================
+  flask_external:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.mysql
+    container_name: oiteru_flask_external
+    hostname: oiteru-external
+    privileged: true
+    ports:
+      - "5001:5000"
+    environment:
+      - DB_TYPE=mysql
+      # 親機のMySQLコンテナ名を指定
+      - MYSQL_HOST=oiteru_mysql
+      - MYSQL_PORT=3306
+      - MYSQL_DATABASE=oiteru
+      - MYSQL_USER=oiteru_user
+      - MYSQL_PASSWORD=oiteru_password_2025
+      # サーバー名と設置場所
+      - SERVER_NAME=従親機テスト
+      - SERVER_LOCATION=テスト環境
+    restart: unless-stopped
+    networks:
+      - docker_oiteru_network
+
+networks:
+  docker_oiteru_network:
+    external: true

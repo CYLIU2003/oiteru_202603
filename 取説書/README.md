@@ -593,3 +593,14 @@ oiteru_250827_restAPI/
 ---
 
 **最終更新: 2025年11月28日**
+
+
+従親機（別端末）での使用方法
+従親機にあたる端末で以下のコマンドを実行してください：
+
+
+# 1. イメージをプルdocker pull hiramekitcu/oiteru-flask:external# 2. コンテナを起動（MYSQL_HOSTを親機のIPに変更）docker run -d \  --name oiteru_flask_external \  -p 5000:5000 \  -e DB_TYPE=mysql \  -e MYSQL_HOST=<親機のIPアドレス> \  -e MYSQL_PORT=3306 \  -e MYSQL_DATABASE=oiteru \  -e MYSQL_USER=oiteru_user \  -e MYSQL_PASSWORD=oiteru_password_2025 \  -e SERVER_NAME=従親機1号機 \  -e SERVER_LOCATION=設置場所 \  --restart unless-stopped \  hiramekitcu/oiteru-flask:external
+注意:
+
+<親機のIPアドレス>を実際の親機IP（Tailscale IPなど）に変更してください
+親機のMySQLポート3306が開いている必要があります
