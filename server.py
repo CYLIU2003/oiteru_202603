@@ -741,7 +741,58 @@ def api_local_nfc_reader():
 @app.route('/api/unregistered_units', methods=['GET'])
 def api_unregistered_units():
     """未登録子機の一覧を取得"""
-    return jsonify(unregistered_units)
+    now = datetime.now()
+    units = []
+    for name, info in unregistered_units.items():
+        # 最終通信からの秒数を計算
+        try:
+            last_seen_dt = datetime.strptime(info['last_seen'], "%Y-%m-%d %H:%M:%S")
+            seconds_ago = (now - last_seen_dt).total_seconds()
+        except:
+            seconds_ago = 9999
+        
+        units.append({
+            'name': name,
+            'ip_address': info.get('ip_address', '不明'),
+            'first_seen': info.get('first_seen', ''),
+            'last_seen': info.get('last_seen', ''),
+            'seconds_ago': round(seconds_ago, 1),
+            'heartbeat_count': info.get('heartbeat_count', 0),
+            'password': info.get('password', '')
+        })
+    
+    return jsonify({
+        'success': len(units) > 0,
+        'count': len(units),
+        'units': units
+    })
+
+
+@app.route('/api/register_unit', methods=['POST'])
+def api_register_unit():
+    """未登録子機を正式登録"""
+    data = request.json
+    unit_name = data.get('name')
+    
+    if not unit_name:
+        return jsonify({'success': False, 'error': '子機名が指定されていません'}), 400
+    
+    if unit_name not in unregistered_units:
+        return jsonify({'success': False, 'error': '未登録子機が見つかりません'}), 404
+    
+    pending_unit = unregistered_units[unit_name]
+    
+    try:
+        with get_connection() as conn:
+            db.execute(conn,
+                "INSERT INTO units (name, password, stock, connect, available, ip_address) VALUES (?, ?, ?, 1, 1, ?)",
+                (unit_name, pending_unit['password'], server_settings.get('auto_register_stock', 5), pending_unit.get('ip_address', ''))
+            )
+        del unregistered_units[unit_name]
+        add_history(f"子機登録: {unit_name}", 'system')
+        return jsonify({'success': True, 'message': f'子機「{unit_name}」を登録しました'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/api/users', methods=['GET'])
