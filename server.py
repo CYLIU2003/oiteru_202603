@@ -738,6 +738,12 @@ def api_local_nfc_reader():
     }), 404
 
 
+@app.route('/api/unregistered_units', methods=['GET'])
+def api_unregistered_units():
+    """未登録子機の一覧を取得"""
+    return jsonify(unregistered_units)
+
+
 @app.route('/api/users', methods=['GET'])
 def api_get_users():
     with get_connection() as conn:
@@ -858,11 +864,20 @@ def api_record_usage():
 def api_unit_heartbeat():
     """子機からの生存確認を受け取る"""
     data = request.json
-    unit_name = data.get('unit_name')
+    
+    # デバッグ: 受信データをログ出力
+    print(f"[DEBUG] Heartbeat received: {data}")
+    
+    if data is None:
+        print("[DEBUG] No JSON data received")
+        return jsonify({'error': 'No JSON data received'}), 400
+    
+    unit_name = data.get('unit_name') or data.get('name')  # 両方のキーに対応
     unit_password = data.get('password')
     ip_address = request.remote_addr
     
     if not all([unit_name, unit_password]):
+        print(f"[DEBUG] Missing fields - unit_name: {unit_name}, password: {'***' if unit_password else None}")
         return jsonify({'error': 'Unit name and password required'}), 400
     
     with get_connection() as conn:
