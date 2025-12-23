@@ -662,6 +662,82 @@ def api_health():
     return jsonify({'status': 'ok', 'server': 'oiteru'})
 
 
+@app.route('/api/reader_status', methods=['GET'])
+def api_reader_status():
+    """
+    NFCリーダーの状態を確認するエンドポイント
+    子機からのハートビートで状態が報告されます。
+    """
+    try:
+        with get_connection() as conn:
+            # 最近アクティブな子機（過去60秒以内）を取得
+            if db.db_type == 'mysql':
+                query = '''
+                    SELECT name, last_seen, stock, connect,
+                           TIMESTAMPDIFF(SECOND, last_seen, NOW()) as seconds_ago
+                    FROM units
+                    WHERE last_seen IS NOT NULL 
+                      AND TIMESTAMPDIFF(SECOND, last_seen, NOW()) < 60
+                    ORDER BY last_seen DESC
+                '''
+            else:
+                query = '''
+                    SELECT name, last_seen, stock, connect,
+                           (julianday('now') - julianday(last_seen)) * 86400.0 as seconds_ago
+                    FROM units
+                    WHERE last_seen IS NOT NULL 
+                      AND (julianday('now') - julianday(last_seen)) * 86400.0 < 60
+                    ORDER BY last_seen DESC
+                '''
+            
+            rows = db.fetchall(conn, query)
+        
+        active_units = []
+        for row in rows:
+            active_units.append({
+                "unit_name": row['name'],
+                "last_seen": row['last_seen'],
+                "stock": row['stock'],
+                "connected": bool(row['connect']),
+                "seconds_ago": round(row['seconds_ago'], 1),
+                "status": "online"
+            })
+        
+        if active_units:
+            return jsonify({
+                "connected": True,
+                "active_units": active_units,
+                "message": f"{len(active_units)}台の子機がオンライン"
+            })
+        else:
+            return jsonify({
+                "connected": False,
+                "active_units": [],
+                "error": "オンラインの子機が見つかりません"
+            }), 503
+            
+    except Exception as e:
+        print(f"リーダーステータス取得エラー: {e}")
+        return jsonify({
+            "connected": False,
+            "error": f"ステータス取得失敗: {str(e)}"
+        }), 500
+
+
+@app.route('/api/local_nfc_reader', methods=['GET'])
+def api_local_nfc_reader():
+    """
+    親機PCに接続されたNFCリーダーを検出
+    Docker環境ではUSBデバイスへのアクセスが制限されるため、
+    通常は「未接続」を返します。
+    """
+    return jsonify({
+        "connected": False,
+        "error": "Docker環境ではNFCリーダーへの直接アクセスは制限されています",
+        "note": "NFCリーダーは子機（Raspberry Pi）に接続してください"
+    }), 404
+
+
 @app.route('/api/users', methods=['GET'])
 def api_get_users():
     with get_connection() as conn:
