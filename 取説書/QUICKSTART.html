@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OITERU QUICKSTART</title>
+    <link rel="stylesheet" href="manual.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 OITERU QUICKSTART</h1>
+            <p class="subtitle">親機・従親機・子機の立ち上げガイド</p>
+            <div style="text-align: center; margin-top: 10px;">
+                <span class="badge badge-primary">Version 2.0</span>
+                <span class="badge badge-accent">Updated: 2025-12-24</span>
+            </div>
+        </header>
+
+        <p>このガイドは「まず動かす」ための手順書です。</p>
+
+        <ul>
+            <li><strong>🖥️ 親機</strong>: DBを持つサーバー（SQLiteまたはMySQLで運用）</li>
+            <li><strong>🔗 従親機</strong>: DBを持たないサーバー（外部MySQLに接続して運用）</li>
+            <li><strong>📡 子機</strong>: NFC/モーターで実際に排出する端末（Raspberry Pi等）</li>
+        </ul>
+
+        <div class="alert alert-info">
+            <strong>💡 補足:</strong> 本リポジトリでは <code>server.py</code> が親機/従親機の両方を担える設計です。
+        </div>
+
+        <hr>
+
+        <h2>0. 🏁 まず結論（最小の動かし方）</h2>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>目的</th>
+                    <th>推奨構成</th>
+                    <th>コマンド</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>手元PCだけで試す</strong></td>
+                    <td>親機 (SQLite)</td>
+                    <td><code>.\venv-start.ps1 parent-sqlite</code></td>
+                </tr>
+                <tr>
+                    <td><strong>本番運用</strong></td>
+                    <td>親機 (MySQL+Docker)</td>
+                    <td><code>./docker-start.sh mysql</code></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <hr>
+
+        <h2>1. 🛠️ 共通準備（Windows / PowerShell想定）</h2>
+
+        <h3>1.1 必要なもの</h3>
+        <ul>
+            <li>🐍 <strong>Python</strong>（<code>.venv</code> を使う構成が前提）</li>
+            <li>🐳 <strong>Docker Desktop</strong>（MySQL運用する場合）</li>
+        </ul>
+
+        <h3>1.2 依存関係のインストール</h3>
+        <p>このワークスペースには「依存を入れる」タスクが用意されています。</p>
+        <ul>
+            <li>タスク: <code>Install Requirements</code></li>
+        </ul>
+        <p>（手動で行う場合は <code>requirements.txt</code> を参照）</p>
+
+        <hr>
+
+        <h2>2. 🖥️ 親機の立ち上げ</h2>
+        <p>親機は「データベースを持つサーバー」です。</p>
+
+        <h3>2.1 方法A: 支援スクリプトを使う（推奨）</h3>
+        <p>Dockerを使わない仮想環境（venv）で起動する場合、以下のスクリプトを使うと簡単です。</p>
+
+        <p><strong>Windows (PowerShell):</strong></p>
+        <pre><code># SQLite版（手軽に試すならこれ）
+.\venv-start.ps1 parent-sqlite
+
+# MySQL版（Docker等でMySQLがlocalhost:3306にある場合）
+.\venv-start.ps1 parent-mysql</code></pre>
+
+        <p><strong>Linux / Mac:</strong></p>
+        <pre><code># SQLite版
+./venv-start.sh parent-sqlite
+
+# MySQL版
+./venv-start.sh parent-mysql</code></pre>
+
+        <h3>2.2 方法B: Dockerを使う</h3>
+        <p>Docker環境が整っている場合は、以下のスクリプトで一発起動できます。</p>
+        <pre><code># MySQLサーバーとFlaskサーバーをまとめて起動
+./docker-start.sh mysql</code></pre>
+
+        <h3>2.3 方法C: 手動コマンド（詳細）</h3>
+        <p>スクリプトを使わずに起動する場合のコマンドです。</p>
+
+        <p><strong>SQLite版:</strong></p>
+        <pre><code># Windows
+.venv\Scripts\python.exe server.py
+
+# Linux
+.venv/bin/python server.py</code></pre>
+
+        <p><strong>MySQL版（環境変数を指定）:</strong></p>
+        <pre><code># Windows (PowerShell)
+$env:DB_TYPE='mysql'; $env:MYSQL_HOST='localhost'; .venv\Scripts\python.exe server.py</code></pre>
+
+        <hr>
+
+        <h2>3. 🔗 従親機の立ち上げ（外部MySQLに接続）</h2>
+        <p>従親機は「DBを持たず、外部MySQLを参照するサーバー」です。<br>
+        ※ 親機と同じMySQLに接続することで、データを共有します。</p>
+
+        <h3>3.1 方法A: 支援スクリプトを使う（推奨）</h3>
+        <p><strong>Windows (PowerShell):</strong></p>
+        <pre><code># デフォルトで localhost:3306 のMySQLに接続します
+.\venv-start.ps1 sub-parent</code></pre>
+
+        <p><strong>Linux / Mac:</strong></p>
+        <pre><code>./venv-start.sh sub-parent</code></pre>
+
+        <h3>3.2 方法B: Dockerを使う</h3>
+        <pre><code># 外部DB設定（docker-compose.external-db.yml）を使って起動
+./docker-start.sh external</code></pre>
+
+        <h3>3.3 方法C: 手動コマンド（詳細）</h3>
+        <pre><code># Windows (PowerShell) - 接続先やサーバー名を指定
+$env:DB_TYPE='mysql'
+$env:MYSQL_HOST='192.168.1.10'  # 親機(DB)のIP
+$env:SERVER_NAME='従親機A'
+.venv\Scripts\python.exe server.py</code></pre>
+
+        <hr>
+
+        <h2>4. 📡 子機の立ち上げ（Raspberry Pi 等）</h2>
+        <p>子機は <code>unit.py</code> を使います。</p>
+
+        <h3>4.1 事前に設定する（重要）</h3>
+        <p><code>config.json</code> を編集して、少なくとも以下を合わせてください。</p>
+        <ul>
+            <li><code>SERVER_URL</code> : 親機/従親機のURL
+                <ul><li>例: <code>http://192.168.1.10:5000</code></li></ul>
+            </li>
+            <li><code>UNIT_NAME</code> / <code>UNIT_PASSWORD</code> : サーバー側の子機登録情報と一致させる</li>
+        </ul>
+
+        <h3>4.2 方法A: 支援スクリプトを使う（推奨）</h3>
+        <p><strong>Windows (PowerShell):</strong></p>
+        <pre><code>.\venv-start.ps1 unit</code></pre>
+
+        <p><strong>Linux / Mac (Raspberry Pi):</strong></p>
+        <pre><code>./venv-start.sh unit</code></pre>
+
+        <h3>4.3 方法B: Dockerを使う</h3>
+        <pre><code># 子機用コンテナを起動
+./docker-start.sh unit</code></pre>
+
+        <h3>4.4 方法C: 手動コマンド（詳細）</h3>
+        <pre><code># Linux (Raspberry Pi)
+# 権限が必要な場合（GPIO/NFC）は sudo が必要なこともあります
+sudo .venv/bin/python unit.py</code></pre>
+
+        <hr>
+
+        <h2>5. 📜 支援スクリプトについて</h2>
+        <p>このプロジェクトには、起動を簡単にするためのスクリプトが用意されています。</p>
+
+        <h3>5.1 <code>venv-start.ps1</code> / <code>venv-start.sh</code> (仮想環境用)</h3>
+        <p>Dockerを使わず、ローカルのPython仮想環境（<code>.venv</code>）を使って起動するためのスクリプトです。<br>
+        環境変数の設定などを自動で行います。</p>
+        <ul>
+            <li><strong>Windows</strong>: <code>.\venv-start.ps1 [mode]</code></li>
+            <li><strong>Linux</strong>: <code>./venv-start.sh [mode]</code></li>
+        </ul>
+        <p><strong>モード一覧:</strong></p>
+        <ul>
+            <li><code>parent-sqlite</code>: 親機 (SQLite)</li>
+            <li><code>parent-mysql</code>: 親機 (MySQL接続)</li>
+            <li><code>sub-parent</code>: 従親機 (MySQL接続)</li>
+            <li><code>unit</code>: 子機</li>
+        </ul>
+
+        <h3>5.2 <code>docker-start.sh</code> (Docker用)</h3>
+        <p>Docker Composeコマンドをラップしたスクリプトです。<br>
+        <code>docker/</code> フォルダ内の適切なYAMLファイルを選択して起動します。</p>
+        <ul>
+            <li><strong>使い方</strong>: <code>./docker-start.sh [mode]</code></li>
+        </ul>
+        <p><strong>モード一覧:</strong></p>
+        <ul>
+            <li><code>mysql</code>: 親機DB版（MySQL + Webサーバー）</li>
+            <li><code>external</code>: 従親機（外部DB接続）</li>
+            <li><code>unit</code>: 子機</li>
+            <li><code>stop</code>: 全コンテナ停止</li>
+        </ul>
+
+        <hr>
+
+        <h2>6. ❓ トラブルシューティング（よくある順）</h2>
+
+        <h3>6.1 サーバーが起動しない / 5000番が使われている</h3>
+        <div class="alert alert-warning">
+            <strong>症状:</strong> 起動直後にエラー / <code>Address already in use</code>
+        </div>
+        <p><strong>対処:</strong></p>
+        <ol>
+            <li>すでに別の <code>server.py</code> が動いていないか確認</li>
+            <li>5000番を使っている別プロセスを停止</li>
+            <li>それでもダメなら、ポート変更（アプリ側の設定）を検討</li>
+        </ol>
+
+        <h3>6.2 ブラウザで開けない（見えない）</h3>
+        <div class="alert alert-warning">
+            <strong>症状:</strong> <code>http://localhost:5000</code> がタイムアウト
+        </div>
+        <p><strong>対処:</strong></p>
+        <ol>
+            <li>サーバーの起動ログにエラーが無いか確認</li>
+            <li>Windowsファイアウォール/セキュリティソフトのブロックを確認</li>
+            <li>別PC/子機からアクセスする場合は、<code>localhost</code> ではなく <strong>サーバーPCのIPアドレス</strong> を使う</li>
+        </ol>
+
+        <h3>6.3 MySQLに接続できない</h3>
+        <div class="alert alert-warning">
+            <strong>症状:</strong> サーバー起動時にDB接続エラー
+        </div>
+        <p><strong>対処:</strong></p>
+        <ol>
+            <li><code>MYSQL_HOST</code> / <code>MYSQL_PORT</code> / <code>MYSQL_USER</code> / <code>MYSQL_PASSWORD</code> が正しいか</li>
+            <li>MySQLコンテナが起動しているか（Docker Desktop側で確認）</li>
+            <li>WindowsからMySQLへ接続する場合、ポート開放が必要なことがあります
+                <ul><li>参考: <code>scripts/open_mysql_port_windows.ps1</code></li></ul>
+            </li>
+        </ol>
+
+        <h3>6.4 テーブルが無い / 初期化されていない</h3>
+        <div class="alert alert-warning">
+            <strong>症状:</strong> 画面表示やAPIで「no such table」「table doesn’t exist」
+        </div>
+        <p><strong>対処:</strong></p>
+        <ul>
+            <li><strong>SQLite運用</strong>: <code>oiteru.sqlite3</code> が正しい場所にあるか、初回起動で生成されるか</li>
+            <li><strong>MySQL運用</strong>: <code>docker/init_mysql.sql</code> が実行されているか</li>
+        </ul>
+
+        <h3>6.5 子機がサーバーに繋がらない</h3>
+        <div class="alert alert-warning">
+            <strong>症状:</strong> 子機側で接続エラー
+        </div>
+        <p><strong>対処:</strong></p>
+        <ol>
+            <li><code>config.json</code> の <code>SERVER_URL</code> が正しいか
+                <ul><li>サーバーPCから見た <code>localhost</code> を子機で使うのはNG（子機にとっては子機自身のlocalhost）</li></ul>
+            </li>
+            <li>サーバーがLAN内で疎通可能か（IPアドレス変更に注意）</li>
+            <li>ファイアウォールで5000番が遮断されていないか</li>
+        </ol>
+
+        <h3>6.6 NFCが読めない</h3>
+        <p><strong>対処の方針:</strong></p>
+        <ol>
+            <li>USB接続を確認</li>
+            <li>OSからデバイスが認識されているか確認</li>
+            <li>コンテナ内で扱う場合はデバイスのアタッチが必要
+                <ul><li>参考: <code>scripts/attach_card_reader.ps1</code> / <code>scripts/fix_card_reader.ps1</code></li></ul>
+            </li>
+        </ol>
+
+        <hr>
+
+        <h2>7. 📚 次に読む</h2>
+        <ul>
+            <li>詳細な仕様/設定/運用: <a href="README.html">取説書/README.html</a></li>
+            <li>Docker構成: <code>docker/</code></li>
+            <li>診断ツール: <code>tools/</code></li>
+        </ul>
+
+        <footer>
+            <p>&copy; 2025 OITERU Project</p>
+        </footer>
+    </div>
+</body>
+</html>
