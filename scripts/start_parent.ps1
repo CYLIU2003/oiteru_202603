@@ -99,13 +99,21 @@ Write-Host "━━━━━━━━━━━━━━━━━━━━━━�
 Write-Status "ステップ 1: Python仮想環境のセットアップ"
 Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor DarkGray
 
-$VenvPaths = @(".venv", "venv", "env", ".env")
+# ユーザーフォルダの仮想環境パス
+$UserVenvPath = Join-Path $env:USERPROFILE ".venv_oiteru"
+$VenvPaths = @($UserVenvPath, ".venv", "venv", "env", ".env")
 $VenvFound = $null
 $VenvPython = $null
 
 foreach ($path in $VenvPaths) {
-    $activateScript = Join-Path $ProjectDir "$path\Scripts\Activate.ps1"
-    $pythonExe = Join-Path $ProjectDir "$path\Scripts\python.exe"
+    if ($path -eq $UserVenvPath) {
+        $activateScript = Join-Path $path "Scripts\Activate.ps1"
+        $pythonExe = Join-Path $path "Scripts\python.exe"
+    }
+    else {
+        $activateScript = Join-Path $ProjectDir "$path\Scripts\Activate.ps1"
+        $pythonExe = Join-Path $ProjectDir "$path\Scripts\python.exe"
+    }
     
     if (Test-Path $activateScript) {
         $VenvFound = $path
@@ -128,22 +136,27 @@ if (-not $VenvFound) {
         exit 1
     }
     
-    # 仮想環境作成
-    Write-Status "仮想環境を作成中: .venv"
-    & python -m venv .venv
+    # ユーザーフォルダに仮想環境作成
+    Write-Status "仮想環境を作成中: $UserVenvPath"
+    & python -m venv $UserVenvPath
     
     if ($LASTEXITCODE -ne 0) {
         Write-Error "仮想環境の作成に失敗しました"
         exit 1
     }
     
-    $VenvFound = ".venv"
-    $VenvPython = Join-Path $ProjectDir ".venv\Scripts\python.exe"
-    Write-Success "仮想環境を作成しました: .venv"
+    $VenvFound = $UserVenvPath
+    $VenvPython = Join-Path $UserVenvPath "Scripts\python.exe"
+    Write-Success "仮想環境を作成しました: $UserVenvPath"
 }
 
 # 仮想環境をアクティベート
-$ActivateScript = Join-Path $ProjectDir "$VenvFound\Scripts\Activate.ps1"
+if ($VenvFound -eq $UserVenvPath) {
+    $ActivateScript = Join-Path $UserVenvPath "Scripts\Activate.ps1"
+}
+else {
+    $ActivateScript = Join-Path $ProjectDir "$VenvFound\Scripts\Activate.ps1"
+}
 Write-Status "仮想環境をアクティベート中..."
 & $ActivateScript
 
