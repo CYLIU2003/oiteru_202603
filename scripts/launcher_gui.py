@@ -229,9 +229,18 @@ class OITELULauncher:
         )
         status_bar.grid(row=6, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=5)
         
-        # 初期ログ
+        # 初期ログ（軽量化：システム情報は遅延読み込み）
         self.log("OITELU ランチャーを起動しました")
-        self.log(f"システム情報: {get_system_info()}")
+        
+        # システム情報を別スレッドで取得（起動を軽くするため）
+        def load_system_info():
+            try:
+                info = get_system_info()
+                self.log(f"システム情報: {info}")
+            except Exception as e:
+                self.log(f"システム情報の取得に失敗: {e}")
+        
+        threading.Thread(target=load_system_info, daemon=True).start()
     
     def on_role_changed(self):
         """ロール変更時の処理"""
@@ -244,23 +253,39 @@ class OITELULauncher:
         self.log_queue.put(message)
     
     def update_log(self):
-        """ログを更新"""
+        """ログを更新（軽量化版）"""
         try:
-            while True:
-                message = self.log_queue.get_nowait()
-                self.log_text.insert(tk.END, f"{message}\n")
+            # キューからメッセージを一括取得（最大10件）
+            messages = []
+            for _ in range(10):
+                try:
+                    message = self.log_queue.get_nowait()
+                    messages.append(f"{message}\n")
+                except queue.Empty:
+                    break
+            
+            if messages:
+                self.log_text.insert(tk.END, "".join(messages))
                 self.log_text.see(tk.END)
-        except queue.Empty:
+        except Exception:
             pass
         
-        # プロセスの出力を読み取り
+        # プロセスの出力を読み取り（非ブロッキング）
         if self.current_process:
             try:
-                # stdoutから読み取り
+                # encoding対応済みなのでdecode不要、直接読み取り
                 if self.current_process.stdout:
-                    line = self.current_process.stdout.readline()
-                    if line:
-                        self.log_text.insert(tk.END, line.decode('utf-8', errors='ignore'))
+                    # 一度に複数行読み取り（最大5行）
+                    lines = []
+                    for _ in range(5):
+                        line = self.current_process.stdout.readline()
+                        if line:
+                            lines.append(line)
+                        else:
+                            break
+                    
+                    if lines:
+                        self.log_text.insert(tk.END, "".join(lines))
                         self.log_text.see(tk.END)
                 
                 # プロセスが終了したか確認
@@ -270,12 +295,12 @@ class OITELULauncher:
                     self.start_button.config(state=tk.NORMAL)
                     self.stop_button.config(state=tk.DISABLED)
                     self.status_var.set("停止")
-            except Exception as e:
+            except Exception:
                 # エラーは無視（プロセスが終了した場合など）
                 pass
         
-        # 100ms後に再度実行
-        self.root.after(100, self.update_log)
+        # 300ms後に再度実行（100ms→300msに変更して負荷軽減）
+        self.root.after(300, self.update_log)
     
     def clear_log(self):
         """ログをクリア"""
@@ -283,51 +308,51 @@ class OITELULauncher:
         self.log("ログをクリアしました")
     
     def check_environment(self):
-        """環境をチェック"""
-        self.log("=" * 50)
-        self.log("環境チェックを開始します...")
-        self.log("=" * 50)
-        
-        # Python環境
-        import sys
-        self.log(f"✓ Python: {sys.version}")
-        
-        # 仮想環境
-        venv_path = detect_venv()
-        if venv_path:
-            self.log(f"✓ 仮想環境: {venv_path}")
-        else:
-            self.log("⚠ 仮想環境: 未検出")
-        
-        # Docker
-        docker_ok, docker_msg = check_docker()
-        if docker_ok:
-            self.log(f"✓ Docker: {docker_msg}")
-            compose_ok, compose_msg = check_docker_compose()
-            if compose_ok:
-                self.log(f"✓ Docker Compose: {compose_msg}")
+        """環境をチェック（別スレッドで実行）"""
+        def do_check():
+            self.log("=" * 50)
+            self.log("環境チェックを開始します...")
+            self.log("=" * 50)
+            
+            # Python環境
+            import sys
+            self.log(f"✓ Python: {sys.version}")
+            
+            # 仮想環境
+            venv_path = detect_venv()
+            if venv_path:
+                self.log(f"✓ 仮想環境: {venv_path}")
             else:
-                self.log(f"⚠ Docker Compose: {compose_msg}")
-        else:
-            self.log(f"⚠ Docker: {docker_msg}")
+                self.log("⚠ 仮想環境: 未検出")
+            
+            # Docker
+            docker_ok, docker_msg = check_docker()
+            if docker_ok:
+                self.log(f"✓ Docker: {docker_msg}")
+                compose_ok, compose_msg = check_docker_compose()
+                if compose_ok:
+                    self.log(f"✓ Docker Compose: {compose_msg}")
+                else:
+                    self.log(f"⚠ Docker Compose: {compose_msg}")
+            else:
+                self.log(f"⚠ Docker: {docker_msg}")
+            
+            # ポート確認
+            port = self.config.get("server_port", 5000)
+            if check_port_available(port):
+                self.log(f"✓ ポート {port}: 利用可能")
+            else:
+                self.log(f"⚠ ポート {port}: 使用中")
+            
+            self.log("=" * 50)
+            self.log("環境チェック完了")
+            self.log("=" * 50)
         
-        # ポート確認
-        port = self.config.get("server_port", 5000)
-        if check_port_available(port):
-            self.log(f"✓ ポート {port}: 利用可能")
-        else:
-            self.log(f"⚠ ポート {port}: 使用中")
-        
-        self.log("=" * 50)
-        self.log("環境チェック完了")
-        self.log("=" * 50)
+        # 別スレッドで実行（UIをブロックしない）
+        threading.Thread(target=do_check, daemon=True).start()
     
     def setup_card_reader(self):
-        """カードリーダーをセットアップ"""
-        self.log("=" * 50)
-        self.log("カードリーダーセットアップを開始します...")
-        self.log("=" * 50)
-        
+        """カードリーダーをセットアップ（別スレッドで実行）"""
         # Windows環境ではWSL自動アタッチをユーザーに確認
         auto_attach = False
         if platform.system() == "Windows":
@@ -339,47 +364,60 @@ class OITELULauncher:
             )
             auto_attach = response
         
-        # カードリーダーを初期化
-        success, msg = initialize_card_reader(auto_attach_wsl=auto_attach)
+        def do_setup():
+            self.log("=" * 50)
+            self.log("カードリーダーセットアップを開始します...")
+            self.log("=" * 50)
+            
+            # カードリーダーを初期化
+            success, msg = initialize_card_reader(auto_attach_wsl=auto_attach)
+            
+            for line in msg.split('\n'):
+                self.log(line)
+            
+            self.log("=" * 50)
+            
+            # メインスレッドでダイアログ表示
+            if success:
+                self.root.after(0, lambda: messagebox.showinfo("成功", "カードリーダーのセットアップが完了しました"))
+            else:
+                self.root.after(0, lambda: messagebox.showwarning("警告", "カードリーダーのセットアップに問題がありました\n詳細はログを確認してください"))
         
-        for line in msg.split('\n'):
-            self.log(line)
-        
-        self.log("=" * 50)
-        
-        if success:
-            messagebox.showinfo("成功", "カードリーダーのセットアップが完了しました")
-        else:
-            messagebox.showwarning("警告", "カードリーダーのセットアップに問題がありました\n詳細はログを確認してください")
+        # 別スレッドで実行
+        threading.Thread(target=do_setup, daemon=True).start()
     
     def install_dependencies(self):
-        """依存パッケージをインストール"""
-        self.log("=" * 50)
-        self.log("依存パッケージをインストールします...")
-        
-        mode = self.mode_var.get()
-        
-        if mode == MODE_VENV:
-            # 仮想環境を検出または作成
-            venv_path = detect_venv()
-            if not venv_path:
-                self.log("仮想環境が見つかりません。作成します...")
-                success, msg = create_venv()
-                self.log(msg)
-                if not success:
-                    self.log("=" * 50)
-                    return
-                venv_path = detect_venv()
+        """依存パッケージをインストール（別スレッドで実行）"""
+        def do_install():
+            self.log("=" * 50)
+            self.log("依存パッケージをインストールします...")
             
-            self.log(f"仮想環境: {venv_path}")
-            success, msg = install_requirements(venv_path)
-            self.log(msg)
-        else:
-            # 通常のPythonでインストール
-            success, msg = install_requirements()
-            self.log(msg)
+            mode = self.mode_var.get()
+            
+            if mode == MODE_VENV:
+                # 仮想環境を検出または作成
+                venv_path = detect_venv()
+                if not venv_path:
+                    self.log("仮想環境が見つかりません。作成します...")
+                    success, msg = create_venv()
+                    self.log(msg)
+                    if not success:
+                        self.log("=" * 50)
+                        return
+                    venv_path = detect_venv()
+                
+                self.log(f"仮想環境: {venv_path}")
+                success, msg = install_requirements(venv_path)
+                self.log(msg)
+            else:
+                # 通常のPythonでインストール
+                success, msg = install_requirements()
+                self.log(msg)
+            
+            self.log("=" * 50)
         
-        self.log("=" * 50)
+        # 別スレッドで実行
+        threading.Thread(target=do_install, daemon=True).start()
     
     def start_server(self):
         """サーバーを起動"""
