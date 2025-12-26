@@ -285,11 +285,12 @@ def start_server_normal(role: str, config: Dict) -> Tuple[subprocess.Popen, str]
         env["DB_TYPE"] = config.get("db_type", "sqlite")
         
         if config.get("db_type") == "mysql":
+            # 通常モードでMySQLを使用する場合（Docker化されたMySQLへの接続を想定）
             env["MYSQL_HOST"] = config.get("mysql_host", "localhost")
             env["MYSQL_PORT"] = str(config.get("mysql_port", 3306))
             env["MYSQL_DATABASE"] = config.get("mysql_database", "oiteru")
             env["MYSQL_USER"] = config.get("mysql_user", "oiteru_user")
-            env["MYSQL_PASSWORD"] = config.get("mysql_password", "")
+            env["MYSQL_PASSWORD"] = config.get("mysql_password", "oiteru_password_2025")
     
     elif role == ROLE_SUB_PARENT:
         script = "server.py"
@@ -298,6 +299,9 @@ def start_server_normal(role: str, config: Dict) -> Tuple[subprocess.Popen, str]
         env["DB_TYPE"] = "mysql"  # 従親機は必ずMySQL
         env["MYSQL_HOST"] = config.get("mysql_host", "localhost")
         env["MYSQL_PORT"] = str(config.get("mysql_port", 3306))
+        env["MYSQL_DATABASE"] = config.get("mysql_database", "oiteru")
+        env["MYSQL_USER"] = config.get("mysql_user", "oiteru_user")
+        env["MYSQL_PASSWORD"] = config.get("mysql_password", "oiteru_password_2025")
         env["MYSQL_DATABASE"] = config.get("mysql_database", "oiteru")
         env["MYSQL_USER"] = config.get("mysql_user", "oiteru_user")
         env["MYSQL_PASSWORD"] = config.get("mysql_password", "")
@@ -338,11 +342,12 @@ def start_server_venv(role: str, config: Dict, venv_path: Path) -> Tuple[subproc
         env["DB_TYPE"] = config.get("db_type", "sqlite")
         
         if config.get("db_type") == "mysql":
+            # 仮想環境モードでMySQLを使用する場合（Docker化されたMySQLへの接続を想定）
             env["MYSQL_HOST"] = config.get("mysql_host", "localhost")
             env["MYSQL_PORT"] = str(config.get("mysql_port", 3306))
             env["MYSQL_DATABASE"] = config.get("mysql_database", "oiteru")
             env["MYSQL_USER"] = config.get("mysql_user", "oiteru_user")
-            env["MYSQL_PASSWORD"] = config.get("mysql_password", "")
+            env["MYSQL_PASSWORD"] = config.get("mysql_password", "oiteru_password_2025")
     
     elif role == ROLE_SUB_PARENT:
         script = "server.py"
@@ -353,7 +358,7 @@ def start_server_venv(role: str, config: Dict, venv_path: Path) -> Tuple[subproc
         env["MYSQL_PORT"] = str(config.get("mysql_port", 3306))
         env["MYSQL_DATABASE"] = config.get("mysql_database", "oiteru")
         env["MYSQL_USER"] = config.get("mysql_user", "oiteru_user")
-        env["MYSQL_PASSWORD"] = config.get("mysql_password", "")
+        env["MYSQL_PASSWORD"] = config.get("mysql_password", "oiteru_password_2025")
     
     elif role == ROLE_UNIT:
         script = "unit.py"
@@ -386,28 +391,37 @@ def start_server_docker(role: str, config: Dict) -> Tuple[Optional[subprocess.Po
     env_content = []
     
     if role == ROLE_PARENT:
-        compose_file = config.get("docker_compose_file", "docker-compose.yml")
-        env_content.append(f"SERVER_NAME={config.get('server_name', 'OITERU親機')}")
-        env_content.append(f"SERVER_LOCATION={config.get('server_location', '未設定')}")
-        env_content.append(f"DB_TYPE={config.get('db_type', 'sqlite')}")
-        
-        if config.get("db_type") == "mysql":
-            env_content.append(f"MYSQL_HOST={config.get('mysql_host', 'localhost')}")
+        # 親機の場合、DB_TYPEによってdocker-composeファイルを選択
+        db_type = config.get("db_type", "sqlite")
+        if db_type == "mysql":
+            compose_file = config.get("docker_compose_file", "docker-compose.mysql.yml")
+            env_content.append(f"SERVER_NAME={config.get('server_name', 'OITERU親機')}")
+            env_content.append(f"SERVER_LOCATION={config.get('server_location', '未設定')}")
+            env_content.append(f"DB_TYPE=mysql")
+            # DockerでMySQL使用時は、MySQLコンテナ名をホストとして指定
+            env_content.append(f"MYSQL_HOST={config.get('mysql_host', 'oiteru_mysql')}")
             env_content.append(f"MYSQL_PORT={config.get('mysql_port', 3306)}")
             env_content.append(f"MYSQL_DATABASE={config.get('mysql_database', 'oiteru')}")
             env_content.append(f"MYSQL_USER={config.get('mysql_user', 'oiteru_user')}")
-            env_content.append(f"MYSQL_PASSWORD={config.get('mysql_password', '')}")
+            env_content.append(f"MYSQL_PASSWORD={config.get('mysql_password', 'oiteru_password_2025')}")
+        else:
+            compose_file = config.get("docker_compose_file", "docker-compose.yml")
+            env_content.append(f"SERVER_NAME={config.get('server_name', 'OITERU親機')}")
+            env_content.append(f"SERVER_LOCATION={config.get('server_location', '未設定')}")
+            env_content.append(f"DB_TYPE=sqlite")
     
     elif role == ROLE_SUB_PARENT:
-        compose_file = "docker-compose.external-db.yml"
+        # 従親機は外部MySQL接続用のdocker-composeを使用
+        compose_file = "docker/docker-compose.external-db.yml"
         env_content.append(f"SERVER_NAME={config.get('server_name', 'OITERU従親機')}")
         env_content.append(f"SERVER_LOCATION={config.get('server_location', '未設定')}")
         env_content.append(f"DB_TYPE=mysql")
+        # 従親機は外部のMySQLサーバーに接続（Docker化された親機のMySQLなど）
         env_content.append(f"MYSQL_HOST={config.get('mysql_host', 'localhost')}")
         env_content.append(f"MYSQL_PORT={config.get('mysql_port', 3306)}")
         env_content.append(f"MYSQL_DATABASE={config.get('mysql_database', 'oiteru')}")
         env_content.append(f"MYSQL_USER={config.get('mysql_user', 'oiteru_user')}")
-        env_content.append(f"MYSQL_PASSWORD={config.get('mysql_password', '')}")
+        env_content.append(f"MYSQL_PASSWORD={config.get('mysql_password', 'oiteru_password_2025')}")
     
     elif role == ROLE_UNIT:
         compose_file = "docker/docker-compose.unit.yml"

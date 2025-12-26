@@ -1,5 +1,45 @@
 # OITELU ランチャーシステム - 変更履歴
 
+## 📅 2025年12月26日 - Docker化されたMySQLへの対応
+
+### 🔄 変更内容
+
+#### launcher_utils.py
+- **Docker起動時のMySQL対応を改善**
+  - 親機でMySQLを選択した場合、`docker-compose.mysql.yml` を自動使用
+  - DockerコンテナのMySQLホスト名を `oiteru_mysql` に設定
+  - 従親機は引き続き外部MySQL接続用の設定を使用
+- **デフォルトパスワードの設定**
+  - MySQLのデフォルトパスワードを `oiteru_password_2025` に統一
+  - 通常モード、仮想環境モード、Dockerモード全てで一貫性を確保
+
+#### ドキュメント更新
+- **LAUNCHER_README.md**
+  - Docker化されたMySQLデータベースの使用方法を詳細に追加
+  - 親機（MySQL + Docker）の起動手順を明記
+  - 従親機から親機のMySQLへの接続方法を追加
+  - 通常モード・仮想環境モードでのMySQL接続例を追加
+- **QUICKSTART_LAUNCHER.md**
+  - MySQL使用時の推奨構成を追加
+  - 従親機を別マシンで起動する手順を明記
+  - Docker化されたMySQLへの接続方法を説明
+
+### 💡 使い方
+
+#### 親機でDocker + MySQLを使う
+1. ランチャーで「親機」を選択
+2. 詳細設定で `db_type` を `mysql` に変更
+3. 「Dockerモード」を選択
+4. 起動 → MySQLコンテナとFlaskサーバーが連携起動
+
+#### 従親機で親機のMySQLに接続
+1. ランチャーで「従親機」を選択
+2. 詳細設定で親機のIPアドレスを `mysql_host` に設定
+3. 起動モード（通常/仮想環境/Docker）を選択
+4. 起動 → 親機のMySQLに接続
+
+---
+
 ## 📅 2025年12月26日 - 統合ランチャーシステム完成
 
 ### 🎉 新規作成ファイル

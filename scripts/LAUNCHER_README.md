@@ -245,9 +245,72 @@ pip install -r requirements.txt
 
 Dockerモードでは、以下のDocker Composeファイルが使用されます：
 
-- **親機**: `docker-compose.yml`（SQLite使用）
-- **親機（MySQL）**: `docker-compose.mysql.yml`
-- **従親機**: `docker-compose.external-db.yml`
+### 親機のDocker構成
+
+#### SQLite使用時
+- **Composeファイル**: `docker-compose.yml`
+- データベースファイルはボリュームにマウント
+
+#### MySQL使用時（推奨）
+- **Composeファイル**: `docker-compose.mysql.yml`
+- MySQL 8.0をDockerコンテナとして起動
+- 親機サーバーとMySQLが連携して動作
+- データはDockerボリューム `mysql_data` に永続化
+
+### 従親機のDocker構成
+- **Composeファイル**: `docker/docker-compose.external-db.yml`
+- 外部のMySQLデータベース（親機のDocker化されたMySQLなど）に接続
+- `launcher_config.json` で接続先を設定
+
+### 子機のDocker構成
+- **Composeファイル**: `docker/docker-compose.unit.yml`
+- NFCカードリーダーとGPIOへのアクセスが必要
+
+## 💾 Docker化されたMySQLデータベースの使用
+
+親機でMySQL使用を選択した場合、Docker Composeが自動的にMySQLコンテナを起動します。
+
+### 親機（MySQL + Docker）の起動手順
+
+1. ランチャーで「親機」を選択
+2. 詳細設定で `db_type` を `mysql` に変更
+3. 「Dockerモード」を選択
+4. 起動ボタンをクリック
+
+これにより、以下のコンテナが起動します：
+- **oiteru_mysql**: MySQLデータベースサーバー（ポート3306）
+- **oiteru_server**: Flaskアプリケーションサーバー（ポート5000）
+
+### 従親機から親機のMySQLへの接続
+
+従親機を別のマシンで起動し、親機のDocker化されたMySQLに接続する場合：
+
+1. ランチャーで「従親機」を選択
+2. 詳細設定で以下を設定：
+   - `mysql_host`: 親機のIPアドレス（例: `192.168.1.100`）
+   - `mysql_port`: `3306`
+   - `mysql_database`: `oiteru`
+   - `mysql_user`: `oiteru_user`
+   - `mysql_password`: `oiteru_password_2025`
+3. 起動モード（通常/仮想環境/Docker）を選択
+4. 起動ボタンをクリック
+
+### 通常モード・仮想環境モードでのMySQL接続
+
+Docker化された親機のMySQLに、通常モードや仮想環境モードで起動したサーバーから接続することも可能です：
+
+```bash
+# 環境変数を設定して起動
+export DB_TYPE=mysql
+export MYSQL_HOST=localhost
+export MYSQL_PORT=3306
+export MYSQL_DATABASE=oiteru
+export MYSQL_USER=oiteru_user
+export MYSQL_PASSWORD=oiteru_password_2025
+python server.py
+```
+
+または、ランチャーの詳細設定で上記の値を設定してから起動してください。
 - **子機**: `docker/docker-compose.unit.yml`
 
 ### 環境変数
