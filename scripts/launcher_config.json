@@ -1,0 +1,20 @@
+{
+    "server_name": "OITERU親機",
+    "server_location": "未設定",
+    "parent_url": "http://localhost:5000",
+    "unit_name": "DESKTOP-EXAMPLE",
+    "unit_password": "password123",
+    "db_type": "sqlite",
+    "mysql_host": "localhost",
+    "mysql_port": 3306,
+    "mysql_database": "oiteru",
+    "mysql_user": "oiteru_user",
+    "mysql_password": "oiteru_password_2025",
+    "venv_path": ".venv",
+    "python_command": "python",
+    "docker_compose_file": "docker-compose.yml",
+    "server_port": 5000,
+    "auto_install_packages": true,
+    "last_mode": "normal",
+    "last_role": "parent"
+}
