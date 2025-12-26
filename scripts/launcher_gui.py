@@ -13,6 +13,7 @@ from tkinter import ttk, scrolledtext, messagebox
 import threading
 import queue
 import sys
+import platform
 from pathlib import Path
 
 # ユーティリティモジュールをインポート
@@ -270,6 +271,7 @@ class OITELULauncher:
                     self.stop_button.config(state=tk.DISABLED)
                     self.status_var.set("停止")
             except Exception as e:
+                # エラーは無視（プロセスが終了した場合など）
                 pass
         
         # 100ms後に再度実行
@@ -326,8 +328,19 @@ class OITELULauncher:
         self.log("カードリーダーセットアップを開始します...")
         self.log("=" * 50)
         
+        # Windows環境ではWSL自動アタッチをユーザーに確認
+        auto_attach = False
+        if platform.system() == "Windows":
+            response = messagebox.askyesno(
+                "WSL USB アタッチ",
+                "WSL環境でカードリーダーを使用しますか？\n\n"
+                "「はい」: WSLへの自動USBアタッチを試行します\n"
+                "「いいえ」: Windows環境で直接使用します"
+            )
+            auto_attach = response
+        
         # カードリーダーを初期化
-        success, msg = initialize_card_reader(auto_attach_wsl=True)
+        success, msg = initialize_card_reader(auto_attach_wsl=auto_attach)
         
         for line in msg.split('\n'):
             self.log(line)

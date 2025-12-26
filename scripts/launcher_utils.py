@@ -316,7 +316,9 @@ def start_server_normal(role: str, config: Dict) -> Tuple[subprocess.Popen, str]
         [python_cmd, str(project_root / script)],
         env=env,
         stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE
+        stderr=subprocess.PIPE,
+        encoding='utf-8',
+        errors='replace'
     )
     
     return process, f"{script} を起動しました (PID: {process.pid})"
@@ -365,7 +367,9 @@ def start_server_venv(role: str, config: Dict, venv_path: Path) -> Tuple[subproc
         [str(python_exe), str(project_root / script)],
         env=env,
         stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE
+        stderr=subprocess.PIPE,
+        encoding='utf-8',
+        errors='replace'
     )
     
     return process, f"{script} を起動しました (venv, PID: {process.pid})"
@@ -486,41 +490,81 @@ def get_mode_display_name(mode: str) -> str:
 # ========================================
 
 def detect_card_reader() -> Tuple[bool, str]:
-    """カードリーダーを検出"""
-    try:
-        # lsusbコマンドでカードリーダーを検出
-        result = subprocess.run(
-            ["lsusb"],
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
-        
-        output = result.stdout.lower()
-        
-        # Sony FeliCa (PaSoRi) やその他のカードリーダーを検出
-        reader_keywords = ["sony", "felica", "pasori", "nfc", "card reader"]
-        
-        for keyword in reader_keywords:
-            if keyword in output:
-                return True, f"カードリーダーを検出: {keyword}"
-        
-        return False, "カードリーダーが見つかりません"
+    """カードリーダーを検出（環境に応じて適切な方法を使用）"""
+    system = platform.system()
     
-    except FileNotFoundError:
-        return False, "lsusbコマンドが見つかりません (WSL/Linux環境が必要)"
+    try:
+        if system == "Linux":
+            # Linuxの場合: lsusbコマンドを使用
+            result = subprocess.run(
+                ["lsusb"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                encoding='utf-8',
+                errors='replace'
+            )
+            
+            output = result.stdout.lower()
+            
+            # Sony FeliCa (PaSoRi) やその他のカードリーダーを検出
+            reader_keywords = ["sony", "felica", "pasori", "nfc", "card reader"]
+            
+            for keyword in reader_keywords:
+                if keyword in output:
+                    return True, f"カードリーダーを検出: {keyword}"
+            
+            return False, "カードリーダーが見つかりません"
+        
+        elif system == "Windows":
+            # Windowsの場合: デバイスマネージャー情報を取得できないため
+            # NFCリーダーのドライバが正しくインストールされていることを前提とする
+            return True, "Windows環境: カードリーダーの自動検出はサポートされていません（手動確認してください）"
+        
+        elif system == "Darwin":  # macOS
+            # macOSの場合: system_profilerやioreg を使用
+            result = subprocess.run(
+                ["system_profiler", "SPUSBDataType"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                encoding='utf-8',
+                errors='replace'
+            )
+            
+            output = result.stdout.lower()
+            reader_keywords = ["sony", "felica", "pasori", "nfc"]
+            
+            for keyword in reader_keywords:
+                if keyword in output:
+                    return True, f"カードリーダーを検出: {keyword}"
+            
+            return False, "カードリーダーが見つかりません"
+        
+        else:
+            return False, f"未対応のOS: {system}"
+    
+    except FileNotFoundError as e:
+        return False, f"コマンドが見つかりません: {e}"
     except subprocess.TimeoutExpired:
-        return False, "lsusbコマンドがタイムアウトしました"
+        return False, "カードリーダー検出がタイムアウトしました"
     except Exception as e:
         return False, f"カードリーダー検出エラー: {e}"
 
 def check_pcscd() -> Tuple[bool, str]:
-    """pcscd (PC/SC デーモン) が起動しているか確認"""
+    """pcscd (PC/SC デーモン) が起動しているか確認（Linux/macOSのみ）"""
+    system = platform.system()
+    
+    if system not in ["Linux", "Darwin"]:
+        return True, f"{system}環境ではpcscdチェックをスキップします"
+    
     try:
         result = subprocess.run(
             ["pgrep", "-x", "pcscd"],
             capture_output=True,
-            timeout=5
+            timeout=5,
+            encoding='utf-8',
+            errors='replace'
         )
         
         if result.returncode == 0:
@@ -534,20 +578,29 @@ def check_pcscd() -> Tuple[bool, str]:
         return False, f"pcscd確認エラー: {e}"
 
 def start_pcscd() -> Tuple[bool, str]:
-    """pcscdを起動"""
+    """pcscdを起動（Linux/macOSのみ）"""
+    system = platform.system()
+    
+    if system not in ["Linux", "Darwin"]:
+        return True, f"{system}環境ではpcscd起動をスキップします"
+    
     try:
         # 既存のpcscdを停止
         subprocess.run(
             ["pkill", "-9", "pcscd"],
             capture_output=True,
-            timeout=5
+            timeout=5,
+            encoding='utf-8',
+            errors='replace'
         )
         
         # pcscdを起動
         subprocess.run(
             ["pcscd"],
             capture_output=True,
-            timeout=5
+            timeout=5,
+            encoding='utf-8',
+            errors='replace'
         )
         
         # 起動確認
@@ -629,33 +682,51 @@ def attach_usb_to_wsl(bus_id: str = None) -> Tuple[bool, str]:
     except Exception as e:
         return False, f"USBアタッチエラー: {e}"
 
-def initialize_card_reader(auto_attach_wsl: bool = True) -> Tuple[bool, str]:
-    """カードリーダーを初期化（検出、アタッチ、pcscd起動）"""
-    messages = []
+def initialize_card_reader(auto_attach_wsl: bool = False) -> Tuple[bool, str]:
+    """カードリーダーを初期化（検出、アタッチ、pcscd起動）
     
-    # Windows環境でWSLを使用している場合、USBアタッチを試行
-    if platform.system() == "Windows" and auto_attach_wsl:
+    Args:
+        auto_attach_wsl: Windows環境でWSLへのUSB自動アタッチを試行するか（デフォルト: False）
+    """
+    messages = []
+    system = platform.system()
+    
+    # Windows環境でWSLを使用している場合のみ、USBアタッチを試行
+    if system == "Windows" and auto_attach_wsl:
         messages.append("Windows環境を検出。WSL USB アタッチを試行中...")
         success, msg = attach_usb_to_wsl()
         messages.append(msg)
         
         if not success:
-            messages.append("注意: WSLへのUSBアタッチに失敗しました。手動でアタッチしてください。")
+            messages.append("注意: WSLへのUSBアタッチに失敗しました。")
+            messages.append("Windows環境の場合は、NFCリーダーのドライバが正しくインストールされているか確認してください。")
+    elif system == "Windows":
+        messages.append("Windows環境を検出。")
+        messages.append("NFCリーダーのドライバが正しくインストールされているか確認してください。")
+        messages.append("（WSL使用の場合は、手動でUSBデバイスをアタッチしてください）")
     
     # カードリーダーを検出
     messages.append("カードリーダーを検出中...")
     reader_ok, reader_msg = detect_card_reader()
     messages.append(reader_msg)
     
+    # Windows環境ではカードリーダー検出をスキップ可能
+    if not reader_ok and system == "Windows":
+        messages.append("Windows環境ではカードリーダー自動検出をスキップします")
+        reader_ok = True  # 処理を続行
+    
     if not reader_ok:
         return False, "\n".join(messages)
     
-    # pcscdを起動
-    messages.append("pcscd を起動中...")
-    pcscd_ok, pcscd_msg = start_pcscd()
-    messages.append(pcscd_msg)
-    
-    if pcscd_ok:
-        return True, "\n".join(messages)
+    # Linux/macOS環境のみpcscdを起動
+    if system in ["Linux", "Darwin"]:
+        messages.append("pcscd を起動中...")
+        pcscd_ok, pcscd_msg = start_pcscd()
+        messages.append(pcscd_msg)
+        
+        if not pcscd_ok:
+            return False, "\n".join(messages)
     else:
-        return False, "\n".join(messages)
+        messages.append(f"{system}環境ではpcscd起動をスキップします")
+    
+    return True, "\n".join(messages)
