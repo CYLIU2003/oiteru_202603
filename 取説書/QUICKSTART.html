@@ -3,31 +3,388 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OITERU QUICKSTART</title>
+    <title>OITERU クイックスタートガイド</title>
     <link rel="stylesheet" href="manual.css">
+    <style>
+        .mode-box {
+            border: 2px solid #3498db;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            background: #f8f9fa;
+        }
+        .mode-box h3 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+        .comparison-table {
+            width: 100%;
+            margin: 20px 0;
+        }
+        .comparison-table th {
+            background: #3498db;
+            color: white;
+        }
+        .badge-venv {
+            background: #27ae60;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.9em;
+        }
+        .badge-docker {
+            background: #3498db;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.9em;
+        }
+        .quick-command {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>🚀 OITERU QUICKSTART</h1>
-            <p class="subtitle">親機・従親機・子機の立ち上げガイド</p>
+            <h1>🔰 OITELU クイックスタートガイド</h1>
+            <p class="subtitle">初めて使う方向けの、ステップバイステップガイド</p>
             <div style="text-align: center; margin-top: 10px;">
-                <span class="badge badge-primary">Version 2.0</span>
-                <span class="badge badge-accent">Updated: 2025-12-24</span>
+                <span class="badge badge-primary">Version 2.1</span>
+                <span class="badge badge-accent">Updated: 2025-12-26</span>
             </div>
         </header>
 
-        <p>このガイドは「まず動かす」ための手順書です。</p>
+        <p>このガイドに従えば、15分程度でシステムを動かせるようになります。</p>
 
-        <ul>
-            <li><strong>🖥️ 親機</strong>: DBを持つサーバー（SQLiteまたはMySQLで運用）</li>
-            <li><strong>🔗 従親機</strong>: DBを持たないサーバー（外部MySQLに接続して運用）</li>
-            <li><strong>📡 子機</strong>: NFC/モーターで実際に排出する端末（Raspberry Pi等）</li>
-        </ul>
+        <hr>
+
+        <h2>⚡ 超クイックスタート（すぐ起動したい方へ）</h2>
+
+        <div class="mode-box">
+            <h3>🐍 仮想環境モード（初心者推奨）</h3>
+            <div class="quick-command">
+                # Windows - 親機を起動<br>
+                cd C:\Users\Owner\Desktop\oiteru_250827_restAPI<br>
+                .\scripts\quick_start_parent.ps1
+            </div>
+            <div class="quick-command">
+                # Mac/Linux - 親機を起動<br>
+                cd ~/oiteru_250827_restAPI<br>
+                ./scripts/quick_start_parent.sh
+            </div>
+        </div>
+
+        <div class="mode-box">
+            <h3>🐳 Dockerモード（本番運用）</h3>
+            <div class="quick-command">
+                # Windows - 親機を起動<br>
+                cd C:\Users\Owner\Desktop\oiteru_250827_restAPI<br>
+                .\scripts\quick_start_parent.ps1 -Docker
+            </div>
+            <div class="quick-command">
+                # Mac/Linux - 親機を起動<br>
+                cd ~/oiteru_250827_restAPI<br>
+                docker-compose -f docker-compose.mysql.yml up -d
+            </div>
+        </div>
+
+        <div class="alert alert-success">
+            <strong>起動後のアクセス:</strong>
+            <ul>
+                <li>🌐 <a href="http://localhost:5000">http://localhost:5000</a> - トップページ</li>
+                <li>🔧 <a href="http://localhost:5000/admin">http://localhost:5000/admin</a> - 管理画面（パスワード: admin）</li>
+            </ul>
+        </div>
+
+        <hr>
+
+        <h2>📋 始める前に確認すること</h2>
+
+        <h3>⚡ どの起動モードを選ぶ？</h3>
+        
+        <div class="alert alert-info">
+            <strong>💡 簡単な選び方:</strong>
+            <ul>
+                <li>初めて使う → <span class="badge-venv">🐍 仮想環境モード</span></li>
+                <li>本番サーバー → <span class="badge-docker">🐳 Dockerモード</span></li>
+                <li>複数台運用 → <span class="badge-docker">🐳 Dockerモード</span></li>
+                <li>開発・テスト → <span class="badge-venv">🐍 仮想環境モード</span></li>
+            </ul>
+        </div>
+
+        <h3>必要なもの</h3>
+        
+        <h4>🐍 仮想環境モードの場合</h4>
+        <table class="comparison-table">
+            <thead>
+                <tr>
+                    <th>項目</th>
+                    <th>親機</th>
+                    <th>従親機</th>
+                    <th>子機</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Docker Desktop</strong></td>
+                    <td>✅ 必須（MySQLのみ）</td>
+                    <td>❌ 不要</td>
+                    <td>❌ 不要</td>
+                </tr>
+                <tr>
+                    <td><strong>Python 3.7以上</strong></td>
+                    <td>✅ 必須</td>
+                    <td>✅ 必須</td>
+                    <td>✅ 必須</td>
+                </tr>
+                <tr>
+                    <td><strong>NFCカードリーダー</strong></td>
+                    <td>△ 任意</td>
+                    <td>△ 任意</td>
+                    <td>✅ 必須</td>
+                </tr>
+                <tr>
+                    <td><strong>Tailscale (VPN)</strong></td>
+                    <td>✅ 推奨</td>
+                    <td>✅ 推奨</td>
+                    <td>✅ 推奨</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h4>🐳 Dockerモードの場合</h4>
+        <table class="comparison-table">
+            <thead>
+                <tr>
+                    <th>項目</th>
+                    <th>親機</th>
+                    <th>従親機</th>
+                    <th>子機</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Docker Desktop</strong></td>
+                    <td>✅ 必須（全て）</td>
+                    <td>❌ 不要</td>
+                    <td>❌ 不要</td>
+                </tr>
+                <tr>
+                    <td><strong>Python 3.7以上</strong></td>
+                    <td>❌ 不要</td>
+                    <td>✅ 必須</td>
+                    <td>✅ 必須</td>
+                </tr>
+                <tr>
+                    <td><strong>NFCカードリーダー</strong></td>
+                    <td>△ 任意</td>
+                    <td>△ 任意</td>
+                    <td>✅ 必須</td>
+                </tr>
+                <tr>
+                    <td><strong>Tailscale (VPN)</strong></td>
+                    <td>✅ 推奨</td>
+                    <td>✅ 推奨</td>
+                    <td>✅ 推奨</td>
+                </tr>
+            </tbody>
+        </table>
 
         <div class="alert alert-info">
-            <strong>💡 補足:</strong> 本リポジトリでは <code>server.py</code> が親機/従親機の両方を担える設計です。
+            <strong>💡 仮想環境モードとDockerモードの違い:</strong><br>
+            <strong>仮想環境モード:</strong> PythonはホストOS、MySQLだけDocker<br>
+            <strong>Dockerモード:</strong> Python+MySQLすべてDocker
         </div>
+
+        <hr>
+
+        <h2>🖥️ 親機のセットアップ（データベース持ち）</h2>
+
+        <p>親機には<strong>2つの起動モード</strong>があります。用途に応じて選択してください。</p>
+
+        <h3>📊 モード比較表</h3>
+
+        <table class="comparison-table">
+            <thead>
+                <tr>
+                    <th>項目</th>
+                    <th>🐍 仮想環境モード</th>
+                    <th>🐳 Dockerモード</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>難易度</strong></td>
+                    <td>⭐ 簡単</td>
+                    <td>⭐⭐ やや複雑</td>
+                </tr>
+                <tr>
+                    <td><strong>起動速度</strong></td>
+                    <td>🚀 高速（3秒）</td>
+                    <td>🐢 やや遅い（10秒）</td>
+                </tr>
+                <tr>
+                    <td><strong>環境隔離</strong></td>
+                    <td>△ 部分的</td>
+                    <td>✅ 完全</td>
+                </tr>
+                <tr>
+                    <td><strong>デバッグ</strong></td>
+                    <td>✅ 簡単</td>
+                    <td>△ やや難しい</td>
+                </tr>
+                <tr>
+                    <td><strong>推奨環境</strong></td>
+                    <td>開発・テスト</td>
+                    <td>本番サーバー</td>
+                </tr>
+                <tr>
+                    <td><strong>Python環境</strong></td>
+                    <td>ホストのPython使用</td>
+                    <td>コンテナ内で独立</td>
+                </tr>
+                <tr>
+                    <td><strong>MySQL</strong></td>
+                    <td>Dockerコンテナ</td>
+                    <td>Dockerコンテナ</td>
+                </tr>
+                <tr>
+                    <td><strong>ポータビリティ</strong></td>
+                    <td>△ 環境依存あり</td>
+                    <td>✅ どこでも同じ</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="alert alert-success">
+            <strong>💡 どちらを選ぶべき？</strong><br>
+            <strong>初めて使う / 開発環境:</strong> → 🐍 <strong>仮想環境モード</strong> を推奨<br>
+            <strong>本番サーバー / 複数台運用:</strong> → 🐳 <strong>Dockerモード</strong> を推奨
+        </div>
+
+        <hr>
+
+        <h2>🐍 方法A: 仮想環境モード（推奨・初心者向け）</h2>
+
+        <p>Pythonの仮想環境でサーバーを起動し、MySQLだけDockerで動かす方法です。</p>
+
+        <div class="alert alert-success">
+            <strong>メリット:</strong>
+            <ul>
+                <li>✅ セットアップが簡単</li>
+                <li>✅ 起動が高速</li>
+                <li>✅ コードの変更がすぐ反映される</li>
+                <li>✅ デバッグしやすい</li>
+            </ul>
+        </div>
+
+        <div class="alert alert-warning">
+            <strong>デメリット:</strong>
+            <ul>
+                <li>⚠️ Pythonバージョンがホストに依存</li>
+                <li>⚠️ 環境が完全には隔離されない</li>
+            </ul>
+        </div>
+
+        <h3>ステップ1: 必要なソフトをインストール</h3>
+        <p><strong>Windows/Mac:</strong></p>
+        <ol>
+            <li><a href="https://www.docker.com/products/docker-desktop">Docker Desktop</a>をインストール</li>
+            <li>Python 3.7以上をインストール（<a href="https://www.python.org/downloads/">公式サイト</a>）</li>
+        </ol>
+
+        <p><strong>確認方法:</strong></p>
+        <pre><code># Windows PowerShell / Mac Terminal
+docker --version
+python --version</code></pre>
+
+        <h3>ステップ2: ソースコードを取得</h3>
+        <pre><code># GitHubからクローン
+git clone -b docker_main_server_mysql https://github.com/CYLIU2003/oiteru_250827_restAPI
+cd oiteru_250827_restAPI</code></pre>
+
+        <h3>ステップ3: クイック起動スクリプトを実行（1コマンド！）</h3>
+        
+        <p><strong>Windows (PowerShell):</strong></p>
+        <pre><code>.\scripts\quick_start_parent.ps1</code></pre>
+
+        <p><strong>Mac/Linux:</strong></p>
+        <pre><code>./scripts/quick_start_parent.sh</code></pre>
+
+        <div class="alert alert-success">
+            <strong>これだけで以下が自動実行されます:</strong>
+            <ul>
+                <li>✅ 仮想環境の自動作成・検出</li>
+                <li>✅ 必要なパッケージの自動インストール</li>
+                <li>✅ MySQLコンテナの自動起動</li>
+                <li>✅ サーバーの起動</li>
+            </ul>
+        </div>
+
+        <hr>
+
+        <h2>🐳 方法B: Dockerモード（本番運用向け）</h2>
+
+        <p>全てDockerコンテナで動かす方法です。環境が完全に隔離されます。</p>
+
+        <div class="alert alert-success">
+            <strong>メリット:</strong>
+            <ul>
+                <li>✅ 環境が完全に隔離される</li>
+                <li>✅ どのマシンでも同じ環境で動く</li>
+                <li>✅ 本番環境に最適</li>
+                <li>✅ スケールアウトしやすい</li>
+            </ul>
+        </div>
+
+        <div class="alert alert-warning">
+            <strong>デメリット:</strong>
+            <ul>
+                <li>⚠️ 起動がやや遅い</li>
+                <li>⚠️ デバッグが少し複雑</li>
+                <li>⚠️ Dockerの知識が必要</li>
+            </ul>
+        </div>
+
+        <h3>ステップ1: Docker Desktopをインストール</h3>
+        <p><strong>Windows/Mac:</strong></p>
+        <ol>
+            <li><a href="https://www.docker.com/products/docker-desktop">Docker公式サイト</a>からダウンロード</li>
+            <li>インストーラーを実行</li>
+            <li>再起動後、Docker Desktopを起動</li>
+        </ol>
+
+        <p><strong>確認方法:</strong></p>
+        <pre><code>docker --version
+# Docker version 24.x.x のように表示されればOK</code></pre>
+
+        <h3>ステップ2: ソースコードを取得</h3>
+        <pre><code>git clone -b docker_main_server_mysql https://github.com/CYLIU2003/oiteru_250827_restAPI
+cd oiteru_250827_restAPI</code></pre>
+
+        <h3>ステップ3: Dockerコンテナを起動（1コマンド！）</h3>
+
+        <p><strong>Windows (PowerShell):</strong></p>
+        <pre><code>.\scripts\quick_start_parent.ps1 -Docker</code></pre>
+
+        <p><strong>Mac/Linux:</strong></p>
+        <pre><code>docker-compose -f docker-compose.mysql.yml up -d</code></pre>
+
+        <h3>コンテナの管理</h3>
+        <pre><code># ログを見る
+docker-compose -f docker-compose.mysql.yml logs -f
+
+# 停止
+docker-compose -f docker-compose.mysql.yml down
+
+# 再起動
+docker-compose -f docker-compose.mysql.yml restart</code></pre>
 
         <hr>
 
@@ -112,6 +469,77 @@
         <p><strong>MySQL版（環境変数を指定）:</strong></p>
         <pre><code># Windows (PowerShell)
 $env:DB_TYPE='mysql'; $env:MYSQL_HOST='localhost'; .venv\Scripts\python.exe server.py</code></pre>
+
+        <hr>
+
+        <h2>🔗 従親機のセットアップ（親機のミラー）</h2>
+
+        <p>従親機は親機と同じFlaskサーバーを起動しますが、<strong>データベースは親機のMySQLに接続</strong>します。</p>
+
+        <h3>クイック起動（推奨）</h3>
+
+        <p><strong>Windows (PowerShell):</strong></p>
+        <pre><code># 親機のIPアドレスを指定して起動
+.\scripts\quick_start_sub.ps1 -Host 192.168.1.100
+
+# Tailscale使用時
+.\scripts\quick_start_sub.ps1 -Host 100.114.99.67</code></pre>
+
+        <p><strong>Mac/Linux:</strong></p>
+        <pre><code># 親機のIPアドレスを指定して起動
+./scripts/quick_start_sub.sh 192.168.1.100
+
+# Tailscale使用時
+./scripts/quick_start_sub.sh 100.114.99.67</code></pre>
+
+        <div class="alert alert-success">
+            <strong>これだけで以下が自動実行されます:</strong>
+            <ul>
+                <li>✅ 仮想環境の自動作成・検出</li>
+                <li>✅ 必要なパッケージの自動インストール</li>
+                <li>✅ 親機のMySQLへ接続</li>
+                <li>✅ サーバーの起動</li>
+            </ul>
+        </div>
+
+        <hr>
+
+        <h2>📡 子機のセットアップ（Raspberry Pi）</h2>
+
+        <h3>クイック起動（推奨）</h3>
+
+        <pre><code># 親機のIPアドレスを指定して起動
+sudo ./scripts/quick_start_unit.sh 192.168.1.100
+
+# Tailscale使用時
+sudo ./scripts/quick_start_unit.sh 100.114.99.67</code></pre>
+
+        <div class="alert alert-success">
+            <strong>これだけで以下が自動実行されます:</strong>
+            <ul>
+                <li>✅ 仮想環境の自動作成・検出</li>
+                <li>✅ 必要なパッケージの自動インストール</li>
+                <li>✅ config.jsonの自動更新</li>
+                <li>✅ 子機の起動</li>
+            </ul>
+        </div>
+
+        <div class="alert alert-warning">
+            <strong>⚠️ <code>sudo</code> が必要な理由:</strong>
+            <ul>
+                <li>NFCリーダーへのUSBアクセス</li>
+                <li>GPIOピンへのアクセス</li>
+            </ul>
+        </div>
+
+        <div class="alert alert-info">
+            <strong>起動確認:</strong>
+            <ul>
+                <li>GUIウィンドウが表示される</li>
+                <li>「親機に接続しました」と表示されればOK！</li>
+                <li>NFCカードをかざして反応するか確認</li>
+            </ul>
+        </div>
 
         <hr>
 
@@ -284,7 +712,7 @@ sudo .venv/bin/python unit.py</code></pre>
         </ul>
 
         <footer>
-            <p>&copy; 2025 OITERU Project</p>
+            <p>&copy; 2025 OITERU Project | 最終更新: 2025年12月26日</p>
         </footer>
     </div>
 </body>
