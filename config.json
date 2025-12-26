@@ -1,7 +1,9 @@
 {
     "SERVER_URL": "http://100.114.99.67:5000",
-    "UNIT_NAME": "rpi2",
+    "UNIT_NAME": "2号機",
     "UNIT_PASSWORD": "password123",
+    "UNIT_LOCATION": "7号館1階",
+    "IS_SECONDARY": true,
     "MOTOR_TYPE": "SERVO",
     "CONTROL_METHOD": "RASPI_DIRECT",
     "USE_SENSOR": true,
