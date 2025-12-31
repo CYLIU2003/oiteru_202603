@@ -352,6 +352,38 @@ http://100.114.99.67:5000/admin
 
 # ❓ トラブルシューティング
 
+## 🔒 PowerShellでスクリプトが実行できない
+
+こんなエラーが出た場合：
+```
+このシステムではスクリプトの実行が無効になっているため...
+```
+
+### 解決方法1: バッチファイルを使う（おすすめ）
+
+`.ps1` の代わりに `.bat` ファイルを使ってください：
+
+```
+.\scripts\setup_config.ps1  ← NG（エラーになる）
+.\scripts\setup_config.bat  ← OK！
+```
+
+### 解決方法2: 実行ポリシーを変更する
+
+```batch
+scripts\fix_powershell_policy.bat
+```
+
+このバッチファイルを実行すると、PowerShellスクリプトが使えるようになります。
+
+### 解決方法3: コマンドで一時的に許可
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\setup_config.ps1
+```
+
+---
+
 ## 接続できない
 
 ### 1. Tailscaleは接続してる？
