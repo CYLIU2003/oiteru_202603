@@ -3,716 +3,379 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OITERU クイックスタートガイド</title>
+    <title>OITERU かんたんスタートガイド</title>
     <link rel="stylesheet" href="manual.css">
     <style>
-        .mode-box {
-            border: 2px solid #3498db;
-            border-radius: 8px;
+        .nav-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 25px 0;
+        }
+        .nav-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 15px;
             padding: 20px;
-            margin: 20px 0;
-            background: #f8f9fa;
+            text-align: center;
+            text-decoration: none;
         }
-        .mode-box h3 {
-            margin-top: 0;
-            color: #2c3e50;
+        .nav-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
         }
-        .comparison-table {
-            width: 100%;
-            margin: 20px 0;
-        }
-        .comparison-table th {
-            background: #3498db;
-            color: white;
-        }
-        .badge-venv {
-            background: #27ae60;
-            color: white;
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 0.9em;
-        }
-        .badge-docker {
-            background: #3498db;
-            color: white;
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 0.9em;
-        }
-        .quick-command {
-            background: #2c3e50;
-            color: #ecf0f1;
-            padding: 15px;
-            border-radius: 5px;
+        .nav-card .emoji { font-size: 2.5em; display: block; margin-bottom: 10px; }
+        .nav-card h3 { color: white; margin: 0; }
+        .command-box {
+            background: #1e1e1e;
+            color: #4ade80;
+            padding: 15px 20px;
+            border-radius: 10px;
+            font-family: 'Consolas', 'Monaco', monospace;
             margin: 10px 0;
-            font-family: monospace;
+            overflow-x: auto;
         }
+        .warning-box {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 15px 20px;
+            margin: 15px 0;
+            border-radius: 0 10px 10px 0;
+        }
+        .info-box {
+            background: #dbeafe;
+            border-left: 4px solid #3b82f6;
+            padding: 15px 20px;
+            margin: 15px 0;
+            border-radius: 0 10px 10px 0;
+        }
+        .success-box {
+            background: #d1fae5;
+            border-left: 4px solid #10b981;
+            padding: 15px 20px;
+            margin: 15px 0;
+            border-radius: 0 10px 10px 0;
+        }
+        .section-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 15px;
+            margin: 35px 0 20px 0;
+        }
+        .section-header h2 { color: white; margin: 0; }
+        .method-box {
+            background: #f8fafc;
+            border-radius: 15px;
+            padding: 20px;
+            margin: 15px 0;
+            border: 1px solid #e5e7eb;
+        }
+        .method-box h3 { margin-top: 0; color: #3b82f6; }
+        table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #e5e7eb; }
+        th { background: #3b82f6; color: white; }
+        tr:hover { background: #f8fafc; }
+        .toc { background: #f1f5f9; border-radius: 15px; padding: 20px; margin: 25px 0; }
+        .toc h3 { margin-top: 0; }
+        .toc ul { columns: 2; column-gap: 30px; }
+        .toc a { color: #3b82f6; text-decoration: none; }
+        .toc a:hover { text-decoration: underline; }
+        @media (max-width: 768px) { .toc ul { columns: 1; } }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>🔰 OITELU クイックスタートガイド</h1>
-            <p class="subtitle">初めて使う方向けの、ステップバイステップガイド</p>
-            <div style="text-align: center; margin-top: 10px;">
-                <span class="badge badge-primary">Version 2.1</span>
-                <span class="badge badge-accent">Updated: 2025-12-26</span>
-            </div>
+            <h1>🚀 OITERU かんたんスタートガイド</h1>
+            <p class="subtitle">親機・従親機・子機の立ち上げ方法</p>
+            <p style="color: #64748b;">最終更新: 2025年12月31日</p>
         </header>
 
-        <p>このガイドに従えば、15分程度でシステムを動かせるようになります。</p>
-
-        <hr>
-
-        <h2>⚡ 超クイックスタート（すぐ起動したい方へ）</h2>
-
-        <div class="mode-box">
-            <h3>🐍 仮想環境モード（初心者推奨）</h3>
-            <div class="quick-command">
-                # Windows - 親機を起動<br>
-                cd C:\Users\Owner\Desktop\oiteru_250827_restAPI<br>
-                .\scripts\quick_start_parent.ps1
+        <main>
+            <!-- クイックリンク -->
+            <div class="nav-cards">
+                <a href="#parent" class="nav-card">
+                    <span class="emoji">🖥️</span>
+                    <h3>親機を起動</h3>
+                </a>
+                <a href="#sub-parent" class="nav-card">
+                    <span class="emoji">🔗</span>
+                    <h3>従親機を起動</h3>
+                </a>
+                <a href="#unit" class="nav-card">
+                    <span class="emoji">📡</span>
+                    <h3>子機を起動</h3>
+                </a>
+                <a href="#troubleshooting" class="nav-card">
+                    <span class="emoji">❓</span>
+                    <h3>困ったら</h3>
+                </a>
             </div>
-            <div class="quick-command">
-                # Mac/Linux - 親機を起動<br>
-                cd ~/oiteru_250827_restAPI<br>
-                ./scripts/quick_start_parent.sh
-            </div>
-        </div>
 
-        <div class="mode-box">
-            <h3>🐳 Dockerモード（本番運用）</h3>
-            <div class="quick-command">
-                # Windows - 親機を起動<br>
-                cd C:\Users\Owner\Desktop\oiteru_250827_restAPI<br>
-                .\scripts\quick_start_parent.ps1 -Docker
-            </div>
-            <div class="quick-command">
-                # Mac/Linux - 親機を起動<br>
-                cd ~/oiteru_250827_restAPI<br>
-                docker-compose -f docker-compose.mysql.yml up -d
-            </div>
-        </div>
-
-        <div class="alert alert-success">
-            <strong>起動後のアクセス:</strong>
-            <ul>
-                <li>🌐 <a href="http://localhost:5000">http://localhost:5000</a> - トップページ</li>
-                <li>🔧 <a href="http://localhost:5000/admin">http://localhost:5000/admin</a> - 管理画面（パスワード: admin）</li>
-            </ul>
-        </div>
-
-        <hr>
-
-        <h2>📋 始める前に確認すること</h2>
-
-        <h3>⚡ どの起動モードを選ぶ？</h3>
-        
-        <div class="alert alert-info">
-            <strong>💡 簡単な選び方:</strong>
-            <ul>
-                <li>初めて使う → <span class="badge-venv">🐍 仮想環境モード</span></li>
-                <li>本番サーバー → <span class="badge-docker">🐳 Dockerモード</span></li>
-                <li>複数台運用 → <span class="badge-docker">🐳 Dockerモード</span></li>
-                <li>開発・テスト → <span class="badge-venv">🐍 仮想環境モード</span></li>
-            </ul>
-        </div>
-
-        <h3>必要なもの</h3>
-        
-        <h4>🐍 仮想環境モードの場合</h4>
-        <table class="comparison-table">
-            <thead>
-                <tr>
-                    <th>項目</th>
-                    <th>親機</th>
-                    <th>従親機</th>
-                    <th>子機</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td><strong>Docker Desktop</strong></td>
-                    <td>✅ 必須（MySQLのみ）</td>
-                    <td>❌ 不要</td>
-                    <td>❌ 不要</td>
-                </tr>
-                <tr>
-                    <td><strong>Python 3.7以上</strong></td>
-                    <td>✅ 必須</td>
-                    <td>✅ 必須</td>
-                    <td>✅ 必須</td>
-                </tr>
-                <tr>
-                    <td><strong>NFCカードリーダー</strong></td>
-                    <td>△ 任意</td>
-                    <td>△ 任意</td>
-                    <td>✅ 必須</td>
-                </tr>
-                <tr>
-                    <td><strong>Tailscale (VPN)</strong></td>
-                    <td>✅ 推奨</td>
-                    <td>✅ 推奨</td>
-                    <td>✅ 推奨</td>
-                </tr>
-            </tbody>
-        </table>
-
-        <h4>🐳 Dockerモードの場合</h4>
-        <table class="comparison-table">
-            <thead>
-                <tr>
-                    <th>項目</th>
-                    <th>親機</th>
-                    <th>従親機</th>
-                    <th>子機</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td><strong>Docker Desktop</strong></td>
-                    <td>✅ 必須（全て）</td>
-                    <td>❌ 不要</td>
-                    <td>❌ 不要</td>
-                </tr>
-                <tr>
-                    <td><strong>Python 3.7以上</strong></td>
-                    <td>❌ 不要</td>
-                    <td>✅ 必須</td>
-                    <td>✅ 必須</td>
-                </tr>
-                <tr>
-                    <td><strong>NFCカードリーダー</strong></td>
-                    <td>△ 任意</td>
-                    <td>△ 任意</td>
-                    <td>✅ 必須</td>
-                </tr>
-                <tr>
-                    <td><strong>Tailscale (VPN)</strong></td>
-                    <td>✅ 推奨</td>
-                    <td>✅ 推奨</td>
-                    <td>✅ 推奨</td>
-                </tr>
-            </tbody>
-        </table>
-
-        <div class="alert alert-info">
-            <strong>💡 仮想環境モードとDockerモードの違い:</strong><br>
-            <strong>仮想環境モード:</strong> PythonはホストOS、MySQLだけDocker<br>
-            <strong>Dockerモード:</strong> Python+MySQLすべてDocker
-        </div>
-
-        <hr>
-
-        <h2>🖥️ 親機のセットアップ（データベース持ち）</h2>
-
-        <p>親機には<strong>2つの起動モード</strong>があります。用途に応じて選択してください。</p>
-
-        <h3>📊 モード比較表</h3>
-
-        <table class="comparison-table">
-            <thead>
-                <tr>
-                    <th>項目</th>
-                    <th>🐍 仮想環境モード</th>
-                    <th>🐳 Dockerモード</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td><strong>難易度</strong></td>
-                    <td>⭐ 簡単</td>
-                    <td>⭐⭐ やや複雑</td>
-                </tr>
-                <tr>
-                    <td><strong>起動速度</strong></td>
-                    <td>🚀 高速（3秒）</td>
-                    <td>🐢 やや遅い（10秒）</td>
-                </tr>
-                <tr>
-                    <td><strong>環境隔離</strong></td>
-                    <td>△ 部分的</td>
-                    <td>✅ 完全</td>
-                </tr>
-                <tr>
-                    <td><strong>デバッグ</strong></td>
-                    <td>✅ 簡単</td>
-                    <td>△ やや難しい</td>
-                </tr>
-                <tr>
-                    <td><strong>推奨環境</strong></td>
-                    <td>開発・テスト</td>
-                    <td>本番サーバー</td>
-                </tr>
-                <tr>
-                    <td><strong>Python環境</strong></td>
-                    <td>ホストのPython使用</td>
-                    <td>コンテナ内で独立</td>
-                </tr>
-                <tr>
-                    <td><strong>MySQL</strong></td>
-                    <td>Dockerコンテナ</td>
-                    <td>Dockerコンテナ</td>
-                </tr>
-                <tr>
-                    <td><strong>ポータビリティ</strong></td>
-                    <td>△ 環境依存あり</td>
-                    <td>✅ どこでも同じ</td>
-                </tr>
-            </tbody>
-        </table>
-
-        <div class="alert alert-success">
-            <strong>💡 どちらを選ぶべき？</strong><br>
-            <strong>初めて使う / 開発環境:</strong> → 🐍 <strong>仮想環境モード</strong> を推奨<br>
-            <strong>本番サーバー / 複数台運用:</strong> → 🐳 <strong>Dockerモード</strong> を推奨
-        </div>
-
-        <hr>
-
-        <h2>🐍 方法A: 仮想環境モード（推奨・初心者向け）</h2>
-
-        <p>Pythonの仮想環境でサーバーを起動し、MySQLだけDockerで動かす方法です。</p>
-
-        <div class="alert alert-success">
-            <strong>メリット:</strong>
-            <ul>
-                <li>✅ セットアップが簡単</li>
-                <li>✅ 起動が高速</li>
-                <li>✅ コードの変更がすぐ反映される</li>
-                <li>✅ デバッグしやすい</li>
-            </ul>
-        </div>
-
-        <div class="alert alert-warning">
-            <strong>デメリット:</strong>
-            <ul>
-                <li>⚠️ Pythonバージョンがホストに依存</li>
-                <li>⚠️ 環境が完全には隔離されない</li>
-            </ul>
-        </div>
-
-        <h3>ステップ1: 必要なソフトをインストール</h3>
-        <p><strong>Windows/Mac:</strong></p>
-        <ol>
-            <li><a href="https://www.docker.com/products/docker-desktop">Docker Desktop</a>をインストール</li>
-            <li>Python 3.7以上をインストール（<a href="https://www.python.org/downloads/">公式サイト</a>）</li>
-        </ol>
-
-        <p><strong>確認方法:</strong></p>
-        <pre><code># Windows PowerShell / Mac Terminal
-docker --version
-python --version</code></pre>
-
-        <h3>ステップ2: ソースコードを取得</h3>
-        <pre><code># GitHubからクローン
-git clone -b docker_main_server_mysql https://github.com/CYLIU2003/oiteru_250827_restAPI
-cd oiteru_250827_restAPI</code></pre>
-
-        <h3>ステップ3: クイック起動スクリプトを実行（1コマンド！）</h3>
-        
-        <p><strong>Windows (PowerShell):</strong></p>
-        <pre><code>.\scripts\quick_start_parent.ps1</code></pre>
-
-        <p><strong>Mac/Linux:</strong></p>
-        <pre><code>./scripts/quick_start_parent.sh</code></pre>
-
-        <div class="alert alert-success">
-            <strong>これだけで以下が自動実行されます:</strong>
-            <ul>
-                <li>✅ 仮想環境の自動作成・検出</li>
-                <li>✅ 必要なパッケージの自動インストール</li>
-                <li>✅ MySQLコンテナの自動起動</li>
-                <li>✅ サーバーの起動</li>
-            </ul>
-        </div>
-
-        <hr>
-
-        <h2>🐳 方法B: Dockerモード（本番運用向け）</h2>
-
-        <p>全てDockerコンテナで動かす方法です。環境が完全に隔離されます。</p>
-
-        <div class="alert alert-success">
-            <strong>メリット:</strong>
-            <ul>
-                <li>✅ 環境が完全に隔離される</li>
-                <li>✅ どのマシンでも同じ環境で動く</li>
-                <li>✅ 本番環境に最適</li>
-                <li>✅ スケールアウトしやすい</li>
-            </ul>
-        </div>
-
-        <div class="alert alert-warning">
-            <strong>デメリット:</strong>
-            <ul>
-                <li>⚠️ 起動がやや遅い</li>
-                <li>⚠️ デバッグが少し複雑</li>
-                <li>⚠️ Dockerの知識が必要</li>
-            </ul>
-        </div>
-
-        <h3>ステップ1: Docker Desktopをインストール</h3>
-        <p><strong>Windows/Mac:</strong></p>
-        <ol>
-            <li><a href="https://www.docker.com/products/docker-desktop">Docker公式サイト</a>からダウンロード</li>
-            <li>インストーラーを実行</li>
-            <li>再起動後、Docker Desktopを起動</li>
-        </ol>
-
-        <p><strong>確認方法:</strong></p>
-        <pre><code>docker --version
-# Docker version 24.x.x のように表示されればOK</code></pre>
-
-        <h3>ステップ2: ソースコードを取得</h3>
-        <pre><code>git clone -b docker_main_server_mysql https://github.com/CYLIU2003/oiteru_250827_restAPI
-cd oiteru_250827_restAPI</code></pre>
-
-        <h3>ステップ3: Dockerコンテナを起動（1コマンド！）</h3>
-
-        <p><strong>Windows (PowerShell):</strong></p>
-        <pre><code>.\scripts\quick_start_parent.ps1 -Docker</code></pre>
-
-        <p><strong>Mac/Linux:</strong></p>
-        <pre><code>docker-compose -f docker-compose.mysql.yml up -d</code></pre>
-
-        <h3>コンテナの管理</h3>
-        <pre><code># ログを見る
-docker-compose -f docker-compose.mysql.yml logs -f
-
-# 停止
-docker-compose -f docker-compose.mysql.yml down
-
-# 再起動
-docker-compose -f docker-compose.mysql.yml restart</code></pre>
-
-        <hr>
-
-        <h2>0. 🏁 まず結論（最小の動かし方）</h2>
-
-        <table>
-            <thead>
-                <tr>
-                    <th>目的</th>
-                    <th>推奨構成</th>
-                    <th>コマンド</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td><strong>手元PCだけで試す</strong></td>
-                    <td>親機 (SQLite)</td>
-                    <td><code>.\venv-start.ps1 parent-sqlite</code></td>
-                </tr>
-                <tr>
-                    <td><strong>本番運用</strong></td>
-                    <td>親機 (MySQL+Docker)</td>
-                    <td><code>./docker-start.sh mysql</code></td>
-                </tr>
-            </tbody>
-        </table>
-
-        <hr>
-
-        <h2>1. 🛠️ 共通準備（Windows / PowerShell想定）</h2>
-
-        <h3>1.1 必要なもの</h3>
-        <ul>
-            <li>🐍 <strong>Python</strong>（<code>.venv</code> を使う構成が前提）</li>
-            <li>🐳 <strong>Docker Desktop</strong>（MySQL運用する場合）</li>
-        </ul>
-
-        <h3>1.2 依存関係のインストール</h3>
-        <p>このワークスペースには「依存を入れる」タスクが用意されています。</p>
-        <ul>
-            <li>タスク: <code>Install Requirements</code></li>
-        </ul>
-        <p>（手動で行う場合は <code>requirements.txt</code> を参照）</p>
-
-        <hr>
-
-        <h2>2. 🖥️ 親機の立ち上げ</h2>
-        <p>親機は「データベースを持つサーバー」です。</p>
-
-        <h3>2.1 方法A: 支援スクリプトを使う（推奨）</h3>
-        <p>Dockerを使わない仮想環境（venv）で起動する場合、以下のスクリプトを使うと簡単です。</p>
-
-        <p><strong>Windows (PowerShell):</strong></p>
-        <pre><code># SQLite版（手軽に試すならこれ）
-.\venv-start.ps1 parent-sqlite
-
-# MySQL版（Docker等でMySQLがlocalhost:3306にある場合）
-.\venv-start.ps1 parent-mysql</code></pre>
-
-        <p><strong>Linux / Mac:</strong></p>
-        <pre><code># SQLite版
-./venv-start.sh parent-sqlite
-
-# MySQL版
-./venv-start.sh parent-mysql</code></pre>
-
-        <h3>2.2 方法B: Dockerを使う</h3>
-        <p>Docker環境が整っている場合は、以下のスクリプトで一発起動できます。</p>
-        <pre><code># MySQLサーバーとFlaskサーバーをまとめて起動
-./docker-start.sh mysql</code></pre>
-
-        <h3>2.3 方法C: 手動コマンド（詳細）</h3>
-        <p>スクリプトを使わずに起動する場合のコマンドです。</p>
-
-        <p><strong>SQLite版:</strong></p>
-        <pre><code># Windows
-.venv\Scripts\python.exe server.py
-
-# Linux
-.venv/bin/python server.py</code></pre>
-
-        <p><strong>MySQL版（環境変数を指定）:</strong></p>
-        <pre><code># Windows (PowerShell)
-$env:DB_TYPE='mysql'; $env:MYSQL_HOST='localhost'; .venv\Scripts\python.exe server.py</code></pre>
-
-        <hr>
-
-        <h2>🔗 従親機のセットアップ（親機のミラー）</h2>
-
-        <p>従親機は親機と同じFlaskサーバーを起動しますが、<strong>データベースは親機のMySQLに接続</strong>します。</p>
-
-        <h3>クイック起動（推奨）</h3>
-
-        <p><strong>Windows (PowerShell):</strong></p>
-        <pre><code># 親機のIPアドレスを指定して起動
-.\scripts\quick_start_sub.ps1 -Host 192.168.1.100
-
-# Tailscale使用時
-.\scripts\quick_start_sub.ps1 -Host 100.114.99.67</code></pre>
-
-        <p><strong>Mac/Linux:</strong></p>
-        <pre><code># 親機のIPアドレスを指定して起動
-./scripts/quick_start_sub.sh 192.168.1.100
-
-# Tailscale使用時
-./scripts/quick_start_sub.sh 100.114.99.67</code></pre>
-
-        <div class="alert alert-success">
-            <strong>これだけで以下が自動実行されます:</strong>
-            <ul>
-                <li>✅ 仮想環境の自動作成・検出</li>
-                <li>✅ 必要なパッケージの自動インストール</li>
-                <li>✅ 親機のMySQLへ接続</li>
-                <li>✅ サーバーの起動</li>
-            </ul>
-        </div>
-
-        <hr>
-
-        <h2>📡 子機のセットアップ（Raspberry Pi）</h2>
-
-        <h3>クイック起動（推奨）</h3>
-
-        <pre><code># 親機のIPアドレスを指定して起動
-sudo ./scripts/quick_start_unit.sh 192.168.1.100
-
-# Tailscale使用時
-sudo ./scripts/quick_start_unit.sh 100.114.99.67</code></pre>
-
-        <div class="alert alert-success">
-            <strong>これだけで以下が自動実行されます:</strong>
-            <ul>
-                <li>✅ 仮想環境の自動作成・検出</li>
-                <li>✅ 必要なパッケージの自動インストール</li>
-                <li>✅ config.jsonの自動更新</li>
-                <li>✅ 子機の起動</li>
-            </ul>
-        </div>
-
-        <div class="alert alert-warning">
-            <strong>⚠️ <code>sudo</code> が必要な理由:</strong>
-            <ul>
-                <li>NFCリーダーへのUSBアクセス</li>
-                <li>GPIOピンへのアクセス</li>
-            </ul>
-        </div>
-
-        <div class="alert alert-info">
-            <strong>起動確認:</strong>
-            <ul>
-                <li>GUIウィンドウが表示される</li>
-                <li>「親機に接続しました」と表示されればOK！</li>
-                <li>NFCカードをかざして反応するか確認</li>
-            </ul>
-        </div>
-
-        <hr>
-
-        <h2>3. 🔗 従親機の立ち上げ（外部MySQLに接続）</h2>
-        <p>従親機は「DBを持たず、外部MySQLを参照するサーバー」です。<br>
-        ※ 親機と同じMySQLに接続することで、データを共有します。</p>
-
-        <h3>3.1 方法A: 支援スクリプトを使う（推奨）</h3>
-        <p><strong>Windows (PowerShell):</strong></p>
-        <pre><code># デフォルトで localhost:3306 のMySQLに接続します
-.\venv-start.ps1 sub-parent</code></pre>
-
-        <p><strong>Linux / Mac:</strong></p>
-        <pre><code>./venv-start.sh sub-parent</code></pre>
-
-        <h3>3.2 方法B: Dockerを使う</h3>
-        <pre><code># 外部DB設定（docker-compose.external-db.yml）を使って起動
-./docker-start.sh external</code></pre>
-
-        <h3>3.3 方法C: 手動コマンド（詳細）</h3>
-        <pre><code># Windows (PowerShell) - 接続先やサーバー名を指定
-$env:DB_TYPE='mysql'
-$env:MYSQL_HOST='192.168.1.10'  # 親機(DB)のIP
-$env:SERVER_NAME='従親機A'
-.venv\Scripts\python.exe server.py</code></pre>
-
-        <hr>
-
-        <h2>4. 📡 子機の立ち上げ（Raspberry Pi 等）</h2>
-        <p>子機は <code>unit.py</code> を使います。</p>
-
-        <h3>4.1 事前に設定する（重要）</h3>
-        <p><code>config.json</code> を編集して、少なくとも以下を合わせてください。</p>
-        <ul>
-            <li><code>SERVER_URL</code> : 親機/従親機のURL
-                <ul><li>例: <code>http://192.168.1.10:5000</code></li></ul>
-            </li>
-            <li><code>UNIT_NAME</code> / <code>UNIT_PASSWORD</code> : サーバー側の子機登録情報と一致させる</li>
-        </ul>
-
-        <h3>4.2 方法A: 支援スクリプトを使う（推奨）</h3>
-        <p><strong>Windows (PowerShell):</strong></p>
-        <pre><code>.\venv-start.ps1 unit</code></pre>
-
-        <p><strong>Linux / Mac (Raspberry Pi):</strong></p>
-        <pre><code>./venv-start.sh unit</code></pre>
-
-        <h3>4.3 方法B: Dockerを使う</h3>
-        <pre><code># 子機用コンテナを起動
-./docker-start.sh unit</code></pre>
-
-        <h3>4.4 方法C: 手動コマンド（詳細）</h3>
-        <pre><code># Linux (Raspberry Pi)
-# 権限が必要な場合（GPIO/NFC）は sudo が必要なこともあります
-sudo .venv/bin/python unit.py</code></pre>
-
-        <hr>
-
-        <h2>5. 📜 支援スクリプトについて</h2>
-        <p>このプロジェクトには、起動を簡単にするためのスクリプトが用意されています。</p>
-
-        <h3>5.1 <code>venv-start.ps1</code> / <code>venv-start.sh</code> (仮想環境用)</h3>
-        <p>Dockerを使わず、ローカルのPython仮想環境（<code>.venv</code>）を使って起動するためのスクリプトです。<br>
-        環境変数の設定などを自動で行います。</p>
-        <ul>
-            <li><strong>Windows</strong>: <code>.\venv-start.ps1 [mode]</code></li>
-            <li><strong>Linux</strong>: <code>./venv-start.sh [mode]</code></li>
-        </ul>
-        <p><strong>モード一覧:</strong></p>
-        <ul>
-            <li><code>parent-sqlite</code>: 親機 (SQLite)</li>
-            <li><code>parent-mysql</code>: 親機 (MySQL接続)</li>
-            <li><code>sub-parent</code>: 従親機 (MySQL接続)</li>
-            <li><code>unit</code>: 子機</li>
-        </ul>
-
-        <h3>5.2 <code>docker-start.sh</code> (Docker用)</h3>
-        <p>Docker Composeコマンドをラップしたスクリプトです。<br>
-        <code>docker/</code> フォルダ内の適切なYAMLファイルを選択して起動します。</p>
-        <ul>
-            <li><strong>使い方</strong>: <code>./docker-start.sh [mode]</code></li>
-        </ul>
-        <p><strong>モード一覧:</strong></p>
-        <ul>
-            <li><code>mysql</code>: 親機DB版（MySQL + Webサーバー）</li>
-            <li><code>external</code>: 従親機（外部DB接続）</li>
-            <li><code>unit</code>: 子機</li>
-            <li><code>stop</code>: 全コンテナ停止</li>
-        </ul>
-
-        <hr>
-
-        <h2>6. ❓ トラブルシューティング（よくある順）</h2>
-
-        <h3>6.1 サーバーが起動しない / 5000番が使われている</h3>
-        <div class="alert alert-warning">
-            <strong>症状:</strong> 起動直後にエラー / <code>Address already in use</code>
-        </div>
-        <p><strong>対処:</strong></p>
-        <ol>
-            <li>すでに別の <code>server.py</code> が動いていないか確認</li>
-            <li>5000番を使っている別プロセスを停止</li>
-            <li>それでもダメなら、ポート変更（アプリ側の設定）を検討</li>
-        </ol>
-
-        <h3>6.2 ブラウザで開けない（見えない）</h3>
-        <div class="alert alert-warning">
-            <strong>症状:</strong> <code>http://localhost:5000</code> がタイムアウト
-        </div>
-        <p><strong>対処:</strong></p>
-        <ol>
-            <li>サーバーの起動ログにエラーが無いか確認</li>
-            <li>Windowsファイアウォール/セキュリティソフトのブロックを確認</li>
-            <li>別PC/子機からアクセスする場合は、<code>localhost</code> ではなく <strong>サーバーPCのIPアドレス</strong> を使う</li>
-        </ol>
-
-        <h3>6.3 MySQLに接続できない</h3>
-        <div class="alert alert-warning">
-            <strong>症状:</strong> サーバー起動時にDB接続エラー
-        </div>
-        <p><strong>対処:</strong></p>
-        <ol>
-            <li><code>MYSQL_HOST</code> / <code>MYSQL_PORT</code> / <code>MYSQL_USER</code> / <code>MYSQL_PASSWORD</code> が正しいか</li>
-            <li>MySQLコンテナが起動しているか（Docker Desktop側で確認）</li>
-            <li>WindowsからMySQLへ接続する場合、ポート開放が必要なことがあります
-                <ul><li>参考: <code>scripts/open_mysql_port_windows.ps1</code></li></ul>
-            </li>
-        </ol>
-
-        <h3>6.4 テーブルが無い / 初期化されていない</h3>
-        <div class="alert alert-warning">
-            <strong>症状:</strong> 画面表示やAPIで「no such table」「table doesn’t exist」
-        </div>
-        <p><strong>対処:</strong></p>
-        <ul>
-            <li><strong>SQLite運用</strong>: <code>oiteru.sqlite3</code> が正しい場所にあるか、初回起動で生成されるか</li>
-            <li><strong>MySQL運用</strong>: <code>docker/init_mysql.sql</code> が実行されているか</li>
-        </ul>
-
-        <h3>6.5 子機がサーバーに繋がらない</h3>
-        <div class="alert alert-warning">
-            <strong>症状:</strong> 子機側で接続エラー
-        </div>
-        <p><strong>対処:</strong></p>
-        <ol>
-            <li><code>config.json</code> の <code>SERVER_URL</code> が正しいか
-                <ul><li>サーバーPCから見た <code>localhost</code> を子機で使うのはNG（子機にとっては子機自身のlocalhost）</li></ul>
-            </li>
-            <li>サーバーがLAN内で疎通可能か（IPアドレス変更に注意）</li>
-            <li>ファイアウォールで5000番が遮断されていないか</li>
-        </ol>
-
-        <h3>6.6 NFCが読めない</h3>
-        <p><strong>対処の方針:</strong></p>
-        <ol>
-            <li>USB接続を確認</li>
-            <li>OSからデバイスが認識されているか確認</li>
-            <li>コンテナ内で扱う場合はデバイスのアタッチが必要
-                <ul><li>参考: <code>scripts/attach_card_reader.ps1</code> / <code>scripts/fix_card_reader.ps1</code></li></ul>
-            </li>
-        </ol>
-
-        <hr>
-
-        <h2>7. 📚 次に読む</h2>
-        <ul>
-            <li>詳細な仕様/設定/運用: <a href="README.html">取説書/README.html</a></li>
-            <li>Docker構成: <code>docker/</code></li>
-            <li>診断ツール: <code>tools/</code></li>
-        </ul>
-
-        <footer>
-            <p>&copy; 2025 OITERU Project | 最終更新: 2025年12月26日</p>
+            <!-- 目次 -->
+            <nav class="toc">
+                <h3>📚 目次</h3>
+                <ul>
+                    <li><a href="#about">はじめに</a></li>
+                    <li><a href="#parent">親機の起動方法</a></li>
+                    <li><a href="#sub-parent">従親機の起動方法</a></li>
+                    <li><a href="#unit">子機の起動方法</a></li>
+                    <li><a href="#admin">管理画面の使い方</a></li>
+                    <li><a href="#troubleshooting">トラブルシューティング</a></li>
+                </ul>
+            </nav>
+
+            <!-- はじめに -->
+            <section id="about">
+                <div class="section-header">
+                    <h2>🎯 はじめに</h2>
+                </div>
+                
+                <h3>OITERUって何？</h3>
+                <p>ICカード（社員証・学生証など）をかざすと、お菓子が自動で出てくるシステムです！</p>
+
+                <h3>用語の説明</h3>
+                <table>
+                    <tr><th>用語</th><th>説明</th><th>IPアドレス</th></tr>
+                    <tr><td><strong>親機</strong></td><td>データベースを持つメインサーバー</td><td><code>100.114.99.67</code></td></tr>
+                    <tr><td><strong>従親機</strong></td><td>親機のDBを参照するサブサーバー</td><td>設置場所による</td></tr>
+                    <tr><td><strong>子機</strong></td><td>お菓子を排出するラズパイ端末</td><td>設置場所による</td></tr>
+                </table>
+
+                <div class="info-box">
+                    💡 Tailscaleを使っているので、親機のアドレスは <strong>100.114.99.67</strong> で固定です！
+                </div>
+            </section>
+
+            <!-- 親機の起動方法 -->
+            <section id="parent">
+                <div class="section-header">
+                    <h2>🖥️ 親機の起動方法</h2>
+                </div>
+                <p>親機はデータベース（MySQL）を持つメインサーバーです。</p>
+
+                <div class="method-box">
+                    <h3>方法1: 🚀 ランチャーで起動（一番簡単！）</h3>
+                    <ol>
+                        <li><code>scripts</code> フォルダを開く</li>
+                        <li><code>launcher.bat</code> をダブルクリック</li>
+                        <li><strong>「1. GUI版」</strong> を選択</li>
+                        <li>起動モード: <strong>「親機」</strong>、実行方法: <strong>「Dockerモード」</strong> を選択</li>
+                        <li><strong>「起動」</strong> ボタンを押す</li>
+                    </ol>
+                    <div class="success-box">これだけ！ 🎉</div>
+                </div>
+
+                <div class="method-box">
+                    <h3>方法2: 📦 Dockerで起動（推奨）</h3>
+                    <div class="command-box">
+cd C:\Users\RTDS_admin\source\repos\CYLIU2003\oiteru_250827_restAPI<br>
+docker-compose -f docker-compose.mysql.yml up -d
+                    </div>
+                    <p>確認：<code>docker ps</code> で <code>oiteru_mysql</code> と <code>oiteru_web</code> が Up ならOK</p>
+                </div>
+
+                <div class="method-box">
+                    <h3>方法3: 🐍 仮想環境で起動（開発向け）</h3>
+                    <div class="command-box">.\venv-start.ps1 parent-mysql</div>
+                    <div class="warning-box">⚠️ MySQLが別途起動している必要があります</div>
+                </div>
+
+                <div class="method-box">
+                    <h3>方法4: 🔧 通常モードで起動（非推奨・テスト用）</h3>
+                    <div class="command-box">
+$env:DB_TYPE = 'mysql'<br>
+$env:MYSQL_HOST = 'localhost'<br>
+$env:MYSQL_PORT = '3306'<br>
+$env:MYSQL_DATABASE = 'oiteru'<br>
+$env:MYSQL_USER = 'oiteru_user'<br>
+$env:MYSQL_PASSWORD = 'oiteru_password_2025'<br>
+python server.py
+                    </div>
+                </div>
+            </section>
+
+            <!-- 従親機の起動方法 -->
+            <section id="sub-parent">
+                <div class="section-header">
+                    <h2>🔗 従親機の起動方法</h2>
+                </div>
+                <p>従親機は、親機のデータベースを参照するサブサーバーです。</p>
+
+                <div class="method-box">
+                    <h3>方法1: 🚀 ランチャーで起動</h3>
+                    <ol>
+                        <li><code>scripts/launcher.bat</code> をダブルクリック</li>
+                        <li>GUI版を選択</li>
+                        <li>起動モード: <strong>「従親機」</strong> を選択</li>
+                        <li>設定で MySQLホスト を <code>100.114.99.67</code> に変更</li>
+                        <li>「起動」ボタンを押す</li>
+                    </ol>
+                </div>
+
+                <div class="method-box">
+                    <h3>方法2: 📦 Dockerで起動</h3>
+                    <div class="command-box">./docker-start.sh external</div>
+                </div>
+
+                <div class="method-box">
+                    <h3>方法3: 🐍 仮想環境で起動</h3>
+                    <p><strong>Windows:</strong></p>
+                    <div class="command-box">
+$env:MYSQL_HOST = '100.114.99.67'<br>
+.\venv-start.ps1 sub-parent
+                    </div>
+                    <p><strong>Linux:</strong></p>
+                    <div class="command-box">
+export MYSQL_HOST=100.114.99.67<br>
+./venv-start.sh sub-parent
+                    </div>
+                </div>
+
+                <div class="method-box">
+                    <h3>方法4: 🔧 通常モードで起動（非推奨）</h3>
+                    <div class="command-box">
+$env:DB_TYPE = 'mysql'<br>
+$env:MYSQL_HOST = '100.114.99.67'<br>
+$env:SERVER_NAME = '従親機A'<br>
+python server.py
+                    </div>
+                </div>
+            </section>
+
+            <!-- 子機の起動方法 -->
+            <section id="unit">
+                <div class="section-header">
+                    <h2>📡 子機の起動方法</h2>
+                </div>
+                <p>子機はRaspberry Piで動き、NFCカードの読み取りとお菓子の排出を行います。</p>
+
+                <div class="warning-box">
+                    <strong>⚠️ 前準備: config.json を編集してね！</strong>
+                    <div class="command-box" style="color: #d4d4d4;">
+{<br>
+&nbsp;&nbsp;"SERVER_URL": "http://100.114.99.67:5000",<br>
+&nbsp;&nbsp;"UNIT_NAME": "あなたの子機名",<br>
+&nbsp;&nbsp;"UNIT_PASSWORD": "パスワード"<br>
+}
+                    </div>
+                </div>
+
+                <div class="method-box">
+                    <h3>方法1: 🚀 クイック起動スクリプト（おすすめ！）</h3>
+                    <div class="command-box">
+cd /home/pi/oiteru_250827_restAPI/scripts<br>
+sudo ./quick_start_unit.sh 100.114.99.67
+                    </div>
+                </div>
+
+                <div class="method-box">
+                    <h3>方法2: 🐍 仮想環境で起動</h3>
+                    <div class="command-box">
+cd /home/pi/oiteru_250827_restAPI<br>
+./venv-start.sh unit
+                    </div>
+                </div>
+
+                <div class="method-box">
+                    <h3>方法3: 🔧 通常モードで起動（非推奨）</h3>
+                    <div class="command-box">
+cd /home/pi/oiteru_250827_restAPI<br>
+sudo python3 unit.py
+                    </div>
+                </div>
+
+                <div class="method-box">
+                    <h3>方法4: 🔄 自動起動の設定</h3>
+                    <div class="command-box">
+sudo cp oiteru-unit.service /etc/systemd/system/<br>
+sudo systemctl enable oiteru-unit<br>
+sudo systemctl start oiteru-unit
+                    </div>
+                </div>
+            </section>
+
+            <!-- 管理画面 -->
+            <section id="admin">
+                <div class="section-header">
+                    <h2>🖥️ 管理画面の使い方</h2>
+                </div>
+                <div class="command-box" style="color: white; text-align: center; font-size: 1.2em;">
+                    http://100.114.99.67:5000/admin
+                </div>
+                <p style="text-align: center;"><strong>初期パスワード</strong>: <code>admin</code></p>
+
+                <table>
+                    <tr><th>メニュー</th><th>説明</th></tr>
+                    <tr><td>👥 ユーザー管理</td><td>ユーザーの登録・編集、在庫調整</td></tr>
+                    <tr><td>🤖 子機管理</td><td>子機の登録・接続状態確認</td></tr>
+                    <tr><td>📜 利用履歴</td><td>誰がいつ使ったか確認</td></tr>
+                    <tr><td>⚙️ 設定</td><td>自動登録モード、1日の上限数など</td></tr>
+                </table>
+            </section>
+
+            <!-- トラブルシューティング -->
+            <section id="troubleshooting">
+                <div class="section-header">
+                    <h2>❓ トラブルシューティング</h2>
+                </div>
+
+                <h3>🔌 接続できない</h3>
+                <p><strong>1. Tailscaleは接続してる？</strong></p>
+                <div class="command-box">tailscale status</div>
+                <p>「connected」と出てなければ: <code>sudo tailscale up</code></p>
+
+                <p><strong>2. config.jsonは正しい？</strong></p>
+                <ul>
+                    <li><code>http://</code> で始まる？（<code>https://</code> じゃない）</li>
+                    <li>最後にスラッシュ <code>/</code> は付いてない？</li>
+                    <li>ポート番号 <code>:5000</code> は付いてる？</li>
+                </ul>
+
+                <h3>📱 NFCカードが読めない</h3>
+                <div class="command-box">lsusb</div>
+                <p>→ Sony か ACS のデバイスが表示されればOK。なければUSBを確認！</p>
+
+                <h3>🍬 お菓子が出ない</h3>
+                <ul>
+                    <li>在庫は残ってる？（管理画面で確認）</li>
+                    <li>1日の上限に達してない？</li>
+                </ul>
+            </section>
+
+            <!-- 起動方法まとめ -->
+            <section>
+                <div class="section-header">
+                    <h2>📁 起動方法まとめ</h2>
+                </div>
+                <table>
+                    <tr><th>対象</th><th>おすすめ</th><th>コマンド</th></tr>
+                    <tr><td>親機</td><td>Docker</td><td><code>docker-compose -f docker-compose.mysql.yml up -d</code></td></tr>
+                    <tr><td>親機</td><td>仮想環境</td><td><code>.\venv-start.ps1 parent-mysql</code></td></tr>
+                    <tr><td>従親機</td><td>仮想環境</td><td><code>.\venv-start.ps1 sub-parent</code></td></tr>
+                    <tr><td>子機</td><td>クイック起動</td><td><code>sudo ./quick_start_unit.sh 100.114.99.67</code></td></tr>
+                    <tr><td>子機</td><td>仮想環境</td><td><code>./venv-start.sh unit</code></td></tr>
+                </table>
+            </section>
+
+            <!-- 困ったら -->
+            <section>
+                <div class="warning-box">
+                    <h3>📞 困ったら</h3>
+                    <p>管理者に連絡！以下を伝えてね：</p>
+                    <ol>
+                        <li><strong>何をしたか</strong> → 例：「カードをかざした」</li>
+                        <li><strong>何が起きたか</strong> → 例：「エラーが出た」</li>
+                        <li><strong>エラーメッセージ</strong> → 画面に出た文字</li>
+                        <li><strong>子機の名前</strong> → <code>UNIT_NAME</code> の値</li>
+                    </ol>
+                </div>
+            </section>
+        </main>
+
+        <footer style="text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280;">
+            <p><strong>わからないことがあったら、遠慮なく聞いてね！</strong> 😊</p>
         </footer>
     </div>
 </body>
