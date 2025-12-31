@@ -2,13 +2,12 @@
 chcp 65001 > nul
 echo.
 echo ========================================
-echo   PowerShell 実行ポリシー修正ツール
+echo   PowerShell Execution Policy Fix Tool
 echo ========================================
 echo.
-echo このツールは、PowerShellスクリプトを実行できるように
-echo 実行ポリシーを変更します。
+echo This tool enables PowerShell script execution.
 echo.
-echo 【方法1】現在のユーザーのみ変更（管理者権限不要）
+echo [Method 1] Change for current user only (no admin required)
 echo.
 
 :: 現在のユーザーの実行ポリシーを変更
@@ -16,20 +15,20 @@ powershell.exe -NoProfile -Command "Set-ExecutionPolicy -ExecutionPolicy RemoteS
 
 if %ERRORLEVEL% EQU 0 (
     echo.
-    echo ✅ 成功しました！
+    echo SUCCESS!
     echo.
-    echo PowerShellスクリプトが実行できるようになりました。
-    echo ターミナルを一度閉じて、再度開いてください。
+    echo PowerShell scripts are now enabled.
+    echo Please close this terminal and open a new one.
 ) else (
     echo.
-    echo ❌ 方法1が失敗しました。方法2を試します...
+    echo Method 1 failed. Trying Method 2...
     echo.
-    echo 【方法2】管理者権限で変更
-    echo 新しいウィンドウが開きます。「はい」をクリックしてください。
+    echo [Method 2] Change with admin privileges
+    echo A new window will open. Click "Yes" to allow.
     echo.
     
     :: 管理者権限で再試行
-    powershell.exe -NoProfile -Command "Start-Process -FilePath 'powershell.exe' -ArgumentList '-NoProfile -Command \"Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force; Write-Host 完了しました -ForegroundColor Green; Start-Sleep 3\"' -Verb RunAs"
+    powershell.exe -NoProfile -Command "Start-Process -FilePath 'powershell.exe' -ArgumentList '-NoProfile -Command \"Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force; Write-Host Done -ForegroundColor Green; Start-Sleep 3\"' -Verb RunAs"
 )
 
 echo.

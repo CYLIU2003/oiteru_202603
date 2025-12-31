@@ -4,7 +4,7 @@ setlocal enabledelayedexpansion
 
 echo.
 echo ========================================
-echo    🍬 OITERU 設定ウィザード
+echo    OITERU Setup Wizard
 echo ========================================
 echo.
 
@@ -14,52 +14,52 @@ set "PROJECT_DIR=%SCRIPT_DIR%.."
 set "CONFIG_PATH=%PROJECT_DIR%\config.json"
 
 :: タイプ選択
-echo 何を設定しますか？
-echo   1. 子機（お菓子を出す端末）
-echo   2. 従親機（サブサーバー）
+echo What do you want to setup?
+echo   1. Unit (Raspberry Pi dispenser)
+echo   2. Sub-parent (Secondary server)
 echo.
-set /p CHOICE="選択 [1/2]: "
+set /p CHOICE="Select [1/2]: "
 
 if "%CHOICE%"=="2" (
     set "TYPE=sub-parent"
-    set "DEFAULT_NAME=従親機A"
+    set "DEFAULT_NAME=SubParentA"
 ) else (
     set "TYPE=unit"
-    set "DEFAULT_NAME=新規子機"
+    set "DEFAULT_NAME=Unit1"
 )
 
 echo.
-echo 【%TYPE% の設定を開始します】
+echo Setting up: %TYPE%
 echo.
 
 :: 名前入力
-set /p NAME="名前を入力 (例: 3号機) [%DEFAULT_NAME%]: "
+set /p NAME="Enter name (e.g. Unit3, BuildingA) [%DEFAULT_NAME%]: "
 if "%NAME%"=="" set "NAME=%DEFAULT_NAME%"
 
 :: 設置場所
-set /p LOCATION="設置場所を入力 (例: 7号館1階): "
-if "%LOCATION%"=="" set "LOCATION=未設定"
+set /p LOCATION="Enter location (e.g. Building7-1F): "
+if "%LOCATION%"=="" set "LOCATION=NotSet"
 
 :: パスワード
-set /p PASSWORD="パスワードを入力 (空で自動生成): "
+set /p PASSWORD="Enter password (empty for auto-generate): "
 if "%PASSWORD%"=="" (
     :: 簡易的なランダム生成
     set "PASSWORD=pw%RANDOM%%RANDOM%"
-    echo   → 自動生成されたパスワード: !PASSWORD!
+    echo   Auto-generated password: !PASSWORD!
 )
 
 :: サーバーIP
 set "SERVER_IP=100.114.99.67"
 echo.
-echo 親機のIPアドレス: %SERVER_IP%
-set /p CHANGE_IP="変更しますか？ [y/N]: "
+echo Parent server IP: %SERVER_IP%
+set /p CHANGE_IP="Change it? [y/N]: "
 if /i "%CHANGE_IP%"=="y" (
-    set /p SERVER_IP="新しいIPアドレスを入力: "
+    set /p SERVER_IP="Enter new IP address: "
 )
 
 :: 設定ファイル生成
 echo.
-echo 設定ファイルを作成中...
+echo Creating config file...
 
 if "%TYPE%"=="unit" (
     (
@@ -99,25 +99,22 @@ if "%TYPE%"=="unit" (
 
 echo.
 echo ========================================
-echo    ✅ 設定が完了しました！
+echo    Setup Complete!
 echo ========================================
 echo.
-echo 保存先: %CONFIG_PATH%
+echo Saved to: %CONFIG_PATH%
 echo.
-echo --- 設定内容 ---
+echo --- Configuration ---
 type "%CONFIG_PATH%"
 echo.
 
 if "%TYPE%"=="unit" (
-    echo 【次のステップ】
-    echo   1. 親機の管理画面で子機を登録
-    echo      → http://%SERVER_IP%:5000/admin/units/new
-    echo   2. 子機を起動
-    echo      → scripts\start_unit.bat
+    echo Next steps:
+    echo   1. Register unit at: http://%SERVER_IP%:5000/admin/units/new
+    echo   2. Start unit: scripts\start_unit.bat
 ) else (
-    echo 【次のステップ】
-    echo   1. 従親機を起動
-    echo      → scripts\start_sub_parent.bat
+    echo Next steps:
+    echo   1. Start sub-parent: scripts\start_sub_parent.bat
 )
 echo.
 pause
