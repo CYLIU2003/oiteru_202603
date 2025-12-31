@@ -128,6 +128,36 @@ python server.py
 
 従親機は、親機のデータベースを参照するサブサーバーです。複数拠点で運用するときに使います。
 
+## ステップ0: 前準備 - config.json を設定
+
+### 🚀 方法A: ウィザードで設定（おすすめ！）
+
+```powershell
+# Windows
+.\scripts\setup_config.ps1
+
+# Linux
+./scripts/setup_config.sh
+```
+
+画面の質問に答えるだけで設定完了！
+
+### ⚡ 方法B: ワンライナーで設定
+
+```bash
+# 例: 従親機Bを設定
+./scripts/setup_config.sh sub-parent "従親機B" "別館2階"
+```
+
+### 📝 方法C: テンプレートをコピー
+
+```bash
+cp config_templates/config_sub_parent.template.json config.json
+nano config.json  # ★マークの項目を編集
+```
+
+---
+
 ## 方法1: 🚀 ランチャーで起動
 
 ### 手順
@@ -194,15 +224,43 @@ python server.py
 
 子機はRaspberry Piで動き、NFCカードの読み取りとお菓子の排出を行います。
 
-## ステップ0: 前準備 - config.json を編集
+## ステップ0: 前準備 - config.json を設定
 
-### ファイルを開く
+### 🚀 方法A: ウィザードで設定（おすすめ！）
+
+対話形式で簡単に設定できます：
+
+```bash
+cd /home/pi/oiteru_250827_restAPI/scripts
+./setup_config.sh
+```
+
+画面の質問に答えるだけで設定完了！
+
+### ⚡ 方法B: ワンライナーで設定（上級者向け）
+
+```bash
+# 例: 3号機を設定
+./scripts/setup_config.sh unit "3号機" "7号館1階" "password123"
+```
+
+### 📝 方法C: テンプレートをコピー
+
+```bash
+# テンプレートをコピー
+cp config_templates/config_unit.template.json config.json
+
+# ★マークの項目を編集
+nano config.json
+```
+
+### 🔧 方法D: 手動で編集
 
 ```bash
 nano /home/pi/oiteru_250827_restAPI/config.json
 ```
 
-### 以下の3箇所を変更
+以下の3箇所を変更：
 
 ```json
 {
@@ -222,11 +280,7 @@ nano /home/pi/oiteru_250827_restAPI/config.json
 > - `http://` で始まる（`https://` じゃない！）
 > - 最後にスラッシュ `/` は付けない
 
-### 保存
-
-```
-Ctrl + O → Enter → Ctrl + X
-```
+保存: `Ctrl + O → Enter → Ctrl + X`
 
 ---
 

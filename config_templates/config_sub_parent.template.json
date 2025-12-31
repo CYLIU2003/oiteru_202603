@@ -1,0 +1,15 @@
+{
+    "_comment": "=== 従親機用設定テンプレート ===",
+    "_usage": "このファイルをconfig.jsonにコピーして、★マークの項目を編集してください",
+    
+    "DB_TYPE": "mysql",
+    "MYSQL_HOST": "100.114.99.67",
+    "MYSQL_PORT": 3306,
+    "MYSQL_DATABASE": "oiteru",
+    "MYSQL_USER": "oiteru_user",
+    "MYSQL_PASSWORD": "oiteru_password_2025",
+    
+    "SERVER_NAME": "★ここを編集★ 例: 従親機A",
+    "SERVER_LOCATION": "★ここを編集★ 例: 別館1階",
+    "IS_SECONDARY": true
+}

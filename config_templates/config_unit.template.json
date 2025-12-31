@@ -1,0 +1,22 @@
+{
+    "_comment": "=== 子機用設定テンプレート ===",
+    "_usage": "このファイルをconfig.jsonにコピーして、★マークの項目を編集してください",
+    
+    "SERVER_URL": "http://100.114.99.67:5000",
+    
+    "UNIT_NAME": "★ここを編集★ 例: 3号機",
+    "UNIT_PASSWORD": "★ここを編集★ 例: mypassword123",
+    "UNIT_LOCATION": "★ここを編集★ 例: 7号館1階",
+    
+    "IS_SECONDARY": false,
+    "MOTOR_TYPE": "SERVO",
+    "CONTROL_METHOD": "RASPI_DIRECT",
+    "USE_SENSOR": true,
+    "GREEN_LED_PIN": 17,
+    "RED_LED_PIN": 27,
+    "SENSOR_PIN": 22,
+    "ARDUINO_PORT": "/dev/ttyACM0",
+    "MOTOR_SPEED": 100,
+    "MOTOR_DURATION": 2.0,
+    "MOTOR_REVERSE": false
+}
