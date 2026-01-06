@@ -1,17 +1,27 @@
 # 🚀 OITERU かんたんスタートガイド
 
+<div align="center">
+
 **親機・従親機・子機の立ち上げ方法をまとめました！**
+
+📅 最終更新: 2026年1月6日
+
+> 💡 **スマホで見る場合は [QUICKSTART.html](QUICKSTART.html) がおすすめです！**
+
+</div>
 
 ---
 
 ## 📋 目次
 
-1. [はじめに](#はじめに)
-2. [親機の起動方法](#親機の起動方法)
-3. [従親機の起動方法](#従親機の起動方法)
-4. [子機の起動方法](#子機の起動方法)
-5. [管理画面の使い方](#管理画面の使い方)
-6. [トラブルシューティング](#トラブルシューティング)
+| セクション | 内容 |
+|:---|:---|
+| [🎯 はじめに](#-はじめに) | OITERUとは？用語の説明 |
+| [🖥️ 親機の起動方法](#%EF%B8%8F-親機の起動方法) | メインサーバーの起動 |
+| [🔗 従親機の起動方法](#-従親機の起動方法) | サブサーバーの起動 |
+| [📡 子機の起動方法](#-子機の起動方法) | ラズパイ端末の起動 |
+| [⚙️ 管理画面の使い方](#%EF%B8%8F-管理画面の使い方) | Web管理画面 |
+| [🔧 トラブルシューティング](#-トラブルシューティング) | 困ったときは |
 
 ---
 
@@ -19,31 +29,30 @@
 
 ### OITERUって何？
 
-ICカードをかざすと、お菓子が自動で出てくるシステムです！
+ICカードをかざすと、**お菓子が自動で出てくる**システムです！
 
 ```
-┌─────────────┐    ピッ     ┌────────────┐
-│   ICカード   │  ────→    │   子機      │   お菓子が出る！
-│  (社員証等)  │            │ (ラズパイ)  │
-└─────────────┘            └────────────┘
-                                  │
-                                  │ 通信
-                                  ▼
-                           ┌────────────┐
-                           │   親機      │ ← 利用履歴を管理
-                           │ (サーバー)  │
-                           └────────────┘
+   ┌─────────────┐                ┌────────────┐
+   │   ICカード   │  ───ピッ───▶  │   子機     │  ───▶  🍬 お菓子！
+   │  (社員証等)  │                │ (ラズパイ) │
+   └─────────────┘                └─────┬──────┘
+                                        │
+                                        ▼ 通信
+                                  ┌────────────┐
+                                  │   親機     │  📊 利用履歴を管理
+                                  │ (サーバー) │
+                                  └────────────┘
 ```
 
 ### 用語の説明
 
 | 用語 | 説明 | IPアドレス |
-|:---:|:---|:---|
-| **親機** | データベースを持つメインサーバー | `100.114.99.67` |
-| **従親機** | 親機のDBを参照するサブサーバー | （設置場所による） |
-| **子機** | お菓子を排出するラズパイ端末 | （設置場所による） |
+|:---:|:---|:---:|
+| 🖥️ **親機** | データベースを持つメインサーバー | `100.114.99.67` |
+| 🔗 **従親機** | 親機のDBを参照するサブサーバー | 設置場所による |
+| 📡 **子機** | お菓子を排出するラズパイ端末 | 設置場所による |
 
-> 💡 Tailscaleを使っているので、親機のアドレスは **`100.114.99.67`** で固定です！
+> 💡 **Tailscale**を使っているので、親機のアドレスは `100.114.99.67` で固定です！
 
 ---
 
@@ -51,9 +60,9 @@ ICカードをかざすと、お菓子が自動で出てくるシステムです
 
 親機はデータベース（MySQL）を持つメインサーバーです。
 
-## 方法1: 🚀 ランチャーで起動（一番簡単！）
+---
 
-### 手順
+### 方法1: 🚀 ランチャーで起動（一番簡単！）
 
 1. `scripts` フォルダを開く
 2. `launcher.bat` をダブルクリック
@@ -63,38 +72,31 @@ ICカードをかざすと、お菓子が自動で出てくるシステムです
    - 実行方法: **「Dockerモード」** を選択
    - **「起動」** ボタンを押す
 
-これだけ！ 🎉
+> ✅ **これだけ！** 🎉
 
 ---
 
-## 方法2: 📦 Dockerで起動（推奨）
-
-### 手順
+### 方法2: 🐳 Dockerで起動（推奨）
 
 ```powershell
 cd C:\Users\RTDS_admin\source\repos\CYLIU2003\oiteru_250827_restAPI
 docker-compose -f docker-compose.mysql.yml up -d
 ```
 
-### 確認
-
+**確認：**
 ```powershell
 docker ps
 ```
-
 → `oiteru_mysql` と `oiteru_web` が `Up` になっていればOK！
 
-### 停止するとき
-
+**停止するとき：**
 ```powershell
 docker-compose -f docker-compose.mysql.yml down
 ```
 
 ---
 
-## 方法3: 🐍 仮想環境で起動（開発向け）
-
-### 手順
+### 方法3: 🐍 仮想環境で起動（開発向け）
 
 ```powershell
 cd C:\Users\RTDS_admin\source\repos\CYLIU2003\oiteru_250827_restAPI
@@ -105,7 +107,7 @@ cd C:\Users\RTDS_admin\source\repos\CYLIU2003\oiteru_250827_restAPI
 
 ---
 
-## 方法4: 🔧 通常モードで起動（非推奨・テスト用）
+### 方法4: 🔧 通常モードで起動（非推奨・テスト用）
 
 仮想環境を使わず直接実行します。環境が汚れるので非推奨。
 
@@ -128,9 +130,11 @@ python server.py
 
 従親機は、親機のデータベースを参照するサブサーバーです。複数拠点で運用するときに使います。
 
-## ステップ0: 前準備 - config.json を設定
+---
 
-### 🚀 方法A: ウィザードで設定（おすすめ！）
+### ステップ0: 前準備 - config.json を設定
+
+#### 🚀 方法A: ウィザードで設定（おすすめ！）
 
 ```powershell
 # Windows
@@ -140,16 +144,16 @@ python server.py
 ./scripts/setup_config.sh
 ```
 
-画面の質問に答えるだけで設定完了！
+> 画面の質問に答えるだけで設定完了！
 
-### ⚡ 方法B: ワンライナーで設定
+#### ⚡ 方法B: ワンライナーで設定
 
 ```bash
 # 例: 従親機Bを設定
 ./scripts/setup_config.sh sub-parent "従親機B" "別館2階"
 ```
 
-### 📝 方法C: テンプレートをコピー
+#### 📝 方法C: テンプレートをコピー
 
 ```bash
 cp config_templates/config_sub_parent.template.json config.json
@@ -158,9 +162,7 @@ nano config.json  # ★マークの項目を編集
 
 ---
 
-## 方法1: 🚀 ランチャーで起動
-
-### 手順
+### 方法1: 🚀 ランチャーで起動
 
 1. `scripts/launcher.bat` をダブルクリック
 2. GUI版を選択
@@ -170,7 +172,7 @@ nano config.json  # ★マークの項目を編集
 
 ---
 
-## 方法2: 📦 Dockerで起動
+### 方法2: 🐳 Dockerで起動
 
 ```bash
 ./docker-start.sh external
@@ -185,9 +187,9 @@ docker-compose -f docker-compose.external-db.yml up -d
 
 ---
 
-## 方法3: 🐍 仮想環境で起動
+### 方法3: 🐍 仮想環境で起動
 
-### Windows (PowerShell)
+**Windows (PowerShell)：**
 
 ```powershell
 # 親機のMySQLに接続する場合
@@ -195,7 +197,7 @@ $env:MYSQL_HOST = '100.114.99.67'
 .\venv-start.ps1 sub-parent
 ```
 
-### Linux / Mac
+**Linux / Mac：**
 
 ```bash
 export MYSQL_HOST=100.114.99.67
@@ -204,7 +206,7 @@ export MYSQL_HOST=100.114.99.67
 
 ---
 
-## 方法4: 🔧 通常モードで起動（非推奨）
+### 方法4: 🔧 通常モードで起動（非推奨）
 
 ```powershell
 $env:DB_TYPE = 'mysql'
@@ -224,9 +226,11 @@ python server.py
 
 子機はRaspberry Piで動き、NFCカードの読み取りとお菓子の排出を行います。
 
-## ステップ0: 前準備 - config.json を設定
+---
 
-### 🚀 方法A: ウィザードで設定（おすすめ！）
+### ステップ0: 前準備 - config.json を設定
+
+#### 🚀 方法A: ウィザードで設定（おすすめ！）
 
 対話形式で簡単に設定できます：
 
@@ -235,16 +239,16 @@ cd /home/pi/oiteru_250827_restAPI/scripts
 ./setup_config.sh
 ```
 
-画面の質問に答えるだけで設定完了！
+> 画面の質問に答えるだけで設定完了！
 
-### ⚡ 方法B: ワンライナーで設定（上級者向け）
+#### ⚡ 方法B: ワンライナーで設定（上級者向け）
 
 ```bash
 # 例: 3号機を設定
 ./scripts/setup_config.sh unit "3号機" "7号館1階" "password123"
 ```
 
-### 📝 方法C: テンプレートをコピー
+#### 📝 方法C: テンプレートをコピー
 
 ```bash
 # テンプレートをコピー
@@ -254,13 +258,13 @@ cp config_templates/config_unit.template.json config.json
 nano config.json
 ```
 
-### 🔧 方法D: 手動で編集
+#### 🔧 方法D: 手動で編集
 
 ```bash
 nano /home/pi/oiteru_250827_restAPI/config.json
 ```
 
-以下の3箇所を変更：
+**以下の3箇所を変更：**
 
 ```json
 {
@@ -280,22 +284,22 @@ nano /home/pi/oiteru_250827_restAPI/config.json
 > - `http://` で始まる（`https://` じゃない！）
 > - 最後にスラッシュ `/` は付けない
 
-保存: `Ctrl + O → Enter → Ctrl + X`
+**保存:** `Ctrl + O` → `Enter` → `Ctrl + X`
 
 ---
 
-## 方法1: 🚀 クイック起動スクリプト（おすすめ！）
+### 方法1: ⚡ クイック起動スクリプト（おすすめ！）
 
 ```bash
 cd /home/pi/oiteru_250827_restAPI/scripts
 sudo ./quick_start_unit.sh 100.114.99.67
 ```
 
-→ 親機のIPアドレスを引数に渡すだけ！
+> 親機のIPアドレスを引数に渡すだけ！
 
 ---
 
-## 方法2: 🐍 仮想環境で起動
+### 方法2: 🐍 仮想環境で起動
 
 ```bash
 cd /home/pi/oiteru_250827_restAPI
@@ -304,7 +308,7 @@ cd /home/pi/oiteru_250827_restAPI
 
 ---
 
-## 方法3: 🔧 通常モードで起動（非推奨）
+### 方法3: 🔧 通常モードで起動（非推奨）
 
 ```bash
 cd /home/pi/oiteru_250827_restAPI
@@ -313,7 +317,7 @@ sudo python3 unit.py
 
 ---
 
-## 方法4: 🔄 自動起動の設定
+### 方法4: 🔄 自動起動の設定
 
 電源ON時に自動で子機を起動させたい場合：
 
@@ -329,15 +333,14 @@ sudo systemctl status oiteru-unit
 
 ---
 
-# 🖥️ 管理画面の使い方
+# ⚙️ 管理画面の使い方
 
 ブラウザで以下にアクセス：
 
 ```
-http://100.114.99.67:5000/admin
+🌐 http://100.114.99.67:5000/admin
+🔑 初期パスワード: admin
 ```
-
-**初期パスワード**: `admin`
 
 ### できること
 
@@ -350,7 +353,9 @@ http://100.114.99.67:5000/admin
 
 ---
 
-# ❓ トラブルシューティング
+# 🔧 トラブルシューティング
+
+---
 
 ## 🔒 PowerShellでスクリプトが実行できない
 
@@ -364,8 +369,8 @@ http://100.114.99.67:5000/admin
 `.ps1` の代わりに `.bat` ファイルを使ってください：
 
 ```
-.\scripts\setup_config.ps1  ← NG（エラーになる）
-.\scripts\setup_config.bat  ← OK！
+.\scripts\setup_config.ps1  ← ❌ エラーになる
+.\scripts\setup_config.bat  ← ✅ OK！
 ```
 
 ### 解決方法2: 実行ポリシーを変更する
@@ -384,7 +389,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\setup_config.ps1
 
 ---
 
-## 接続できない
+## 🔌 接続できない
 
 ### 1. Tailscaleは接続してる？
 
@@ -410,7 +415,7 @@ sudo tailscale up
 
 ---
 
-## NFCカードが読めない
+## 📱 NFCカードが読めない
 
 ### 1. USBが抜けてない？
 
@@ -432,7 +437,7 @@ sudo reboot
 
 ---
 
-## お菓子が出ない
+## 🍬 お菓子が出ない
 
 - 在庫は残ってる？（管理画面で確認）
 - 1日の上限に達してない？
@@ -440,7 +445,7 @@ sudo reboot
 
 ---
 
-## MySQLに接続できない
+## 🐳 MySQLに接続できない
 
 ### Dockerが起動してる？
 
@@ -456,18 +461,15 @@ docker-compose -f docker-compose.mysql.yml up -d
 
 ---
 
-# 📁 起動方法まとめ
+# 📋 起動方法まとめ
 
 | 対象 | おすすめ | コマンド |
-|:---|:---|:---|
-| **親機** | Dockerモード | `docker-compose -f docker-compose.mysql.yml up -d` |
-| **親機** | 仮想環境モード | `.\venv-start.ps1 parent-mysql` |
-| **親機** | 通常モード（非推奨） | 環境変数設定後 `python server.py` |
-| **従親機** | 仮想環境モード | `.\venv-start.ps1 sub-parent` |
-| **従親機** | 通常モード（非推奨） | 環境変数設定後 `python server.py` |
-| **子機** | クイック起動 | `sudo ./quick_start_unit.sh 100.114.99.67` |
-| **子機** | 仮想環境モード | `./venv-start.sh unit` |
-| **子機** | 通常モード（非推奨） | `sudo python3 unit.py` |
+|:---:|:---|:---|
+| 🖥️ 親機 | 🐳 Docker | `docker-compose -f docker-compose.mysql.yml up -d` |
+| 🖥️ 親機 | 🐍 仮想環境 | `.\venv-start.ps1 parent-mysql` |
+| 🔗 従親機 | 🐍 仮想環境 | `.\venv-start.ps1 sub-parent` |
+| 📡 子機 | ⚡ クイック起動 | `sudo ./quick_start_unit.sh 100.114.99.67` |
+| 📡 子機 | 🐍 仮想環境 | `./venv-start.sh unit` |
 
 ---
 
@@ -475,12 +477,12 @@ docker-compose -f docker-compose.mysql.yml up -d
 
 | スクリプト | 場所 | 説明 |
 |:---|:---|:---|
-| `launcher.bat` | scripts/ | 🚀 ランチャー（Windows） |
-| `launcher.sh` | scripts/ | 🚀 ランチャー（Linux） |
-| `quick_start_unit.sh` | scripts/ | 子機クイック起動 |
-| `venv-start.ps1` | / | 仮想環境起動（Windows） |
-| `venv-start.sh` | / | 仮想環境起動（Linux） |
-| `docker-start.sh` | / | Docker起動 |
+| 🚀 `launcher.bat` | scripts/ | ランチャー（Windows） |
+| 🚀 `launcher.sh` | scripts/ | ランチャー（Linux） |
+| ⚡ `quick_start_unit.sh` | scripts/ | 子機クイック起動 |
+| 🐍 `venv-start.ps1` | / | 仮想環境起動（Windows） |
+| 🐍 `venv-start.sh` | / | 仮想環境起動（Linux） |
+| 🐳 `docker-start.sh` | / | Docker起動 |
 
 ---
 
@@ -488,13 +490,19 @@ docker-compose -f docker-compose.mysql.yml up -d
 
 管理者に連絡！その時、以下を伝えてね：
 
-1. **何をしたか** → 例：「カードをかざした」
-2. **何が起きたか** → 例：「エラーが出た」
-3. **エラーメッセージ** → 画面に出た文字
-4. **子機の名前** → `UNIT_NAME` の値
+| 項目 | 例 |
+|:---|:---|
+| 1️⃣ **何をしたか** | 「カードをかざした」 |
+| 2️⃣ **何が起きたか** | 「エラーが出た」 |
+| 3️⃣ **エラーメッセージ** | 画面に出た文字 |
+| 4️⃣ **子機の名前** | `UNIT_NAME` の値 |
 
 ---
 
+<div align="center">
+
 **わからないことがあったら、遠慮なく聞いてね！** 😊
 
-*最終更新: 2025年12月31日*
+📅 最終更新: 2026年1月6日
+
+</div>
