@@ -48,7 +48,11 @@ python server.py
 ### ステップ2: 子機を起動（Raspberry Pi）
 
 ```bash
-sudo python unit.py
+# 仮想環境で起動（推奨）
+./venv-start.sh unit
+
+# または直接起動（CUIモード）
+sudo python unit.py --no-gui
 ```
 
 ### ステップ3: 管理画面にアクセス
@@ -76,4 +80,4 @@ sudo python unit.py
 
 ---
 
-**最終更新: 2025年12月22日**
+**最終更新: 2026年1月12日**
