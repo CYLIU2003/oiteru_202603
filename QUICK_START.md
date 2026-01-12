@@ -28,9 +28,23 @@
 
 ### 子機（Raspberry Pi）
 
+**自動起動スクリプト:**
 ```bash
 sudo ./scripts/quick_start_unit.sh 192.168.1.100
 ```
+
+**仮想環境で起動:**
+```bash
+# プロジェクトフォルダに移動
+cd /home/pi/oiteru_250827_restAPI
+
+# 仮想環境スクリプトを実行（自動で環境構築・起動）
+./venv-start.sh unit
+```
+
+> 💡 `venv-start.sh` が自動で仮想環境を作成し、必要なパッケージをインストールして起動します！
+> 
+> 停止は `Ctrl + C` で行います。
 
 ---
 
@@ -83,4 +97,4 @@ sudo ./scripts/quick_start_unit.sh 192.168.1.100
 
 ---
 
-**最終更新: 2025年12月26日**
+**最終更新: 2026年1月12日**
