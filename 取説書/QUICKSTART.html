@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#6366f1">
-    <meta name="description" content="OITERUシステムのかんたんスタートガイド - 親機・従親機・子機の立ち上げ方法">
+    <meta name="description" content="OITERUプライバシー配慮型ナプキン配布システム - 親機・従親機・子機の立ち上げ方法">
     <title>OITERU かんたんスタートガイド</title>
     <link rel="stylesheet" href="manual.css">
     <style>
@@ -412,8 +412,8 @@
     <div class="container">
         <header>
             <h1>🚀 OITERU かんたんスタートガイド</h1>
-            <p class="subtitle">親機・従親機・子機の立ち上げ方法</p>
-            <p class="last-updated">最終更新: 2026年1月6日</p>
+            <p class="subtitle">プライバシー配慮型ナプキン配布システム<br>親機・従親機・子機の立ち上げ方法</p>
+            <p class="last-updated">最終更新: 2026年1月16日</p>
         </header>
 
         <main>
@@ -457,7 +457,12 @@
                 </div>
                 
                 <h3>OITERUって何？</h3>
-                <p>ICカード（社員証・学生証など）をかざすと、<strong>お菓子が自動で出てくる</strong>システムです！</p>
+                <p>ICカード（社員証・学生証など）をかざすと、<strong>生理用ナプキンが自動で提供される</strong>プライバシー配慮型の配布システムです！</p>
+
+                <div class="info-box">
+                    💡 <strong>システムの特長</strong><br>
+                    🔒 プライバシー保護 | 📱 簡単操作 | 📊 自動在庫管理 | 🌐 複数拠点対応
+                </div>
 
                 <h3>用語の説明</h3>
                 <div class="table-scroll">
@@ -468,7 +473,7 @@
                         <tbody>
                             <tr><td><strong>親機</strong></td><td>データベースを持つメインサーバー</td><td><code>100.114.99.67</code></td></tr>
                             <tr><td><strong>従親機</strong></td><td>親機のDBを参照するサブサーバー</td><td>設置場所による</td></tr>
-                            <tr><td><strong>子機</strong></td><td>お菓子を排出するラズパイ端末</td><td>設置場所による</td></tr>
+                            <tr><td><strong>子機</strong></td><td>ナプキンを排出するラズパイ端末</td><td>設置場所による</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -579,7 +584,7 @@ python server.py
                 <div class="section-header">
                     <h2>📡 子機の起動方法</h2>
                 </div>
-                <p>子機はRaspberry Piで動き、NFCカードの読み取りとお菓子の排出を行います。</p>
+                <p>子機はRaspberry Piで動き、NFCカードの読み取りとナプキンの排出を行います。</p>
 
                 <div class="warning-box">
                     <strong>⚠️ 前準備: config.json を編集してね！</strong>
@@ -647,12 +652,18 @@ sudo systemctl start oiteru-unit
                             <tr><th>メニュー</th><th>説明</th></tr>
                         </thead>
                         <tbody>
-                            <tr><td>👥 ユーザー管理</td><td>ユーザーの登録・編集、在庫調整</td></tr>
-                            <tr><td>🤖 子機管理</td><td>子機の登録・接続状態確認</td></tr>
-                            <tr><td>📜 利用履歴</td><td>誰がいつ使ったか確認</td></tr>
-                            <tr><td>⚙️ 設定</td><td>自動登録モード、1日の上限数など</td></tr>
+                            <tr><td>👥 ユーザー管理</td><td>ユーザーの登録・編集、個人在庫数調整</td></tr>
+                            <tr><td>🤖 子機管理</td><td>子機の登録・接続状態確認・在庫管理</td></tr>
+                            <tr><td>📜 利用履歴</td><td>匿名化された利用統計の確認</td></tr>
+                            <tr><td>⚙️ 設定</td><td>自動登録モード、1日の配布上限数など</td></tr>
+                            <tr><td>🔒 プライバシー</td><td>個人情報保護とデータ管理設定</td></tr>
                         </tbody>
                     </table>
+                </div>
+                
+                <div class="info-box">
+                    💡 <strong>プライバシーに配慮した設計</strong><br>
+                    利用履歴は統計目的で記録されますが、個人を特定する情報は含まれません。
                 </div>
             </section>
 
@@ -685,11 +696,12 @@ sudo systemctl start oiteru-unit
                 </div>
 
                 <div class="method-box">
-                    <h3>🍬 お菓子が出ない</h3>
+                    <h3>🩹 ナプキンが出ない</h3>
                     <ul>
                         <li>在庫は残ってる？（管理画面で確認）</li>
                         <li>1日の上限に達してない？</li>
                         <li>モーターの配線は正しい？</li>
+                        <li>排出口が詰まってない？</li>
                     </ul>
                 </div>
             </section>
@@ -731,7 +743,10 @@ sudo systemctl start oiteru-unit
         </main>
 
         <footer>
-            <p><strong>わからないことがあったら、遠慮なく聞いてね！</strong> 😊</p>
+            <p><strong>わからないことがあったら、遠慮なく管理者にお問い合わせください！</strong> 😊</p>
+            <p style="font-size: 0.9rem; color: #94a3b8; margin-top: 8px;">
+                OITERU プライバシー配慮型ナプキン配布システム | 最終更新: 2026年1月16日
+            </p>
         </footer>
     </div>
 </body>
