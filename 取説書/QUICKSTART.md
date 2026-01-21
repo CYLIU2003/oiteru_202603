@@ -352,23 +352,32 @@ sudo ./quick_start_unit.sh 100.114.99.67
    cd /home/pi/oiteru_250827_restAPI
    ```
 
-2. **仮想環境スクリプトを実行**
+2. **仮想環境をセットアップ（初回のみ）**
    ```bash
-   ./venv-start.sh unit
+   # 仮想環境を作成
+   python3 -m venv .venv
+   
+   # 依存パッケージをインストール
+   .venv/bin/pip install -r requirements.txt
    ```
 
-#### ✨ スクリプトが自動でやってくれること
+3. **実行権限を付与（初回のみ）**
+   ```bash
+   chmod +x venv-start.sh
+   ```
 
-- `.venv` フォルダがなければ、自動作成
-- 必要なPythonパッケージを自動インストール
-- 仮想環境を起動して、`unit.py` を実行
+4. **仮想環境スクリプトを実行（ヘッドレスモード）**
+   ```bash
+   HEADLESS=1 ./venv-start.sh unit
+   ```
 
-#### 💡 実行権限がない場合
+#### ✨ 初回セットアップが完了したら
 
-もしエラーが出た場合は、以下で実行権限を付与してください：
+2回目以降は以下のコマンドだけでOK：
 
 ```bash
-chmod +x venv-start.sh
+cd /home/pi/oiteru_250827_restAPI
+HEADLESS=1 ./venv-start.sh unit
 ```
 
 #### 🛑 停止方法
@@ -392,12 +401,25 @@ chmod +x venv-start.sh
 **とりあえず動かしたい** ならこれ。SSH切っても動き続けます。
 
 ```bash
+# パスは自分の環境に合わせて変更してください
 cd ~/oiteru_250827_restAPI
-nohup ./venv-start.sh unit > unit.log 2>&1 &
+# または
+cd ~/Desktop/oiteru_250827_restAPI-1
+
+# 仮想環境をセットアップ（初回のみ）
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+
+# 実行権限を確認・付与（初回のみ）
+chmod +x venv-start.sh
+
+# バックグラウンドで起動（ヘッドレスモード）
+nohup env HEADLESS=1 ./venv-start.sh unit > unit.log 2>&1 &
 ```
 
-> 💡 **パスについて：** `~` は自動的にホームディレクトリに展開されます  
-> 💡 `venv-start.sh` が仮想環境の作成と起動を自動で行います
+> 💡 **パスについて：** 上記のセクション「プロジェクトフォルダの場所について」で確認したパスを使用してください  
+> 💡 初回のみ仮想環境のセットアップが必要です（2回目以降は不要）  
+> 💡 `HEADLESS=1` でGUIなしで起動します（SSH経由で推奨）
 
 **確認：**
 ```bash
@@ -440,13 +462,35 @@ sudo apt install tmux -y
 tmux new -s oiteru
 ```
 
-**3️⃣ 子機を起動**
+**3️⃣ プロジェクトフォルダに移動**
 ```bash
+# パスは自分の環境に合わせて変更してください
 cd ~/oiteru_250827_restAPI
-./venv-start.sh unit
+# または
+cd ~/Desktop/oiteru_250827_restAPI-1
 ```
 
-**4️⃣ PowerShellを閉じてOK！**
+**4️⃣ 仮想環境をセットアップ（初回のみ）**
+```bash
+# 仮想環境を作成
+python3 -m venv .venv
+
+# 依存パッケージをインストール
+.venv/bin/pip install -r requirements.txt
+```
+
+**5️⃣ 実行権限を確認・付与（初回のみ）**
+```bash
+# 実行権限を付与
+chmod +x venv-start.sh
+```
+
+**6️⃣ 子機を起動（ヘッドレスモード）**
+```bash
+HEADLESS=1 ./venv-start.sh unit
+```
+
+**7️⃣ PowerShellを閉じてOK！**
 
 セッションから離れる（デタッチ）: `Ctrl + B` → `D`
 
@@ -732,7 +776,111 @@ sudo reboot
 
 ---
 
-## 🐳 MySQLに接続できない
+## �️ tmuxで「duplicate session」エラーが出る
+
+```bash
+duplicate session: oiteru
+```
+
+このエラーは、既に同じ名前のセッションが存在している場合に発生します。
+
+### 解決方法1: 既存のセッションに接続（おすすめ）
+
+```bash
+tmux attach -t oiteru
+```
+
+### 解決方法2: セッションをリセット
+
+```bash
+# 既存のセッションを削除
+tmux kill-session -t oiteru
+
+# 新規作成
+tmux new -s oiteru
+```
+
+### 確認: セッション一覧を見る
+
+```bash
+tmux ls
+```
+
+---
+
+## 🖼️ SSH経由で「no display name」エラーが出る
+
+```bash
+_tkinter.TclError: no display name and no $DISPLAY environment variable
+```
+
+このエラーは、SSH経由で起動した際にX11ディスプレイがない場合に発生します。
+
+### 解決方法1: ヘッドレスモードで起動（おすすめ）
+
+```bash
+# 環境変数を設定して起動
+HEADLESS=1 ./venv-start.sh unit
+```
+
+nohupやtmuxで使う場合：
+
+```bash
+# nohupの場合
+nohup env HEADLESS=1 ./venv-start.sh unit > unit.log 2>&1 &
+
+# tmux内で起動する場合
+export HEADLESS=1
+./venv-start.sh unit
+```
+
+### 解決方法2: X11転送を使う
+
+SSH接続時に `-X` オプションを付けてX11転送を有効にします：
+
+```bash
+# X11転送を有効にしてSSH接続
+ssh -X pi@100.xxx.xxx.xxx
+
+# 通常通り起動
+cd ~/oiteru_250827_restAPI
+./venv-start.sh unit
+```
+
+> 💡 **ヒント：** 本番運用では、systemdサービス化（方法C）を使うとこの問題は発生しません
+
+---
+
+## 🐍 「ModuleNotFoundError: No module named 'requests'」エラーが出る
+
+```bash
+ModuleNotFoundError: No module named 'requests'
+```
+
+このエラーは、必要なPythonパッケージがインストールされていない場合に発生します。
+
+### 解決方法: 不足しているパッケージをインストール
+
+```bash
+# requestsをインストール
+.venv/bin/pip install requests
+
+# もう一度起動
+./venv-start.sh unit
+```
+
+### その他のパッケージが不足している場合
+
+```bash
+# すべての依存パッケージを再インストール
+.venv/bin/pip install -r requirements.txt
+
+# 起動
+./venv-start.sh unit
+```
+
+---
+## �🐳 MySQLに接続できない
 
 ### Dockerが起動してる？
 
