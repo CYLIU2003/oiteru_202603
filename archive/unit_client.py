@@ -1586,11 +1586,12 @@ if __name__ == "__main__":
     if PLATFORM == "RASPI":
         ensure_root_privileges()
 
-    if '--no-gui' in sys.argv or not HAS_TKINTER:
-        # CUIモードで起動
-        run_cui_mode()
-    else:
+    # デフォルトはCUIモード（--guiオプションがある場合のみGUIモード）
+    if '--gui' in sys.argv and HAS_TKINTER:
         # GUIモードで起動
         root = tk.Tk()
         app = SettingsGUI(root)
         root.mainloop()
+    else:
+        # CUIモードで起動（デフォルト）
+        run_cui_mode()

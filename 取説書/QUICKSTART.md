@@ -359,6 +359,9 @@ sudo ./quick_start_unit.sh 100.114.99.67
    
    # 依存パッケージをインストール
    .venv/bin/pip install -r requirements.txt
+   
+   # Raspberry Pi用ハードウェアライブラリをインストール
+   .venv/bin/pip install RPi.GPIO Adafruit-PCA9685 pyserial
    ```
 
 3. **実行権限を付与（初回のみ）**
@@ -366,9 +369,9 @@ sudo ./quick_start_unit.sh 100.114.99.67
    chmod +x venv-start.sh
    ```
 
-4. **仮想環境スクリプトを実行（ヘッドレスモード）**
+4. **仮想環境スクリプトを実行（CUIモードがデフォルト）**
    ```bash
-   HEADLESS=1 ./venv-start.sh unit
+   ./venv-start.sh unit
    ```
 
 #### ✨ 初回セットアップが完了したら
@@ -377,8 +380,31 @@ sudo ./quick_start_unit.sh 100.114.99.67
 
 ```bash
 cd /home/pi/oiteru_250827_restAPI
-HEADLESS=1 ./venv-start.sh unit
+./venv-start.sh unit
 ```
+
+> 💡 **GUIモードで起動したい場合：** `./venv-start.sh unit --gui`
+
+#### ⏸️ 一時退出方法（バックグラウンド実行）
+
+起動中のプログラムを停止せず、SSHセッションから一時的に抜けたい場合：
+
+```bash
+# Ctrl + Z を押してプログラムを一時停止
+# その後、バックグラウンドに移動
+bg
+
+# 確認
+jobs
+```
+
+**戻りたいとき：**
+```bash
+# フォアグラウンドに戻す
+fg
+```
+
+> ⚠️ **注意：** この方法では、SSHを切断するとプログラムが終了します。SSH切断後も動かし続けたい場合は、後述の「遠隔起動・SSH切断後も動作させる方法」を使用してください。
 
 #### 🛑 停止方法
 
@@ -409,17 +435,19 @@ cd ~/Desktop/oiteru_250827_restAPI-1
 # 仮想環境をセットアップ（初回のみ）
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
+# Raspberry Pi用ハードウェアライブラリをインストール
+.venv/bin/pip install RPi.GPIO Adafruit-PCA9685 pyserial
 
 # 実行権限を確認・付与（初回のみ）
 chmod +x venv-start.sh
 
-# バックグラウンドで起動（ヘッドレスモード）
-nohup env HEADLESS=1 ./venv-start.sh unit > unit.log 2>&1 &
+# バックグラウンドで起動（CUIモードがデフォルト）
+nohup ./venv-start.sh unit > unit.log 2>&1 &
 ```
 
 > 💡 **パスについて：** 上記のセクション「プロジェクトフォルダの場所について」で確認したパスを使用してください  
 > 💡 初回のみ仮想環境のセットアップが必要です（2回目以降は不要）  
-> 💡 `HEADLESS=1` でGUIなしで起動します（SSH経由で推奨）
+> 💡 CUIモードがデフォルトです（SSH経由でも安全に起動可能）
 
 **確認：**
 ```bash
@@ -477,6 +505,9 @@ python3 -m venv .venv
 
 # 依存パッケージをインストール
 .venv/bin/pip install -r requirements.txt
+
+# Raspberry Pi用ハードウェアライブラリをインストール
+.venv/bin/pip install RPi.GPIO Adafruit-PCA9685 pyserial
 ```
 
 **5️⃣ 実行権限を確認・付与（初回のみ）**
@@ -485,14 +516,19 @@ python3 -m venv .venv
 chmod +x venv-start.sh
 ```
 
-**6️⃣ 子機を起動（ヘッドレスモード）**
+**6️⃣ 子機を起動（CUIモード）**
 ```bash
-HEADLESS=1 ./venv-start.sh unit
+./venv-start.sh unit
 ```
 
-**7️⃣ PowerShellを閉じてOK！**
+**7️⃣ 一時退出（デタッチ）してSSH/PowerShellを閉じてOK！**
 
-セッションから離れる（デタッチ）: `Ctrl + B` → `D`
+```bash
+# tmuxセッションから離れる（デタッチ）
+Ctrl + B を押してから D を押す
+```
+
+> 💡 **ヒント：** デタッチすると、プログラムは動き続けたまま、あなたは通常のターミナルに戻ります。SSH切断してもOK！
 
 **戻りたいとき：**
 ```bash
@@ -816,21 +852,20 @@ _tkinter.TclError: no display name and no $DISPLAY environment variable
 
 このエラーは、SSH経由で起動した際にX11ディスプレイがない場合に発生します。
 
-### 解決方法1: ヘッドレスモードで起動（おすすめ）
+### 解決方法1: CUIモードで起動（おすすめ・デフォルト）
 
 ```bash
-# 環境変数を設定して起動
-HEADLESS=1 ./venv-start.sh unit
+# 通常起動（CUIモードがデフォルト）
+./venv-start.sh unit
 ```
 
 nohupやtmuxで使う場合：
 
 ```bash
 # nohupの場合
-nohup env HEADLESS=1 ./venv-start.sh unit > unit.log 2>&1 &
+nohup ./venv-start.sh unit > unit.log 2>&1 &
 
 # tmux内で起動する場合
-export HEADLESS=1
 ./venv-start.sh unit
 ```
 
@@ -848,13 +883,11 @@ cd ~/oiteru_250827_restAPI
 ```
 
 > 💡 **ヒント：** 本番運用では、systemdサービス化（方法C）を使うとこの問題は発生しません
-
----
-
-## 🐍 「ModuleNotFoundError: No module named 'requests'」エラーが出る
+」エラーが出る
 
 ```bash
 ModuleNotFoundError: No module named 'requests'
+ModuleNotFoundError: No module named 'RPi'
 ```
 
 このエラーは、必要なPythonパッケージがインストールされていない場合に発生します。
@@ -862,18 +895,24 @@ ModuleNotFoundError: No module named 'requests'
 ### 解決方法: 不足しているパッケージをインストール
 
 ```bash
-# requestsをインストール
-.venv/bin/pip install requests
+# すべての依存パッケージを再インストール
+.venv/bin/pip install -r requirements.txt
 
-# もう一度起動
+# Raspberry Pi用ハードウェアライブラリをインストール
+.venv/bin/pip install RPi.GPIO Adafruit-PCA9685 pyserial
+
+# 起動
 ./venv-start.sh unit
 ```
 
-### その他のパッケージが不足している場合
+### 特定のパッケージだけインストールする場合
 
 ```bash
-# すべての依存パッケージを再インストール
-.venv/bin/pip install -r requirements.txt
+# requestsをインストール
+.venv/bin/pip install requests
+
+# RPi.GPIOをインストール
+.venv/bin/pip install RPi.GPIO Adafruit-PCA9685 pyseriall -r requirements.txt
 
 # 起動
 ./venv-start.sh unit
