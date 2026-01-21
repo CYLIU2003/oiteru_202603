@@ -65,6 +65,41 @@ ICカードをかざすと、**生理用ナプキンが自動で提供される*
 
 ---
 
+## 📁 プロジェクトフォルダの場所について
+
+### ⚠️ 重要な注意事項
+
+取説書のコマンド例では `~/oiteru_250827_restAPI` を使っていますが、**実際のパスは環境によって異なります**。
+
+**まず、現在のプロジェクトフォルダのパスを確認してください！**
+
+```bash
+# プロジェクトフォルダを探す
+find ~ -name "unit.py" 2>/dev/null | grep oiteru
+```
+
+**よくあるパスの例：**
+
+| 環境 | パス |
+|:---|:---|
+| 通常 | `~/oiteru_250827_restAPI` |
+| Desktop | `~/Desktop/oiteru_250827_restAPI-1` |
+| Documentsフォルダ | `~/Documents/oiteru_250827_restAPI` |
+
+**確認したら、以下の手順で取説書のコマンドを読み替えてください：**
+
+```bash
+# 取説書の例
+cd ~/oiteru_250827_restAPI
+
+# あなたの環境が ~/Desktop/oiteru_250827_restAPI-1 の場合
+cd ~/Desktop/oiteru_250827_restAPI-1
+```
+
+> 💡 **ヒント：** `cd` でフォルダに移動できたら、`pwd` で正しいパスを確認できます
+
+---
+
 # 🖥️ 親機の起動方法
 
 親機はデータベース（MySQL）を持つメインサーバーです。
@@ -339,6 +374,215 @@ chmod +x venv-start.sh
 #### 🛑 停止方法
 
 `Ctrl + C` を押す
+
+---
+
+### 💡 遠隔起動・SSH切断後も動作させる方法
+
+**よくある問題：** PowerShellやSSHクライアントを閉じると、子機も一緒に止まってしまう 😱
+
+**原因：** プロセスがSSHセッションに紐づいているため
+
+**解決策は3つ！** 用途別に選んでね 👇
+
+---
+
+####🚀 方法A: `nohup` で起動（一番お手軽！）
+
+**とりあえず動かしたい** ならこれ。SSH切っても動き続けます。
+
+```bash
+cd ~/oiteru_250827_restAPI
+nohup ./venv-start.sh unit > unit.log 2>&1 &
+```
+
+> 💡 **パスについて：** `~` は自動的にホームディレクトリに展開されます  
+> 💡 `venv-start.sh` が仮想環境の作成と起動を自動で行います
+
+**確認：**
+```bash
+ps aux | grep unit.py
+```
+
+**ログを見る：**
+```bash
+tail -f unit.log
+```
+
+**停止するとき：**
+```bash
+# プロセスIDを確認
+ps aux | grep unit.py
+# 停止（PIDは上記コマンドで確認した数字）
+sudo kill <PID>
+```
+
+> ✅ **メリット**
+> - コマンド1行で完結
+> - SSH切っても動く
+> 
+> ⚠️ **注意**
+> - ラズパイを再起動したら止まる
+
+---
+
+#### 🖥️ 方法B: `tmux` で起動（作業継続したい人向け）
+
+**SSH切っても画面ごと残したい** 場合に便利。あとで再接続してログを確認できます。
+
+**1️⃣ tmuxをインストール（初回のみ）**
+```bash
+sudo apt install tmux -y
+```
+
+**2️⃣ tmuxセッションを開始**
+```bash
+tmux new -s oiteru
+```
+
+**3️⃣ 子機を起動**
+```bash
+cd ~/oiteru_250827_restAPI
+./venv-start.sh unit
+```
+
+**4️⃣ PowerShellを閉じてOK！**
+
+セッションから離れる（デタッチ）: `Ctrl + B` → `D`
+
+**戻りたいとき：**
+```bash
+tmux attach -t oiteru
+```
+
+**セッション一覧：**
+```bash
+tmux ls
+```
+
+**停止するとき：**
+```bash
+# tmuxセッションに入る
+tmux attach -t oiteru
+# Ctrl + C で停止
+# セッションを終了
+exit
+```
+
+> ✅ **メリット**
+> - ログをリアルタイムで確認できる
+> - SSH切ってもセッション継続
+> - 複数の作業を並行できる
+> 
+> ⚠️ **注意**
+> - ラズパイを再起動したら止まる
+
+---
+
+#### ⚙️ 方法C: systemdサービス化（最強・本番運用向け）
+
+**常駐アプリ・サーバ・IoT用途なら絶対これ！** ラズパイ起動時に自動で立ち上がります。
+
+**1️⃣ サービスファイルを作成**
+
+```bash
+sudo nano /etc/systemd/system/oiteru-unit.service
+```
+
+**以下を貼り付け：**
+
+```ini
+[Unit]
+Description=OITERU Unit Client
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/oiteru_250827_restAPI
+ExecStart=/bin/bash /home/pi/oiteru_250827_restAPI/venv-start.sh unit
+Restart=always
+RestartSec=10
+StandardOutput=append:/home/pi/oiteru_250827_restAPI/unit.log
+StandardError=append:/home/pi/oiteru_250827_restAPI/unit_error.log
+
+[Install]
+WantedBy=multi-user.target
+```
+
+> ⚠️ **重要：** systemdサービスファイルでは `~` が使えないため、実際のパスに置き換えてください。  
+> 例: `User=hirameki-2` の場合  
+> - `WorkingDirectory=/home/hirameki-2/oiteru_250827_restAPI`  
+> - `ExecStart=/bin/bash /home/hirameki-2/oiteru_250827_restAPI/venv-start.sh unit`
+
+**保存:** `Ctrl + O` → `Enter` → `Ctrl + X`
+
+**2️⃣ サービスを有効化・起動**
+
+```bash
+# 設定を読み込み
+sudo systemctl daemon-reload
+
+# 自動起動を有効化
+sudo systemctl enable oiteru-unit
+
+# サービスを起動
+sudo systemctl start oiteru-unit
+```
+
+**3️⃣ 状態確認**
+
+```bash
+# 動作状態を確認
+sudo systemctl status oiteru-unit
+
+# ログをリアルタイム表示
+sudo journalctl -u oiteru-unit -f
+
+# ログファイルを確認
+tail -f ~/oiteru_250827_restAPI/unit.log
+```
+
+**停止するとき：**
+
+```bash
+# 一時停止
+sudo systemctl stop oiteru-unit
+
+# 自動起動を無効化
+sudo systemctl disable oiteru-unit
+```
+
+**再起動：**
+
+```bash
+sudo systemctl restart oiteru-unit
+```
+
+> ✅ **メリット**
+> - SSH不要で動く
+> - ラズパイ再起動しても自動で立ち上がる
+> - エラーで止まっても自動再起動
+> - 本番運用レベル
+> 
+> ⚠️ **注意**
+> - 初期設定が少し手間（でも一度だけ）
+
+---
+
+#### 📊 おすすめ早見表
+
+| 目的 | 方法 | SSH切断後 | 再起動後 | 難易度 |
+|:---|:---|:---:|:---:|:---|
+| 🧪 **一時的な実験** | `nohup` | ✅ | ❌ | ⭐ |
+| 🔍 **開発・デバッグ** | `tmux` | ✅ | ❌ | ⭐⭐ |
+| 🏢 **本番運用・常駐** | `systemd` | ✅ | ✅ | ⭐⭐⭐ |
+
+**おすすめ：**
+- **ちょっと試したい** → `nohup`
+- **開発中・ログ確認したい** → `tmux`
+- **研究室や本番で使う** → **`systemd`** 🔥
 
 ---
 
