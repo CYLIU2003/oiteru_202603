@@ -132,15 +132,15 @@
               <div class="form-group">
                 <label>モータータイプ</label>
                 <select id="config-motor-type" class="form-control">
-                  <option value="servo" {% if unit_config.get('MOTOR_TYPE') == 'servo' %}selected{% endif %}>サーボモーター</option>
-                  <option value="stepper" {% if unit_config.get('MOTOR_TYPE') == 'stepper' %}selected{% endif %}>ステッピングモーター</option>
+                  <option value="SERVO" {% if unit_config.get('MOTOR_TYPE') in ['servo', 'SERVO'] %}selected{% endif %}>サーボモーター</option>
+                  <option value="STEPPER" {% if unit_config.get('MOTOR_TYPE') in ['stepper', 'STEPPER'] %}selected{% endif %}>ステッピングモーター</option>
                 </select>
               </div>
               <div class="form-group">
                 <label>制御方法</label>
                 <select id="config-control-method" class="form-control">
-                  <option value="raspi" {% if unit_config.get('CONTROL_METHOD') == 'raspi' %}selected{% endif %}>ラズパイ直結 (PCA9685)</option>
-                  <option value="arduino" {% if unit_config.get('CONTROL_METHOD') == 'arduino' %}selected{% endif %}>Arduino経由 (シリアル)</option>
+                  <option value="RASPI_DIRECT" {% if unit_config.get('CONTROL_METHOD') in ['raspi', 'RASPI_DIRECT'] %}selected{% endif %}>ラズパイ直結 (PCA9685)</option>
+                  <option value="ARDUINO_SERIAL" {% if unit_config.get('CONTROL_METHOD') in ['arduino', 'ARDUINO_SERIAL'] %}selected{% endif %}>Arduino経由 (シリアル)</option>
                 </select>
               </div>
               <div class="form-group">
@@ -152,6 +152,19 @@
                 <label>動作時間 (秒)</label>
                 <input type="number" id="config-motor-duration" class="form-control" 
                        value="{{ unit_config.get('MOTOR_DURATION', 2) }}" step="0.1" min="0.1">
+              </div>
+              <div class="form-group">
+                <label>モーター回転方向</label>
+                <div style="margin-top:8px;">
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="config-motor-reverse"
+                           {% if unit_config.get('MOTOR_REVERSE', False) %}checked{% endif %}>
+                    <span class="toggle-slider"></span>
+                  </label>
+                  <span id="motor-reverse-label" style="margin-left:12px;">
+                    {% if unit_config.get('MOTOR_REVERSE', False) %}逆転{% else %}正転{% endif %}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -180,6 +193,37 @@
                 <label>センサータイムアウト (秒)</label>
                 <input type="number" id="config-sensor-timeout" class="form-control" 
                        value="{{ unit_config.get('SENSOR_TIMEOUT', 5) }}" step="0.5" min="0.5">
+              </div>
+              <div class="form-group">
+                <label>排出前センサーチェック</label>
+                <div style="margin-top:8px;">
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="config-sensor-check-pre"
+                           {% if unit_config.get('SENSOR_CHECK_PRE', True) %}checked{% endif %}>
+                    <span class="toggle-slider"></span>
+                  </label>
+                  <span id="sensor-check-pre-label" style="margin-left:12px;">
+                    {% if unit_config.get('SENSOR_CHECK_PRE', True) %}有効{% else %}無効{% endif %}
+                  </span>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>排出後センサーチェック</label>
+                <div style="margin-top:8px;">
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="config-sensor-check-post"
+                           {% if unit_config.get('SENSOR_CHECK_POST', True) %}checked{% endif %}>
+                    <span class="toggle-slider"></span>
+                  </label>
+                  <span id="sensor-check-post-label" style="margin-left:12px;">
+                    {% if unit_config.get('SENSOR_CHECK_POST', True) %}有効{% else %}無効{% endif %}
+                  </span>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>詰まり解除試行回数</label>
+                <input type="number" id="config-jam-clear-attempts" class="form-control" 
+                       value="{{ unit_config.get('JAM_CLEAR_ATTEMPTS', 3) }}" min="0" max="10">
               </div>
             </div>
 
@@ -296,6 +340,33 @@ document.addEventListener('DOMContentLoaded', function() {
       sensorLabel.textContent = this.checked ? '使用する' : '使用しない';
     });
   }
+  
+  // モーター逆転トグルのラベル更新
+  const motorReverseCheckbox = document.getElementById('config-motor-reverse');
+  const motorReverseLabel = document.getElementById('motor-reverse-label');
+  if (motorReverseCheckbox && motorReverseLabel) {
+    motorReverseCheckbox.addEventListener('change', function() {
+      motorReverseLabel.textContent = this.checked ? '逆転' : '正転';
+    });
+  }
+  
+  // 排出前センサーチェックトグルのラベル更新
+  const sensorCheckPreCheckbox = document.getElementById('config-sensor-check-pre');
+  const sensorCheckPreLabel = document.getElementById('sensor-check-pre-label');
+  if (sensorCheckPreCheckbox && sensorCheckPreLabel) {
+    sensorCheckPreCheckbox.addEventListener('change', function() {
+      sensorCheckPreLabel.textContent = this.checked ? '有効' : '無効';
+    });
+  }
+  
+  // 排出後センサーチェックトグルのラベル更新
+  const sensorCheckPostCheckbox = document.getElementById('config-sensor-check-post');
+  const sensorCheckPostLabel = document.getElementById('sensor-check-post-label');
+  if (sensorCheckPostCheckbox && sensorCheckPostLabel) {
+    sensorCheckPostCheckbox.addEventListener('change', function() {
+      sensorCheckPostLabel.textContent = this.checked ? '有効' : '無効';
+    });
+  }
 });
 
 // 設定を子機に送信
@@ -305,9 +376,13 @@ async function saveUnitConfig() {
     CONTROL_METHOD: document.getElementById('config-control-method')?.value || 'raspi',
     MOTOR_SPEED: parseInt(document.getElementById('config-motor-speed')?.value) || 50,
     MOTOR_DURATION: parseFloat(document.getElementById('config-motor-duration')?.value) || 2,
+    MOTOR_REVERSE: document.getElementById('config-motor-reverse')?.checked || false,
     USE_SENSOR: document.getElementById('config-use-sensor')?.checked || false,
     SENSOR_GPIO_PIN: parseInt(document.getElementById('config-sensor-pin')?.value) || 22,
     SENSOR_TIMEOUT: parseFloat(document.getElementById('config-sensor-timeout')?.value) || 5,
+    SENSOR_CHECK_PRE: document.getElementById('config-sensor-check-pre')?.checked !== false,
+    SENSOR_CHECK_POST: document.getElementById('config-sensor-check-post')?.checked !== false,
+    JAM_CLEAR_ATTEMPTS: parseInt(document.getElementById('config-jam-clear-attempts')?.value) || 3,
     HEARTBEAT_INTERVAL: parseInt(document.getElementById('config-heartbeat-interval')?.value) || 30,
     ARDUINO_PORT: document.getElementById('config-arduino-port')?.value || '/dev/ttyUSB0',
     PCA9685_CHANNEL: parseInt(document.getElementById('config-pca-channel')?.value) || 15
