@@ -660,7 +660,7 @@ def admin_unit_detail(uid):
     unit_name = unit['name']
     unit_config = unit_configs.get(unit_name, {}).get('config', None)
     config_last_updated = unit_configs.get(unit_name, {}).get('last_updated', None)
-    has_pending_config = unit_name in unit_pending_configs
+    has_pending_config = unit_name in pending_unit_config_updates
     
     return render_template("admin_unit_detail.html", unit=unit, 
                            unit_config=unit_config, 
