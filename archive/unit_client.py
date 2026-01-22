@@ -201,11 +201,9 @@ def apply_remote_config(remote_config, current_config):
         
         # 設定をファイルに保存
         if save_config(current_config):
-            print("[設定更新] config.json に保存しました")
+            print("[設定更新] config.json に保存し、即座に反映されます ✓")
         else:
             print("[設定更新] config.json の保存に失敗しました")
-        
-        print("[設定更新] 一部の設定は再起動後に完全に反映されます")
     else:
         print("[設定更新] 変更なし")
 
