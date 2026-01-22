@@ -1365,6 +1365,17 @@ def api_update_unit_config(unit_name):
     # 保留中の設定変更として保存（heartbeatのバックアップとして）
     pending_unit_config_updates[unit_name] = new_config
     
+    # 親機側のunit_configsも即座に更新（画面表示用）
+    if unit_name in unit_configs:
+        unit_configs[unit_name]['config'] = new_config
+        unit_configs[unit_name]['last_updated'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    else:
+        unit_configs[unit_name] = {
+            'config': new_config,
+            'last_updated': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            'ip_address': None
+        }
+    
     # 子機のIPアドレスを取得
     with get_connection() as conn:
         unit = db.fetchone(conn, "SELECT * FROM units WHERE name = ?", (unit_name,))
