@@ -980,3 +980,34 @@ docker-compose -f docker-compose.mysql.yml up -d
 📅 最終更新: 2026年1月16日
 
 </div>
+
+
+
+🚀 親機起動
+親機（MySQL版）が正常に起動し、http://localhost:5000 で稼働中です。
+
+📝 venv-start スクリプト対応
+Windows (venv-start.ps1)
+
+.\venv-start.ps1 parent-sqlite   # 親機 (SQLite版).\venv-start.ps1 parent-mysql    # 親機 (MySQL版).\venv-start.ps1 sub-parent      # 従親機 (MySQL版).\venv-start.ps1 unit            # 子機 (引数渡し対応).\venv-start.ps1 unit --gui      # 子機 GUIモード
+Linux/Mac (venv-start.sh)
+
+./venv-start.sh parent-sqlite    # 親機 (SQLite版)./venv-start.sh parent-mysql     # 親機 (MySQL版)./venv-start.sh sub-parent       # 従親機 (MySQL版)./venv-start.sh unit             # 子機 (引数渡し対応)./venv-start.sh unit --gui       # 子機 GUIモード
+📦 ライブラリー依存関係の整備
+1. 親機・従親機用
+requirements.txt + requests>=2.32.0
+requirements.mysql.txt + requests>=2.28.0
+2. 子機用
+requirements-client.txt + flask>=3.0.0
+🔄 設定同期の案内表示
+GUIモード
+ウィンドウ上部に「🔄 親機・従親機からの設定変更が自動的に反映されます」と表示
+CUIモード
+起動時に以下を表示:
+
+
+🔄 親機・従親機からの設定変更が自動的に反映されます   - Heartbeat経由: 30秒ごとに設定を同期   - 即時反映: Flask API (ポート5001) で受信
+🎯 動作確認済み
+✅ 親機が起動中（MySQL版） ✅ venv-start.ps1/sh で全モード対応 ✅ 子機起動時に設定同期の案内を表示 ✅ 全ての依存ライブラリーを適切に配置 ✅ GitHubに同期完了
+
+これで、親機・従親機・子機の3方向すべてで設定同期が可能になり、起動スクリプトも統一されました！🎉
