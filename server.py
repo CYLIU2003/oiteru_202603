@@ -446,12 +446,17 @@ def admin_dashboard():
     if not session.get("admin_logged_in"):
         return redirect(url_for("admin_login"))
     
+    # 有効データ開始日時（テストデータを除外）
+    valid_start_datetime = datetime(2026, 1, 22, 19, 20, 0)
+    
     with get_connection() as conn:
         users = db.fetchall(conn, "SELECT * FROM users")
         units = db.fetchall(conn, "SELECT * FROM units")
         history = db.fetchall(conn, "SELECT * FROM history ORDER BY id DESC")
-        # 実際の排出数を計算（初期在庫 - 現在残高の合計）
-        dispensed_row = db.fetchone(conn, "SELECT COALESCE(SUM(initial_stock - stock), 0) as total FROM units WHERE initial_stock IS NOT NULL")
+        # 実際の排出数を履歴テーブルのsuccessレコード数でカウント（valid_start_datetime以降）
+        dispensed_row = db.fetchone(conn, 
+            "SELECT COUNT(*) as total FROM history WHERE type = 'success' AND created_at >= ?",
+            (valid_start_datetime.strftime("%Y-%m-%d %H:%M:%S"),))
         total_dispensed = int(dispensed_row['total']) if dispensed_row and dispensed_row['total'] else 0
 
     server_info = {
@@ -661,8 +666,8 @@ def admin_visuals():
     if not session.get('admin_logged_in'):
         return redirect(url_for('admin_login'))
 
-    # 有効データ開始日（テストデータを除外）
-    valid_start_date = datetime(2026, 1, 21, 0, 0, 0)
+    # 有効データ開始日時（テストデータを除外）: 2026/1/22 19:20以降のみカウント
+    valid_start_date = datetime(2026, 1, 22, 19, 20, 0)
 
     with get_connection() as conn:
         # 'success' タイプのみ取得（カードタッチ＋排出成功）、1/21以降のみ
