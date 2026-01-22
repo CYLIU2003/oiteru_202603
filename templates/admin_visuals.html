@@ -11,7 +11,14 @@
   
   <div class="chart-grid" style="margin-top: 24px;">
     <div class="chart-card">
-      <h3>🕐 時間別利用回数</h3>
+      <h3>🕐 時間別利用回数
+        <select id="dateSelector" style="margin-left: 12px; padding: 4px 8px; font-size: 14px; border-radius: 4px; border: 1px solid #ccc;">
+          <option value="all">全期間</option>
+          {% for date in chart_data.available_dates %}
+          <option value="{{ date }}">{{ date }}</option>
+          {% endfor %}
+        </select>
+      </h3>
       <canvas id="hourlyChart"></canvas>
     </div>
     <div class="chart-card">
@@ -45,15 +52,19 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     };
     
+    // 日付別データ（サーバーから渡される）
+    const hourlyDataByDate = {{ chart_data.hourly_by_date | tojson }};
+    const hourlyDataAll = {{ chart_data.hourly_data | tojson }};
+    
     // 時間別グラフ
     const hourlyCtx = document.getElementById('hourlyChart').getContext('2d');
-    new Chart(hourlyCtx, {
+    const hourlyChart = new Chart(hourlyCtx, {
         type: 'bar',
         data: {
             labels: {{ chart_data.hourly_labels | tojson }},
             datasets: [{
                 label: '利用回数',
-                data: {{ chart_data.hourly_data | tojson }},
+                data: hourlyDataAll,
                 backgroundColor: 'rgba(38, 168, 223, 0.7)',
                 borderColor: 'rgba(38, 168, 223, 1)',
                 borderWidth: 2,
@@ -73,6 +84,19 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             }
         }
+    });
+    
+    // 日付セレクター変更イベント
+    document.getElementById('dateSelector').addEventListener('change', function() {
+        const selectedDate = this.value;
+        let newData;
+        if (selectedDate === 'all') {
+            newData = hourlyDataAll;
+        } else {
+            newData = hourlyDataByDate[selectedDate] || hourlyDataAll;
+        }
+        hourlyChart.data.datasets[0].data = newData;
+        hourlyChart.update();
     });
     
     // 日別グラフ

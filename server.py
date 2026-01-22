@@ -680,10 +680,21 @@ def admin_visuals():
         elif isinstance(ts, datetime):
             timestamps.append(ts)
 
-    # 時間別カウント（0-23時）
-    hourly_counts = {h: 0 for h in range(24)}
+    # 日付リストを取得（プルダウン用）
+    available_dates = sorted(set(dt.strftime("%Y-%m-%d") for dt in timestamps))
+    
+    # 日付ごとの時間別カウント
+    hourly_by_date = {}
+    for date in available_dates:
+        hourly_by_date[date] = {h: 0 for h in range(24)}
     for dt in timestamps:
-        hourly_counts[dt.hour] += 1
+        date = dt.strftime("%Y-%m-%d")
+        hourly_by_date[date][dt.hour] += 1
+    
+    # 全期間の時間別カウント（0-23時）
+    hourly_counts_all = {h: 0 for h in range(24)}
+    for dt in timestamps:
+        hourly_counts_all[dt.hour] += 1
 
     # 日別カウント
     daily_counts = {}
@@ -702,7 +713,9 @@ def admin_visuals():
     # chart_dataオブジェクトを構築
     chart_data = {
         'hourly_labels': [f"{h}時" for h in range(24)],
-        'hourly_data': [hourly_counts[h] for h in range(24)],
+        'hourly_data': [hourly_counts_all[h] for h in range(24)],
+        'hourly_by_date': {date: [hourly_by_date[date][h] for h in range(24)] for date in available_dates},
+        'available_dates': available_dates,
         'daily_labels': sorted(daily_counts.keys())[-14:] if daily_counts else [],  # 直近14日
         'daily_data': [daily_counts.get(d, 0) for d in (sorted(daily_counts.keys())[-14:] if daily_counts else [])],
         'weekly_labels': weekday_names,
