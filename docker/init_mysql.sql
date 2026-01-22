@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS units (
     name VARCHAR(255) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
     stock INT DEFAULT 100,
+    initial_stock INT DEFAULT 100,
     connect TINYINT(1) DEFAULT 0,
     available TINYINT(1) DEFAULT 1,
     last_seen VARCHAR(50),

@@ -6,7 +6,9 @@
   <form method="post">
     <p><label>名前:<br><input type="text" name="name" value="{{ unit['name'] }}" required></label></p>
     <p>パスワード: {{ unit['password'] }}</p>
-    <p><label>残り用品在庫:<br><input type="text" name="stock" value="{{ unit['stock'] }}"></label></p>
+    <p><label>初期在庫数:<br><input type="number" name="initial_stock" value="{{ unit['initial_stock'] or 100 }}"></label></p>
+    <p><label>現在の残り在庫:<br><input type="number" name="stock" value="{{ unit['stock'] }}"></label></p>
+    <p><strong>排出数: {{ (unit['initial_stock'] or 100) - (unit['stock'] or 0) }}</strong></p>
     <p>接続状態: {% if unit['connect'] == 1 %}<span style="color: green;">● オンライン</span>{% else %}<span style="color: red;">● オフライン</span>{% endif %}</p>
     <p><label>利用可能 (1=可/0=不可):<br><input type="text" name="available" value="{{ unit['available'] }}"></label></p>
     <p>最終接続: {{ unit['last_seen'] or '未接続' }}</p>

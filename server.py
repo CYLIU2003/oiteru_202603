@@ -234,6 +234,7 @@ def init_db():
                     name TEXT UNIQUE NOT NULL,
                     password TEXT NOT NULL,
                     stock INTEGER DEFAULT 0,
+                    initial_stock INTEGER DEFAULT 100,
                     connect INTEGER DEFAULT 0,
                     available INTEGER DEFAULT 1,
                     last_seen TEXT,
@@ -449,8 +450,9 @@ def admin_dashboard():
         users = db.fetchall(conn, "SELECT * FROM users")
         units = db.fetchall(conn, "SELECT * FROM units")
         history = db.fetchall(conn, "SELECT * FROM history ORDER BY id DESC")
-        usage_count_row = db.fetchone(conn, "SELECT COUNT(id) as count FROM history WHERE txt LIKE ?", ('%] 利用%',))
-        usage_count = usage_count_row['count'] if usage_count_row else 0
+        # 実際の排出数を計算（初期在庫 - 現在残高の合計）
+        dispensed_row = db.fetchone(conn, "SELECT COALESCE(SUM(initial_stock - stock), 0) as total FROM units WHERE initial_stock IS NOT NULL")
+        total_dispensed = int(dispensed_row['total']) if dispensed_row and dispensed_row['total'] else 0
 
     server_info = {
         'name': SERVER_NAME,
@@ -466,7 +468,7 @@ def admin_dashboard():
                          users=users, 
                          units=units, 
                          history=history, 
-                         usage_count=usage_count,
+                         total_dispensed=total_dispensed,
                          server_info=server_info)
 
 
@@ -535,10 +537,11 @@ def admin_unit_detail(uid):
             
             name = request.form.get("name")
             stock = request.form.get("stock")
+            initial_stock = request.form.get("initial_stock")
             available = request.form.get("available")
             db.execute(conn,
-                "UPDATE units SET name = ?, stock = ?, available = ? WHERE id = ?",
-                (name, stock, available, uid)
+                "UPDATE units SET name = ?, stock = ?, initial_stock = ?, available = ? WHERE id = ?",
+                (name, stock, initial_stock, available, uid)
             )
         add_history(f"子機情報を更新 (ID:{uid})", 'system')
         flash(f"子機(ID:{uid})の情報を更新しました。", "success")
@@ -565,8 +568,8 @@ def admin_new_unit():
         try:
             with get_connection() as conn:
                 db.execute(conn, 
-                    "INSERT INTO units (name, password, stock) VALUES (?, ?, ?)",
-                    (name, password, stock))
+                    "INSERT INTO units (name, password, stock, initial_stock) VALUES (?, ?, ?, ?)",
+                    (name, password, stock, stock))
             add_history(f"新しい子機を登録 ({name})", 'system')
             flash(f"子機({name})を登録しました。", "success")
             return redirect(url_for("admin_units"))

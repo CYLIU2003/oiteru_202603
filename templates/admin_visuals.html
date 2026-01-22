@@ -1,11 +1,12 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="admin-dashboard">
-  <h2>📊 利用状況グラフ（排出成功）</h2>
+  <h2>📊 利用状況グラフ</h2>
   
   <div class="info-card">
     <h3>ℹ️ このページについて</h3>
-    <p style="margin: 0;">カードタッチ＋排出成功のみをカウントしています。失敗やエラーは含まれません。</p>
+    <p style="margin: 0;">このグラフは利用履歴（カードタッチ）の時間分布を表示しています。<br>
+    <strong>実排出数（初期在庫 - 現在残高）はダッシュボードで確認できます。</strong></p>
   </div>
   
   <div class="chart-grid" style="margin-top: 24px;">
