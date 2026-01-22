@@ -661,9 +661,12 @@ def admin_visuals():
     if not session.get('admin_logged_in'):
         return redirect(url_for('admin_login'))
 
+    # 有効データ開始日（テストデータを除外）
+    valid_start_date = datetime(2026, 1, 21, 0, 0, 0)
+
     with get_connection() as conn:
-        # 'success' タイプのみ取得（カードタッチ＋排出成功）
-        logs = db.fetchall(conn, "SELECT txt, created_at FROM history WHERE type = ? ORDER BY created_at DESC", ('success',))
+        # 'success' タイプのみ取得（カードタッチ＋排出成功）、1/21以降のみ
+        logs = db.fetchall(conn, "SELECT txt, created_at FROM history WHERE type = ? AND created_at >= ? ORDER BY created_at DESC", ('success', valid_start_date.strftime("%Y-%m-%d %H:%M:%S")))
 
     timestamps = []
     for log in logs:
@@ -677,11 +680,10 @@ def admin_visuals():
         elif isinstance(ts, datetime):
             timestamps.append(ts)
 
-    # 時間別カウント
-    hourly_counts = {}
+    # 時間別カウント（0-23時）
+    hourly_counts = {h: 0 for h in range(24)}
     for dt in timestamps:
-        hour = dt.hour
-        hourly_counts[hour] = hourly_counts.get(hour, 0) + 1
+        hourly_counts[dt.hour] += 1
 
     # 日別カウント
     daily_counts = {}
@@ -689,23 +691,25 @@ def admin_visuals():
         day = dt.strftime("%Y-%m-%d")
         daily_counts[day] = daily_counts.get(day, 0) + 1
 
-    # 曜日別カウント
-    weekday_names = ['月', '火', '水', '木', '金', '土', '日']
+    # 曜日別カウント（月=0, 日=6）
     weekly_counts = {i: 0 for i in range(7)}
     for dt in timestamps:
-        weekly_counts[dt.weekday()] = weekly_counts.get(dt.weekday(), 0) + 1
+        weekly_counts[dt.weekday()] += 1
+
+    # 曜日ラベル
+    weekday_names = ['月', '火', '水', '木', '金', '土', '日']
 
     # chart_dataオブジェクトを構築
     chart_data = {
         'hourly_labels': [f"{h}時" for h in range(24)],
-        'hourly_data': [hourly_counts.get(h, 0) for h in range(24)],
+        'hourly_data': [hourly_counts[h] for h in range(24)],
         'daily_labels': sorted(daily_counts.keys())[-14:] if daily_counts else [],  # 直近14日
         'daily_data': [daily_counts.get(d, 0) for d in (sorted(daily_counts.keys())[-14:] if daily_counts else [])],
         'weekly_labels': weekday_names,
-        'weekly_data': [weekly_counts.get(i, 0) for i in range(7)]
+        'weekly_data': [weekly_counts[i] for i in range(7)]
     }
 
-    return render_template("admin_visuals.html", chart_data=chart_data, hourly_counts=hourly_counts, daily_counts=daily_counts)
+    return render_template("admin_visuals.html", chart_data=chart_data, total_count=len(timestamps))
 
 
 # ========================================
