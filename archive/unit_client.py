@@ -369,8 +369,15 @@ class SettingsGUI:
         self.comboboxes = {}
         self.buttons = {}
         
+        # リモート設定同期の案内
+        info_frame = ttk.Frame(main_frame, padding="5")
+        info_frame.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 5))
+        info_label = ttk.Label(info_frame, text="🔄 親機・従親機からの設定変更が自動的に反映されます", 
+                              foreground="#006400", font=("", 9, "bold"))
+        info_label.pack()
+        
         status_frame = ttk.LabelFrame(main_frame, text="子機状態", padding="10")
-        status_frame.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 10))
+        status_frame.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 10))
         self.stock_status = tk.StringVar(value="WAIT")
         self.nfc_status = tk.StringVar(value="停止中")
         ttk.Label(status_frame, text="NFCリーダー:").grid(row=0, column=0, sticky=tk.W)
@@ -379,7 +386,7 @@ class SettingsGUI:
         ttk.Label(status_frame, textvariable=self.stock_status).grid(row=1, column=1, sticky=tk.W, padx=5)
 
         self.settings_frame = ttk.LabelFrame(main_frame, text="初期設定", padding="10")
-        self.settings_frame.grid(row=1, column=0, columnspan=2, sticky="ew")
+        self.settings_frame.grid(row=2, column=0, columnspan=2, sticky="ew")
 
         ttk.Label(self.settings_frame, text="サーバーURL").grid(row=0, column=0, sticky=tk.W, pady=4)
         server_frame = ttk.Frame(self.settings_frame)
@@ -1530,6 +1537,11 @@ def run_cui_mode():
     print("=" * 60)
     print("  OITERU子機クライアント - CUIモード")
     print("=" * 60)
+    print("")
+    print("🔄 親機・従親機からの設定変更が自動的に反映されます")
+    print("   - Heartbeat経由: 30秒ごとに設定を同期")
+    print("   - 即時反映: Flask API (ポート5001) で受信")
+    print("")
     
     # 設定ファイルを読み込み
     config = load_config()

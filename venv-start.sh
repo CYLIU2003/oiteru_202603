@@ -42,7 +42,16 @@ case "$1" in
         ;;
     unit)
         echo "子機クライアントを起動します..."
-        $PYTHON_PATH unit.py
+        echo ""
+        echo "========================================="
+        echo "  子機: 親機・従親機からの設定同期対応"
+        echo "  - GUIモード: --gui オプション"
+        echo "  - CUIモード: デフォルト"
+        echo "  - リモート設定変更が自動反映されます"
+        echo "========================================="
+        echo ""
+        shift
+        $PYTHON_PATH unit.py "$@"
         ;;
     *)
         echo "使い方: $0 {parent-sqlite|parent-mysql|sub-parent|unit}"

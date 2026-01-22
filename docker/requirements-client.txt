@@ -4,6 +4,7 @@
 
 # --- HTTP通信 ---
 requests>=2.28.0
+flask>=3.0.0            # リモート設定変更受信用APIサーバー
 
 # --- NFC Reader ---
 nfcpy>=1.0.4

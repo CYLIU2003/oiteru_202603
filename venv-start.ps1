@@ -72,6 +72,14 @@ switch ($Mode) {
     }
     "unit" {
         Write-Host "子機クライアントを起動します..."
-        & $PythonPath unit.py
+        Write-Host ""
+        Write-Host "========================================="
+        Write-Host "  子機: 親機・従親機からの設定同期対応"
+        Write-Host "  - GUIモード: --gui オプション"
+        Write-Host "  - CUIモード: デフォルト"
+        Write-Host "  - リモート設定変更が自動反映されます"
+        Write-Host "========================================="
+        Write-Host ""
+        & $PythonPath unit.py @args
     }
 }
