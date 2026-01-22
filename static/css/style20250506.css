@@ -723,3 +723,414 @@ body {
         max-height: 250px;
     }
 }
+
+/* ========================================
+   トグルスイッチ
+   ======================================== */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 52px;
+    height: 28px;
+    cursor: pointer;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    border-radius: 28px;
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 22px;
+    width: 22px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    border-radius: 50%;
+    transition: transform 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.toggle-switch input:checked + .toggle-slider {
+    background-color: var(--success-color);
+    box-shadow: 0 0 8px rgba(76, 175, 80, 0.4);
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+    transform: translateX(24px);
+}
+
+.toggle-switch.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.toggle-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.toggle-label {
+    font-size: 0.9rem;
+    font-weight: 500;
+    min-width: 50px;
+}
+
+.toggle-label.active {
+    color: var(--success-color);
+}
+
+.toggle-label.inactive {
+    color: var(--muted-text);
+}
+
+/* ========================================
+   モダン管理画面スタイル
+   ======================================== */
+.admin-card {
+    background: var(--card-bg);
+    border-radius: 16px;
+    padding: 28px;
+    box-shadow: var(--shadow);
+    margin-bottom: 24px;
+}
+
+.admin-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.admin-card-header h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.admin-card-header h2 .icon {
+    font-size: 1.3rem;
+}
+
+.admin-card-actions {
+    display: flex;
+    gap: 10px;
+}
+
+/* モダンテーブル */
+.modern-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.modern-table thead {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+}
+
+.modern-table th {
+    padding: 14px 16px;
+    text-align: left;
+    font-weight: 600;
+    color: var(--text-color);
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.modern-table th:first-child {
+    border-radius: 12px 0 0 0;
+}
+
+.modern-table th:last-child {
+    border-radius: 0 12px 0 0;
+}
+
+.modern-table td {
+    padding: 16px;
+    border-bottom: 1px solid #e9ecef;
+    vertical-align: middle;
+}
+
+.modern-table tbody tr {
+    transition: background-color 0.2s ease;
+}
+
+.modern-table tbody tr:hover {
+    background-color: rgba(31, 127, 196, 0.04);
+}
+
+.modern-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.modern-table tbody tr:last-child td:first-child {
+    border-radius: 0 0 0 12px;
+}
+
+.modern-table tbody tr:last-child td:last-child {
+    border-radius: 0 0 12px 0;
+}
+
+/* ステータスバッジ */
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.status-badge.online {
+    background-color: #e7f8ee;
+    color: #1c6b38;
+}
+
+.status-badge.offline {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.status-badge.enabled {
+    background-color: #e7f8ee;
+    color: #1c6b38;
+}
+
+.status-badge.disabled {
+    background-color: #e9ecef;
+    color: #6c757d;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.status-dot.online {
+    background-color: #28a745;
+    box-shadow: 0 0 6px rgba(40, 167, 69, 0.5);
+}
+
+.status-dot.offline {
+    background-color: #dc3545;
+}
+
+/* フォームグループ */
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--text-color);
+}
+
+.form-group .form-hint {
+    font-size: 0.85rem;
+    color: var(--muted-text);
+    margin-top: 4px;
+}
+
+.form-control {
+    width: 100%;
+    padding: 12px 16px;
+    font-size: 1rem;
+    border: 2px solid #e9ecef;
+    border-radius: 10px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    background-color: #fff;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 4px rgba(31, 127, 196, 0.15);
+}
+
+.form-control:disabled, .form-control[readonly] {
+    background-color: #f8f9fa;
+    color: var(--muted-text);
+    cursor: not-allowed;
+}
+
+/* 情報表示グリッド */
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.info-item {
+    background: #f8f9fa;
+    padding: 16px;
+    border-radius: 10px;
+}
+
+.info-item .info-label {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted-text);
+    margin-bottom: 4px;
+}
+
+.info-item .info-value {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.info-item .info-value.highlight {
+    color: var(--primary-color);
+    font-size: 1.3rem;
+}
+
+/* ログセクション */
+.logs-section {
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 1px solid #e9ecef;
+}
+
+.logs-section h3 {
+    font-size: 1.1rem;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.log-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.log-list li {
+    padding: 10px 14px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+    color: var(--text-color);
+    border-left: 3px solid var(--primary-color);
+}
+
+/* 危険ゾーン */
+.danger-zone {
+    background: #fff5f5;
+    border: 1px solid #feb2b2;
+    border-radius: 12px;
+    padding: 20px;
+    margin-top: 24px;
+}
+
+.danger-zone h4 {
+    color: #c53030;
+    margin: 0 0 12px 0;
+    font-size: 1rem;
+}
+
+.danger-zone p {
+    color: #742a2a;
+    font-size: 0.9rem;
+    margin-bottom: 16px;
+}
+
+/* ボタングループ */
+.btn-group {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.btn-sm {
+    padding: 8px 16px;
+    font-size: 0.9rem;
+}
+
+.btn-icon {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* セクションヘッダー */
+.section-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 30px 0 20px;
+}
+
+.section-divider h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    white-space: nowrap;
+}
+
+.section-divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: #e9ecef;
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 768px) {
+    .admin-card {
+        padding: 20px;
+    }
+    
+    .admin-card-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+    
+    .modern-table {
+        display: block;
+        overflow-x: auto;
+    }
+    
+    .info-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .btn-group {
+        flex-direction: column;
+    }
+    
+    .btn-group .btn {
+        width: 100%;
+    }
+}

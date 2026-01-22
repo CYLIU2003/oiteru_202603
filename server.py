@@ -56,7 +56,8 @@ SERVER_ID = os.getenv('HOSTNAME', socket.gethostname())
 server_settings = {
     'auto_register_mode': os.getenv('AUTO_REGISTER_MODE', 'false').lower() == 'true',
     'auto_register_stock': int(os.getenv('AUTO_REGISTER_STOCK', '2')),
-    'daily_limit': int(os.getenv('DAILY_LIMIT', '2')),  # 1日あたりの取得上限
+    'usage_limit': int(os.getenv('USAGE_LIMIT', '2')),  # 期間あたりの取得上限
+    'limit_period': os.getenv('LIMIT_PERIOD', 'day'),   # 上限期間: day, week, month
     'server_name': SERVER_NAME,
     'server_location': SERVER_LOCATION,
 }
@@ -73,6 +74,12 @@ unit_diagnostics = {}
 # 子機からのログ保存用（メモリ内）
 unit_logs = {}
 
+# 子機設定の保存用（メモリ内、ハートビートで同期）
+unit_configs = {}
+
+# 子機への保留中の設定変更（unit_name -> config dict）
+pending_unit_config_updates = {}
+
 
 # ========================================
 # 設定管理関数
@@ -87,7 +94,9 @@ def load_settings_from_db():
             if settings_row:
                 server_settings['auto_register_mode'] = bool(settings_row.get('auto_register_mode', 0))
                 server_settings['auto_register_stock'] = int(settings_row.get('auto_register_stock', 2))
-                server_settings['daily_limit'] = int(settings_row.get('daily_limit', 2))
+                # daily_limit を usage_limit に移行（後方互換）
+                server_settings['usage_limit'] = int(settings_row.get('usage_limit') or settings_row.get('daily_limit', 2))
+                server_settings['limit_period'] = settings_row.get('limit_period', 'day') or 'day'
                 settings_version = int(settings_row.get('version', 0))
                 print(f"[DEBUG] 設定をDBから読み込み: auto_register_mode={server_settings['auto_register_mode']}, version={settings_version}")
             else:
@@ -109,25 +118,28 @@ def save_settings_to_db():
                     UPDATE settings SET 
                         auto_register_mode = ?,
                         auto_register_stock = ?,
-                        daily_limit = ?,
+                        usage_limit = ?,
+                        limit_period = ?,
                         version = ?,
                         updated_at = ?
                     WHERE id = 1
                 """, (
                     1 if server_settings['auto_register_mode'] else 0,
                     server_settings['auto_register_stock'],
-                    server_settings['daily_limit'],
+                    server_settings['usage_limit'],
+                    server_settings['limit_period'],
                     settings_version,
                     datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 ))
             else:
                 db.execute(conn, """
-                    INSERT INTO settings (id, auto_register_mode, auto_register_stock, daily_limit, version, updated_at)
-                    VALUES (1, ?, ?, ?, ?, ?)
+                    INSERT INTO settings (id, auto_register_mode, auto_register_stock, usage_limit, limit_period, version, updated_at)
+                    VALUES (1, ?, ?, ?, ?, ?, ?)
                 """, (
                     1 if server_settings['auto_register_mode'] else 0,
                     server_settings['auto_register_stock'],
-                    server_settings['daily_limit'],
+                    server_settings['usage_limit'],
+                    server_settings['limit_period'],
                     settings_version,
                     datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 ))
@@ -147,6 +159,49 @@ def get_db_connection():
 @app.teardown_appcontext
 def close_connection(exception):
     pass
+
+
+# --- 期間内利用回数チェック ---
+def get_period_start_date(period: str) -> str:
+    """期間の開始日を取得する（YYYY-MM-DD形式）"""
+    now = datetime.now()
+    if period == 'day':
+        return now.strftime("%Y-%m-%d")
+    elif period == 'week':
+        # 週の開始日（月曜日）を取得
+        start = now - timedelta(days=now.weekday())
+        return start.strftime("%Y-%m-%d")
+    elif period == 'month':
+        # 月の開始日
+        return now.strftime("%Y-%m-01")
+    else:
+        return now.strftime("%Y-%m-%d")
+
+
+def get_usage_count_in_period(conn, card_id: str, period: str) -> int:
+    """指定期間内のユーザーの利用回数を取得する"""
+    period_start = get_period_start_date(period)
+    
+    # historyテーブルから成功した利用回数をカウント
+    # カードIDを含む成功ログを検索
+    result = db.fetchone(conn, """
+        SELECT COUNT(*) as count FROM history 
+        WHERE type = 'success' 
+        AND txt LIKE ?
+        AND created_at >= ?
+    """, (f"%{card_id}%", period_start + " 00:00:00"))
+    
+    return result['count'] if result else 0
+
+
+def get_period_display_name(period: str) -> str:
+    """期間の表示名を取得"""
+    period_names = {
+        'day': '1日',
+        'week': '1週間',
+        'month': '1ヶ月'
+    }
+    return period_names.get(period, '1日')
 
 
 # --- 履歴追加 ---
@@ -181,7 +236,8 @@ def init_db():
                         id INT PRIMARY KEY,
                         auto_register_mode TINYINT DEFAULT 0,
                         auto_register_stock INT DEFAULT 2,
-                        daily_limit INT DEFAULT 2,
+                        usage_limit INT DEFAULT 2,
+                        limit_period VARCHAR(10) DEFAULT 'day',
                         version INT DEFAULT 0,
                         updated_at DATETIME
                     )
@@ -200,7 +256,8 @@ def init_db():
                         id INTEGER PRIMARY KEY,
                         auto_register_mode INTEGER DEFAULT 0,
                         auto_register_stock INTEGER DEFAULT 2,
-                        daily_limit INTEGER DEFAULT 2,
+                        usage_limit INTEGER DEFAULT 2,
+                        limit_period TEXT DEFAULT 'day',
                         version INTEGER DEFAULT 0,
                         updated_at TEXT
                     )
@@ -271,9 +328,48 @@ def init_db():
 # --- DBマイグレーション ---
 def migrate_db():
     """データベーススキーマのマイグレーション"""
-    if db.db_type == 'mysql':
-        return
-    # SQLite用のマイグレーション処理があれば追加
+    try:
+        with get_connection() as conn:
+            # settingsテーブルに新しいカラムを追加（存在しない場合）
+            if db.db_type == 'mysql':
+                # MySQLの場合
+                try:
+                    db.execute(conn, "ALTER TABLE settings ADD COLUMN usage_limit INT DEFAULT 2")
+                    print("  - settingsテーブルに usage_limit カラムを追加しました")
+                except Exception:
+                    pass  # 既に存在する場合はスキップ
+                
+                try:
+                    db.execute(conn, "ALTER TABLE settings ADD COLUMN limit_period VARCHAR(10) DEFAULT 'day'")
+                    print("  - settingsテーブルに limit_period カラムを追加しました")
+                except Exception:
+                    pass  # 既に存在する場合はスキップ
+                
+                # daily_limitの値をusage_limitに移行
+                try:
+                    db.execute(conn, "UPDATE settings SET usage_limit = daily_limit WHERE usage_limit IS NULL OR usage_limit = 0")
+                except Exception:
+                    pass
+            else:
+                # SQLiteの場合
+                try:
+                    db.execute(conn, "ALTER TABLE settings ADD COLUMN usage_limit INTEGER DEFAULT 2")
+                    print("  - settingsテーブルに usage_limit カラムを追加しました")
+                except Exception:
+                    pass
+                
+                try:
+                    db.execute(conn, "ALTER TABLE settings ADD COLUMN limit_period TEXT DEFAULT 'day'")
+                    print("  - settingsテーブルに limit_period カラムを追加しました")
+                except Exception:
+                    pass
+                
+                try:
+                    db.execute(conn, "UPDATE settings SET usage_limit = daily_limit WHERE usage_limit IS NULL OR usage_limit = 0")
+                except Exception:
+                    pass
+    except Exception as e:
+        print(f"マイグレーションエラー: {e}")
 
 
 # ========================================
@@ -466,7 +562,8 @@ def admin_dashboard():
         'db_type': db.db_type.upper(),
         'auto_register': server_settings['auto_register_mode'],
         'auto_register_stock': server_settings['auto_register_stock'],
-        'daily_limit': server_settings['daily_limit']
+        'usage_limit': server_settings['usage_limit'],
+        'limit_period': server_settings['limit_period']
     }
 
     return render_template("admin_dashboard.html", 
@@ -540,13 +637,14 @@ def admin_unit_detail(uid):
                 flash(f"子機(ID:{uid})を削除しました。", "success")
                 return redirect(url_for("admin_units"))
             
-            name = request.form.get("name")
+            # 名前はDBに反映しない（表示名のみ）
+            # name = request.form.get("name")
             stock = request.form.get("stock")
             initial_stock = request.form.get("initial_stock")
             available = request.form.get("available")
             db.execute(conn,
-                "UPDATE units SET name = ?, stock = ?, initial_stock = ?, available = ? WHERE id = ?",
-                (name, stock, initial_stock, available, uid)
+                "UPDATE units SET stock = ?, initial_stock = ?, available = ? WHERE id = ?",
+                (stock, initial_stock, available, uid)
             )
         add_history(f"子機情報を更新 (ID:{uid})", 'system')
         flash(f"子機(ID:{uid})の情報を更新しました。", "success")
@@ -557,7 +655,17 @@ def admin_unit_detail(uid):
     if not unit:
         flash("指定された子機は見つかりません。", "error")
         return redirect(url_for("admin_units"))
-    return render_template("admin_unit_detail.html", unit=unit)
+    
+    # 子機の設定情報を取得
+    unit_name = unit['name']
+    unit_config = unit_configs.get(unit_name, {}).get('config', None)
+    config_last_updated = unit_configs.get(unit_name, {}).get('last_updated', None)
+    has_pending_config = unit_name in unit_pending_configs
+    
+    return render_template("admin_unit_detail.html", unit=unit, 
+                           unit_config=unit_config, 
+                           config_last_updated=config_last_updated,
+                           has_pending_config=has_pending_config)
 
 
 @app.route("/admin/new_unit", methods=["GET", "POST"])
@@ -941,6 +1049,48 @@ def api_register_unit():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@app.route('/api/unit/<int:uid>/toggle_available', methods=['POST'])
+def api_toggle_unit_available(uid):
+    """子機の利用可能状態をトグルする（名前は更新しない）"""
+    if not session.get("admin_logged_in"):
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+    
+    try:
+        with get_connection() as conn:
+            unit = db.fetchone(conn, "SELECT available FROM units WHERE id = ?", (uid,))
+            if not unit:
+                return jsonify({'success': False, 'error': 'Unit not found'}), 404
+            
+            new_available = 0 if unit['available'] == 1 else 1
+            db.execute(conn, "UPDATE units SET available = ? WHERE id = ?", (new_available, uid))
+        
+        add_history(f"子機(ID:{uid})の利用可能状態を{'有効' if new_available else '無効'}に変更", 'system')
+        return jsonify({'success': True, 'available': new_available})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/user/<int:uid>/toggle_allow', methods=['POST'])
+def api_toggle_user_allow(uid):
+    """利用者の許可状態をトグルする"""
+    if not session.get("admin_logged_in"):
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+    
+    try:
+        with get_connection() as conn:
+            user = db.fetchone(conn, "SELECT allow FROM users WHERE id = ?", (uid,))
+            if not user:
+                return jsonify({'success': False, 'error': 'User not found'}), 404
+            
+            new_allow = 0 if user['allow'] == 1 else 1
+            db.execute(conn, "UPDATE users SET allow = ? WHERE id = ?", (new_allow, uid))
+        
+        add_history(f"利用者(ID:{uid})の許可状態を{'許可' if new_allow else '不許可'}に変更", 'system')
+        return jsonify({'success': True, 'allow': new_allow})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @app.route('/api/users', methods=['GET'])
 def api_get_users():
     with get_connection() as conn:
@@ -1031,6 +1181,23 @@ def api_record_usage():
                 add_history(message, 'usage')
                 return jsonify({'error': 'User has no stock remaining'}), 400
 
+            # --- 期間内の利用上限チェック ---
+            period = server_settings['limit_period']
+            usage_limit = server_settings['usage_limit']
+            usage_count = get_usage_count_in_period(conn, card_id, period)
+            
+            if usage_count >= usage_limit:
+                period_name = get_period_display_name(period)
+                message = f"[{unit_name}] {period_name}の上限({usage_limit}個)に達しています (カードID: {card_id})"
+                add_history(message, 'usage')
+                return jsonify({
+                    'error': 'Period limit exceeded',
+                    'message': f'{period_name}あたりの取得上限（{usage_limit}個）に達しました',
+                    'usage_count': usage_count,
+                    'usage_limit': usage_limit,
+                    'period': period
+                }), 429
+
             # --- 3. 両方の残数/在庫を更新 ---
             new_user_stock = user['stock'] - 1
             new_total = user['total'] + 1
@@ -1077,6 +1244,15 @@ def api_unit_heartbeat():
     unit_password = data.get('password')
     ip_address = request.remote_addr
     
+    # 子機から送られた設定情報を保存
+    unit_config = data.get('config', {})
+    if unit_config and unit_name:
+        unit_configs[unit_name] = {
+            'config': unit_config,
+            'last_update': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            'ip_address': ip_address
+        }
+    
     if not all([unit_name, unit_password]):
         print(f"[DEBUG] Missing fields - unit_name: {unit_name}, password: {'***' if unit_password else None}")
         return jsonify({'error': 'Unit name and password required'}), 400
@@ -1093,15 +1269,25 @@ def api_unit_heartbeat():
                 "UPDATE units SET connect = 1, last_seen = ?, ip_address = ? WHERE name = ?",
                 (now, ip_address, unit_name))
             
-            return jsonify({
+            # レスポンスを構築
+            response_data = {
                 'success': True,
                 'stock': unit['stock'],
                 'available': unit['available'],
                 'auto_register_mode': server_settings['auto_register_mode'],
                 'auto_register_stock': server_settings['auto_register_stock'],
-                'daily_limit': server_settings['daily_limit'],
+                'usage_limit': server_settings['usage_limit'],
+                'limit_period': server_settings['limit_period'],
                 'settings_version': settings_version
-            })
+            }
+            
+            # 保留中の設定変更があれば送信
+            if unit_name in pending_unit_config_updates:
+                response_data['config_update'] = pending_unit_config_updates[unit_name]
+                del pending_unit_config_updates[unit_name]  # 送信したら削除
+                print(f"[DEBUG] Sending config update to {unit_name}")
+            
+            return jsonify(response_data)
         else:
             # 未登録子機として一時保存
             now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -1146,13 +1332,55 @@ def api_register_pending_unit(unit_name):
         return jsonify({'error': 'Unit name already exists'}), 400
 
 
+@app.route('/api/unit/<string:unit_name>/config', methods=['GET'])
+def api_get_unit_config(unit_name):
+    """子機の設定情報を取得"""
+    if not session.get("admin_logged_in"):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    if unit_name in unit_configs:
+        return jsonify({
+            'success': True,
+            'unit_name': unit_name,
+            **unit_configs[unit_name]
+        })
+    else:
+        return jsonify({
+            'success': False,
+            'error': 'Unit config not found (子機がまだハートビートを送信していません)'
+        }), 404
+
+
+@app.route('/api/unit/<string:unit_name>/config', methods=['POST'])
+def api_update_unit_config(unit_name):
+    """子機の設定を更新（次回ハートビートで同期）"""
+    if not session.get("admin_logged_in"):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    new_config = request.json
+    if not new_config:
+        return jsonify({'error': 'No config provided'}), 400
+    
+    # 保留中の設定変更として保存
+    pending_unit_config_updates[unit_name] = new_config
+    
+    add_history(f"子機({unit_name})の設定変更を予約", 'system')
+    
+    return jsonify({
+        'success': True,
+        'message': f'設定変更を予約しました。次回ハートビートで子機に同期されます。',
+        'pending_config': new_config
+    })
+
+
 @app.route('/api/settings', methods=['GET'])
 def api_get_settings():
     """現在の設定を取得（子機からの同期用）"""
     return jsonify({
         'auto_register_mode': server_settings['auto_register_mode'],
         'auto_register_stock': server_settings['auto_register_stock'],
-        'daily_limit': server_settings['daily_limit'],
+        'usage_limit': server_settings['usage_limit'],
+        'limit_period': server_settings['limit_period'],
         'server_name': SERVER_NAME,
         'server_location': SERVER_LOCATION,
         'db_type': db.db_type,
@@ -1172,8 +1400,10 @@ def api_update_settings():
         server_settings['auto_register_mode'] = bool(data['auto_register_mode'])
     if 'auto_register_stock' in data:
         server_settings['auto_register_stock'] = int(data['auto_register_stock'])
-    if 'daily_limit' in data:
-        server_settings['daily_limit'] = int(data['daily_limit'])
+    if 'usage_limit' in data:
+        server_settings['usage_limit'] = int(data['usage_limit'])
+    if 'limit_period' in data:
+        server_settings['limit_period'] = data['limit_period']
     
     if save_settings_to_db():
         add_history(f"設定を変更 (自動登録: {'有効' if server_settings['auto_register_mode'] else '無効'}, 初期残数: {server_settings['auto_register_stock']})", 'system')
@@ -1199,7 +1429,8 @@ def admin_settings():
         # フォームから設定を更新
         server_settings['auto_register_mode'] = request.form.get('auto_register_mode') == 'on'
         server_settings['auto_register_stock'] = int(request.form.get('auto_register_stock', 2))
-        server_settings['daily_limit'] = int(request.form.get('daily_limit', 2))
+        server_settings['usage_limit'] = int(request.form.get('usage_limit', 2))
+        server_settings['limit_period'] = request.form.get('limit_period', 'day')
         
         print(f"[DEBUG] 設定を更新: auto_register_mode={server_settings['auto_register_mode']}")
         

@@ -1,39 +1,109 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="admin-section">
-  <h2>子機一覧</h2>
-  <table class="data-table">
-    <tr>
-      <th>ID</th><th>名前</th><th>パスワード</th><th>在庫数</th><th>接続状態</th><th>利用可</th><th>詳細</th>
-    </tr>
-    {% for unit in units %}
-    <tr>
-      <td>{{ unit['id'] }}</td>
-      <td>{{ unit['name'] }}</td>
-      <td>{{ unit['password'] }}</td>
-      <td>{{ unit['stock'] }}</td>
-      <td>
-        {% if unit['connect'] == 1 %}
-          <span style="color: green;">● オンライン</span>
-        {% else %}
-          <span style="color: red;">● オフライン</span>
-        {% endif %}
-      </td>
-      <td>
-        {% if unit['available'] == 1 %}
-          <span style="color: green;">✓ 有効</span>
-        {% else %}
-          <span style="color: gray;">✗ 無効</span>
-        {% endif %}
-      </td>
-      <td><a href="{{ url_for('admin_unit_detail', uid=unit['id']) }}" class="btn btn-secondary">開く</a></td>
-    </tr>
-    {% endfor %}
-  </table>
+  <div class="admin-card">
+    <div class="admin-card-header">
+      <h2><span class="icon">🖥️</span>子機一覧</h2>
+      <div class="admin-card-actions">
+        <a href="{{ url_for('admin_new_unit') }}" class="btn btn-primary btn-sm btn-icon">
+          <span>➕</span> 新規子機を登録
+        </a>
+      </div>
+    </div>
+    
+    <table class="modern-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>名前</th>
+          <th>パスワード</th>
+          <th>在庫数</th>
+          <th>接続状態</th>
+          <th>利用可能</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for unit in units %}
+        <tr data-unit-id="{{ unit['id'] }}">
+          <td><strong>{{ unit['id'] }}</strong></td>
+          <td>{{ unit['name'] }}</td>
+          <td><code style="background:#f1f5f9;padding:4px 8px;border-radius:4px;">{{ unit['password'] }}</code></td>
+          <td>{{ unit['stock'] }}</td>
+          <td>
+            {% if unit['connect'] == 1 %}
+              <span class="status-badge online">
+                <span class="status-dot online"></span> オンライン
+              </span>
+            {% else %}
+              <span class="status-badge offline">
+                <span class="status-dot offline"></span> オフライン
+              </span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="toggle-status">
+              <label class="toggle-switch" title="クリックで切り替え">
+                <input type="checkbox" 
+                       {% if unit['available'] == 1 %}checked{% endif %}
+                       onchange="toggleUnitAvailable({{ unit['id'] }}, this)">
+                <span class="toggle-slider"></span>
+              </label>
+              <span class="toggle-label {% if unit['available'] == 1 %}active{% else %}inactive{% endif %}" id="toggle-label-{{ unit['id'] }}">
+                {% if unit['available'] == 1 %}有効{% else %}無効{% endif %}
+              </span>
+            </div>
+          </td>
+          <td>
+            <a href="{{ url_for('admin_unit_detail', uid=unit['id']) }}" class="btn btn-secondary btn-sm btn-icon">
+              <span>📝</span> 詳細
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    
+    {% if not units %}
+    <div style="text-align:center;padding:40px;color:var(--muted-text);">
+      <p style="font-size:2rem;margin-bottom:10px;">🖥️</p>
+      <p>登録されている子機がありません</p>
+      <a href="{{ url_for('admin_new_unit') }}" class="btn btn-primary" style="margin-top:16px;">新規子機を登録</a>
+    </div>
+    {% endif %}
+  </div>
 
-  <p style="margin-top: 20px;">
-    <a href="{{ url_for('admin_new_unit') }}" class="btn">新規子機を登録</a>
-    <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">管理者メニューに戻る</a>
-  </p>
+  <div class="btn-group" style="margin-top:20px;">
+    <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary btn-icon">
+      <span>←</span> 管理者メニューに戻る
+    </a>
+  </div>
 </div>
+
+<script>
+async function toggleUnitAvailable(unitId, checkbox) {
+  const label = document.getElementById('toggle-label-' + unitId);
+  const originalChecked = !checkbox.checked;
+  
+  try {
+    const response = await fetch(`/api/unit/${unitId}/toggle_available`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      label.textContent = data.available === 1 ? '有効' : '無効';
+      label.className = 'toggle-label ' + (data.available === 1 ? 'active' : 'inactive');
+    } else {
+      checkbox.checked = originalChecked;
+      alert('エラー: ' + data.error);
+    }
+  } catch (error) {
+    checkbox.checked = originalChecked;
+    alert('通信エラーが発生しました');
+  }
+}
+</script>
 {% endblock %}

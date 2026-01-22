@@ -48,23 +48,49 @@
                             <input type="number" class="form-control" id="auto_register_stock" 
                                    name="auto_register_stock" 
                                    value="{{ settings.auto_register_stock }}" 
-                                   min="1" max="10" style="max-width: 100px;">
+                                   min="1" max="100" style="max-width: 100px;">
                             <small class="text-muted">
                                 自動登録されたユーザーに付与される初期の取得可能数です。
                             </small>
                         </div>
                         
-                        <!-- 1日あたりの上限 -->
-                        <div class="mb-4">
-                            <label for="daily_limit" class="form-label">
-                                <strong>1日あたりの取得上限</strong>
+                        <!-- 取得上限設定 -->
+                        <div class="mb-4" style="background: #f8f9fa; padding: 20px; border-radius: 12px;">
+                            <label class="form-label" style="font-size: 1.1rem;">
+                                <strong>📊 取得上限設定</strong>
                             </label>
-                            <input type="number" class="form-control" id="daily_limit" 
-                                   name="daily_limit" 
-                                   value="{{ settings.daily_limit }}" 
-                                   min="1" max="10" style="max-width: 100px;">
-                            <small class="text-muted">
-                                1人が1日に取得できる最大数です。公平性を保つために設定してください。
+                            <p class="text-muted mb-3" style="font-size: 0.9rem;">
+                                指定した期間内に取得できる最大数を設定します。期間が変わると上限はリセットされます。
+                            </p>
+                            
+                            <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                                <select class="form-select" id="limit_period" name="limit_period" 
+                                        style="width: auto; min-width: 140px;">
+                                    <option value="day" {% if settings.limit_period == 'day' %}selected{% endif %}>1日あたり</option>
+                                    <option value="week" {% if settings.limit_period == 'week' %}selected{% endif %}>1週間あたり</option>
+                                    <option value="month" {% if settings.limit_period == 'month' %}selected{% endif %}>1ヶ月あたり</option>
+                                </select>
+                                
+                                <input type="number" class="form-control" id="usage_limit" 
+                                       name="usage_limit" 
+                                       value="{{ settings.usage_limit }}" 
+                                       min="1" max="100" style="width: 80px;">
+                                
+                                <span style="font-size: 1rem; color: #333;">個まで</span>
+                            </div>
+                            
+                            <div class="mt-3 p-3" style="background: #e3f2fd; border-radius: 8px;">
+                                <strong style="color: #1565c0;">📌 現在の設定:</strong>
+                                <span id="limit-preview" style="color: #1565c0;">
+                                    {% if settings.limit_period == 'day' %}1日{% elif settings.limit_period == 'week' %}1週間{% else %}1ヶ月{% endif %}あたり {{ settings.usage_limit }}個まで取得可能
+                                </span>
+                            </div>
+                            
+                            <small class="text-muted d-block mt-2">
+                                <strong>リセットのタイミング:</strong><br>
+                                ・1日: 毎日0時にリセット<br>
+                                ・1週間: 毎週月曜日0時にリセット<br>
+                                ・1ヶ月: 毎月1日0時にリセット
                             </small>
                         </div>
                         
@@ -112,4 +138,22 @@
         </div>
     </div>
 </div>
+
+<script>
+// プレビュー更新
+function updatePreview() {
+    const period = document.getElementById('limit_period').value;
+    const limit = document.getElementById('usage_limit').value;
+    const periodNames = {
+        'day': '1日',
+        'week': '1週間',
+        'month': '1ヶ月'
+    };
+    const preview = document.getElementById('limit-preview');
+    preview.textContent = `${periodNames[period]}あたり ${limit}個まで取得可能`;
+}
+
+document.getElementById('limit_period').addEventListener('change', updatePreview);
+document.getElementById('usage_limit').addEventListener('input', updatePreview);
+</script>
 {% endblock %}

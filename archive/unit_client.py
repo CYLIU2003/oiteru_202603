@@ -158,6 +158,57 @@ def load_config():
             return DEFAULT_CONFIG
     return DEFAULT_CONFIG
 
+def apply_remote_config(remote_config, current_config):
+    """親機から受信した設定を適用してconfig.jsonに保存する
+    
+    Args:
+        remote_config: 親機から受信した設定辞書
+        current_config: 現在の設定辞書（更新される）
+    """
+    # 設定キーのマッピング（親機キー → 子機キー）
+    key_mapping = {
+        'MOTOR_TYPE': 'MOTOR_TYPE',
+        'CONTROL_METHOD': 'CONTROL_METHOD',
+        'USE_SENSOR': 'USE_SENSOR',
+        'MOTOR_SPEED': 'MOTOR_SPEED',
+        'MOTOR_DURATION': 'MOTOR_DURATION',
+        'MOTOR_REVERSE': 'MOTOR_REVERSE',
+        'SENSOR_GPIO_PIN': 'SENSOR_PIN',  # 親機ではSENSOR_GPIO_PIN
+        'ARDUINO_PORT': 'ARDUINO_PORT',
+        'PCA9685_CHANNEL': 'PCA9685_CHANNEL',
+        'HEARTBEAT_INTERVAL': 'HEARTBEAT_INTERVAL',
+        'SENSOR_TIMEOUT': 'SENSOR_TIMEOUT',
+        'SENSOR_CHECK_PRE': 'SENSOR_CHECK_PRE',
+        'SENSOR_CHECK_POST': 'SENSOR_CHECK_POST',
+        'JAM_CLEAR_ATTEMPTS': 'JAM_CLEAR_ATTEMPTS',
+    }
+    
+    updated_keys = []
+    for remote_key, local_key in key_mapping.items():
+        if remote_key in remote_config:
+            old_value = current_config.get(local_key)
+            new_value = remote_config[remote_key]
+            
+            # 値が変更された場合のみ更新
+            if old_value != new_value:
+                current_config[local_key] = new_value
+                updated_keys.append(f"{local_key}: {old_value} → {new_value}")
+    
+    if updated_keys:
+        print(f"[設定更新] 以下の設定が変更されました:")
+        for key in updated_keys:
+            print(f"  - {key}")
+        
+        # 設定をファイルに保存
+        if save_config(current_config):
+            print("[設定更新] config.json に保存しました")
+        else:
+            print("[設定更新] config.json の保存に失敗しました")
+        
+        print("[設定更新] 一部の設定は再起動後に完全に反映されます")
+    else:
+        print("[設定更新] 変更なし")
+
 # (ネットワークスキャン機能は変更なし)
 def scan_for_servers(timeout=5):
     """UDPブロードキャストとTailscaleネットワークをスキャンして親機サーバーを見つける"""
@@ -785,16 +836,37 @@ def run_client(config, stop_event, gui_queue):
         return "unknown"
 
     def send_heartbeat():
+        nonlocal MOTOR_TYPE, CONTROL_METHOD, USE_SENSOR, MOTOR_SPEED, MOTOR_DURATION, MOTOR_REVERSE
+        nonlocal SENSOR_PIN, ARDUINO_PORT, SENSOR_CHECK_PRE, SENSOR_CHECK_POST, JAM_CLEAR_ATTEMPTS
+        
         while not stop_event.is_set():
             try:
                 # IPアドレスを毎回取得（ネットワーク変更に対応）
                 my_ip = get_my_ip()
                 
-                # サーバーにハートビートを送信
+                # 現在の設定を構築
+                current_config = {
+                    "MOTOR_TYPE": MOTOR_TYPE,
+                    "CONTROL_METHOD": CONTROL_METHOD,
+                    "USE_SENSOR": USE_SENSOR,
+                    "MOTOR_SPEED": MOTOR_SPEED,
+                    "MOTOR_DURATION": MOTOR_DURATION,
+                    "MOTOR_REVERSE": MOTOR_REVERSE,
+                    "SENSOR_GPIO_PIN": SENSOR_PIN,
+                    "ARDUINO_PORT": ARDUINO_PORT,
+                    "SENSOR_CHECK_PRE": SENSOR_CHECK_PRE,
+                    "SENSOR_CHECK_POST": SENSOR_CHECK_POST,
+                    "JAM_CLEAR_ATTEMPTS": JAM_CLEAR_ATTEMPTS,
+                    "HEARTBEAT_INTERVAL": 30,
+                    "PCA9685_CHANNEL": config.get("PCA9685_CHANNEL", 15)
+                }
+                
+                # サーバーにハートビートを送信（設定情報付き）
                 payload = {
                     "name": UNIT_NAME, 
                     "password": UNIT_PASSWORD,
-                    "ip_address": my_ip
+                    "ip_address": my_ip,
+                    "config": current_config
                 }
                 response = requests.post(f"{SERVER_URL}/api/unit/heartbeat", json=payload, timeout=5)
                 if response.status_code == 200:
@@ -802,6 +874,13 @@ def run_client(config, stop_event, gui_queue):
                     if 'stock' in data:
                         # サーバーからの在庫数で同期（GUI更新）
                         gui_queue.put({'stock': data['stock']})
+                    
+                    # 親機からの設定変更をチェック
+                    if 'pending_config' in data and data['pending_config']:
+                        print("[設定変更] 親機から設定変更を受信しました")
+                        new_config = data['pending_config']
+                        apply_remote_config(new_config, config)
+                        
                 else:
                     gui_queue.put({'stock': '--- (サーバーエラー)'})
             except requests.exceptions.RequestException:

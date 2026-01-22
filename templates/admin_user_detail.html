@@ -1,28 +1,125 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="admin-section">
-  <h2>利用者詳細 (ID: {{ user['id'] }})</h2>
+  <div class="admin-card">
+    <div class="admin-card-header">
+      <h2><span class="icon">👤</span>利用者詳細 (ID: {{ user['id'] }})</h2>
+    </div>
 
-  <form method="post">
-    <p><label>カードID:<br><input type="text" name="cardid" value="{{ user['card_id'] }}"></label></p>
-    <p><label>許可 (1=可/0=不可):<br><input type="text" name="allow" value="{{ user['allow'] }}"></label></p>
-    <p><label>残り利用回数:<br><input type="text" name="stock" value="{{ user['stock'] }}"></label></p>
-    <p>登録日: {{ user['entry'] }}</p>
-    <p>累計利用回数: {{ user['total'] }}</p>
-    <button type="submit" class="btn">更新する</button>
-    <a href="{{ url_for('admin_users') }}" class="btn btn-secondary">一覧に戻る</a>
-  </form>
+    <!-- 基本情報 -->
+    <div class="info-grid">
+      <div class="info-item">
+        <div class="info-label">登録日</div>
+        <div class="info-value">{{ user['entry'] }}</div>
+      </div>
+      <div class="info-item">
+        <div class="info-label">累計利用回数</div>
+        <div class="info-value highlight">{{ user['total'] }}回</div>
+      </div>
+    </div>
 
-  <hr style="margin: 30px 0;">
+    <!-- 利用許可トグル -->
+    <div style="background:#f8f9fa;padding:20px;border-radius:12px;margin-bottom:24px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">
+        <div>
+          <strong style="font-size:1.1rem;">利用許可</strong>
+          <p style="margin:4px 0 0;color:var(--muted-text);font-size:0.9rem;">
+            不許可にすると、この利用者はカードを使えなくなります
+          </p>
+        </div>
+        <div class="toggle-status">
+          <label class="toggle-switch" style="transform:scale(1.2);" title="クリックで切り替え">
+            <input type="checkbox" id="allow-toggle"
+                   {% if user['allow'] == 1 %}checked{% endif %}
+                   onchange="toggleAllow(this)">
+            <span class="toggle-slider"></span>
+          </label>
+          <span class="toggle-label {% if user['allow'] == 1 %}active{% else %}inactive{% endif %}" 
+                id="allow-label" style="font-size:1.1rem;min-width:70px;">
+            {% if user['allow'] == 1 %}許可{% else %}不許可{% endif %}
+          </span>
+        </div>
+      </div>
+    </div>
 
-  <form method="post" onsubmit="return confirm('この利用者を本当に削除しますか？\nこの操作は元に戻せません。');">
-    <input type="hidden" name="action" value="delete">
-    <button type="submit" class="btn btn-danger">この利用者を削除する</button>
-  </form>
+    <!-- 編集フォーム -->
+    <form method="post">
+      <input type="hidden" name="allow" id="allow-input" value="{{ user['allow'] }}">
+      
+      <div class="section-divider">
+        <h3>📝 利用者情報</h3>
+      </div>
+      
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:20px;">
+        <div class="form-group">
+          <label for="cardid">カードID</label>
+          <input type="text" class="form-control" id="cardid" name="cardid" 
+                 value="{{ user['card_id'] }}">
+          <div class="form-hint">NFCカードのID</div>
+        </div>
+        <div class="form-group">
+          <label for="stock">残り利用回数</label>
+          <input type="number" class="form-control" id="stock" name="stock" 
+                 value="{{ user['stock'] }}">
+          <div class="form-hint">利用可能な残り回数</div>
+        </div>
+      </div>
 
+      <div class="btn-group" style="margin-top:24px;">
+        <button type="submit" class="btn btn-primary btn-icon">
+          <span>💾</span> 更新する
+        </button>
+        <a href="{{ url_for('admin_users') }}" class="btn btn-secondary btn-icon">
+          <span>←</span> 一覧に戻る
+        </a>
+      </div>
+    </form>
+
+    <!-- 危険ゾーン -->
+    <div class="danger-zone">
+      <h4>⚠️ 危険ゾーン</h4>
+      <p>この利用者を削除すると、元に戻すことはできません。</p>
+      <form method="post" onsubmit="return confirm('この利用者を本当に削除しますか？\nこの操作は元に戻せません。');">
+        <input type="hidden" name="action" value="delete">
+        <button type="submit" class="btn btn-danger btn-icon">
+          <span>🗑️</span> この利用者を削除する
+        </button>
+      </form>
+    </div>
+  </div>
 </div>
+
+<script>
+async function toggleAllow(checkbox) {
+  const label = document.getElementById('allow-label');
+  const hiddenInput = document.getElementById('allow-input');
+  const originalChecked = !checkbox.checked;
+  
+  try {
+    const response = await fetch(`/api/user/{{ user['id'] }}/toggle_allow`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      label.textContent = data.allow === 1 ? '許可' : '不許可';
+      label.className = 'toggle-label ' + (data.allow === 1 ? 'active' : 'inactive');
+      hiddenInput.value = data.allow;
+    } else {
+      checkbox.checked = originalChecked;
+      alert('エラー: ' + data.error);
+    }
+  } catch (error) {
+    checkbox.checked = originalChecked;
+    alert('通信エラーが発生しました');
+  }
+}
+</script>
+
 <style>
-  .btn-danger { background-color: #dc3545; }
+  .btn-danger { background-color: #dc3545; color: white; }
   .btn-danger:hover { background-color: #c82333; }
 </style>
 {% endblock %}

@@ -1,44 +1,92 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="admin-section">
-  <h2>新規子機の登録</h2>
-  
-  <!-- 自動探知セクション -->
-  <div style="background: #e3f2fd; padding: 20px; border-radius: 8px; margin-bottom: 30px;">
-    <h3 style="margin-top: 0; display: flex; align-items: center; gap: 10px;">
-      <span>🔍</span>
-      <span>子機の自動探知</span>
-    </h3>
-    <p style="color: #555; margin-bottom: 15px;">
-      ハートビートを送信している未登録の子機を自動的に検出します。
-      子機が起動してからこのボタンを押してください。
-    </p>
-    
-    <button id="scanButton" class="btn btn-primary" onclick="scanUnregisteredUnits()" style="margin-bottom: 15px;">
-      自動探知を開始
-    </button>
-    
-    <div id="scanResult" style="display: none;">
-      <h4 style="margin: 15px 0 10px 0;">検出された未登録子機:</h4>
-      <div id="unregisteredList"></div>
+  <div class="admin-card">
+    <div class="admin-card-header">
+      <h2><span class="icon">➕</span>新規子機の登録</h2>
     </div>
     
-    <div id="scanStatus" style="margin-top: 10px; font-style: italic; color: #666;"></div>
-  </div>
+    <!-- 自動探知セクション -->
+    <div style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); padding: 24px; border-radius: 12px; margin-bottom: 30px;">
+      <h3 style="margin-top: 0; display: flex; align-items: center; gap: 10px; font-size: 1.2rem;">
+        <span>🔍</span>
+        <span>子機の自動探知</span>
+      </h3>
+      <p style="color: #555; margin-bottom: 16px; line-height: 1.6;">
+        ハートビートを送信している未登録の子機を自動的に検出します。<br>
+        子機が起動してからこのボタンを押してください。
+      </p>
+      
+      <button id="scanButton" class="btn btn-primary btn-icon" onclick="scanUnregisteredUnits()">
+        <span>📡</span> 自動探知を開始
+      </button>
+      
+      <div id="scanResult" style="display: none; margin-top: 20px;">
+        <h4 style="margin: 0 0 12px 0; font-size: 1rem;">検出された未登録子機:</h4>
+        <div id="unregisteredList"></div>
+      </div>
+      
+      <div id="scanStatus" style="margin-top: 12px; font-style: italic; color: #666;"></div>
+    </div>
 
-  <!-- 手動登録セクション -->
-  <div style="border-top: 2px solid #ddd; padding-top: 20px;">
-    <h3>手動で登録</h3>
-    <p style="color: #666; margin-bottom: 15px; font-size: 0.9rem;">
+    <!-- 手動登録セクション -->
+    <div class="section-divider">
+      <h3>✏️ 手動で登録</h3>
+    </div>
+    <p style="color: var(--muted-text); margin-bottom: 20px; font-size: 0.9rem;">
       自動探知で見つからない場合や、事前に登録したい場合は手動で入力してください。
     </p>
-    <form method="post">
-      <p><label>子機名:<br><input type="text" name="name" required></label></p>
-      <p><label>パスワード:<br><input type="text" name="password" required></label></p>
-      <p><label>初期在庫数:<br><input type="number" name="stock" required></label></p>
-      <p><label>利用可能 (1=可/0=不可):<br><input type="number" name="available" required></label></p>
-      <button type="submit" class="btn">手動登録</button>
-      <a href="{{ url_for('admin_units') }}" class="btn btn-secondary">キャンセル</a>
+    
+    <form method="post" id="manualForm">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px;">
+        <div class="form-group">
+          <label for="name">子機名（システム識別子）</label>
+          <input type="text" class="form-control" id="name" name="name" required 
+                 placeholder="例: unit_001">
+          <div class="form-hint">子機との通信に使用される識別子です</div>
+        </div>
+        <div class="form-group">
+          <label for="password">パスワード</label>
+          <input type="text" class="form-control" id="password" name="password" required
+                 placeholder="例: pass123">
+          <div class="form-hint">子機認証用のパスワード</div>
+        </div>
+        <div class="form-group">
+          <label for="stock">初期在庫数</label>
+          <input type="number" class="form-control" id="stock" name="stock" required
+                 value="100" min="0">
+        </div>
+      </div>
+
+      <!-- 利用可能トグル -->
+      <div style="background:#f8f9fa;padding:20px;border-radius:12px;margin:24px 0;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">
+          <div>
+            <strong style="font-size:1rem;">利用可能状態</strong>
+            <p style="margin:4px 0 0;color:var(--muted-text);font-size:0.85rem;">
+              有効にすると、登録後すぐに利用可能になります
+            </p>
+          </div>
+          <div class="toggle-status">
+            <label class="toggle-switch" style="transform:scale(1.1);" title="クリックで切り替え">
+              <input type="checkbox" id="available-toggle" checked
+                     onchange="updateAvailableInput(this)">
+              <span class="toggle-slider"></span>
+            </label>
+            <span class="toggle-label active" id="available-label" style="font-size:1rem;">有効</span>
+          </div>
+        </div>
+        <input type="hidden" name="available" id="available-input" value="1">
+      </div>
+
+      <div class="btn-group">
+        <button type="submit" class="btn btn-primary btn-icon">
+          <span>✅</span> 手動登録
+        </button>
+        <a href="{{ url_for('admin_units') }}" class="btn btn-secondary btn-icon">
+          <span>←</span> キャンセル
+        </a>
+      </div>
     </form>
   </div>
 </div>
@@ -46,70 +94,108 @@
 <style>
 .unit-discovery-card {
   background: white;
-  border: 2px solid #4CAF50;
-  border-radius: 8px;
-  padding: 15px;
-  margin-bottom: 10px;
+  border: 2px solid var(--success-color);
+  border-radius: 12px;
+  padding: 18px;
+  margin-bottom: 12px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  flex-wrap: wrap;
+  gap: 16px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .unit-discovery-card:hover {
-  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.12);
 }
 
 .unit-info {
   flex: 1;
+  min-width: 200px;
 }
 
 .unit-name {
-  font-size: 1.2rem;
+  font-size: 1.15rem;
   font-weight: bold;
-  color: #1f7fc4;
-  margin-bottom: 5px;
+  color: var(--primary-color);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .unit-details {
-  font-size: 0.9rem;
-  color: #666;
+  font-size: 0.85rem;
+  color: var(--muted-text);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 .unit-details span {
-  display: inline-block;
-  margin-right: 15px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #f1f5f9;
+  padding: 4px 10px;
+  border-radius: 6px;
 }
 
 .register-btn {
-  background: #4CAF50;
+  background: var(--success-color);
   color: white;
   border: none;
-  padding: 10px 20px;
-  border-radius: 5px;
+  padding: 12px 24px;
+  border-radius: 8px;
   cursor: pointer;
-  font-size: 1rem;
-  transition: background 0.3s;
+  font-size: 0.95rem;
+  font-weight: 600;
+  transition: background 0.2s ease, transform 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .register-btn:hover {
   background: #45a049;
+  transform: translateY(-1px);
 }
 
 .register-btn:disabled {
   background: #ccc;
   cursor: not-allowed;
+  transform: none;
 }
 
 .no-units-message {
   text-align: center;
   padding: 30px;
-  color: #999;
+  color: var(--muted-text);
   font-style: italic;
+  background: #f8f9fa;
+  border-radius: 8px;
 }
 </style>
 
 <script>
+function updateAvailableInput(checkbox) {
+  const label = document.getElementById('available-label');
+  const input = document.getElementById('available-input');
+  
+  if (checkbox.checked) {
+    label.textContent = '有効';
+    label.className = 'toggle-label active';
+    input.value = '1';
+  } else {
+    label.textContent = '無効';
+    label.className = 'toggle-label inactive';
+    input.value = '0';
+  }
+}
+
 async function scanUnregisteredUnits() {
   const scanButton = document.getElementById('scanButton');
   const scanStatus = document.getElementById('scanStatus');
@@ -117,8 +203,9 @@ async function scanUnregisteredUnits() {
   const unregisteredList = document.getElementById('unregisteredList');
   
   scanButton.disabled = true;
+  scanButton.innerHTML = '<span>⏳</span> 探索中...';
   scanStatus.textContent = '🔍 子機を探索中...';
-  scanStatus.style.color = '#1f7fc4';
+  scanStatus.style.color = 'var(--primary-color)';
   
   try {
     const response = await fetch('/api/unregistered_units');
@@ -126,10 +213,9 @@ async function scanUnregisteredUnits() {
     
     if (data.success && data.units.length > 0) {
       scanStatus.textContent = `✅ ${data.count}台の未登録子機を発見しました`;
-      scanStatus.style.color = '#4CAF50';
+      scanStatus.style.color = 'var(--success-color)';
       scanResult.style.display = 'block';
       
-      // 子機リストを表示
       unregisteredList.innerHTML = data.units.map(unit => `
         <div class="unit-discovery-card" id="unit-${unit.name}">
           <div class="unit-info">
@@ -142,21 +228,22 @@ async function scanUnregisteredUnits() {
             </div>
           </div>
           <button class="register-btn" onclick="registerUnit('${unit.name}')">
-            この子機を登録
+            <span>✓</span> この子機を登録
           </button>
         </div>
       `).join('');
     } else {
       scanStatus.textContent = '⚠️ 未登録の子機が見つかりませんでした';
-      scanStatus.style.color = '#f44336';
+      scanStatus.style.color = 'var(--danger-color)';
       scanResult.style.display = 'block';
       unregisteredList.innerHTML = '<div class="no-units-message">ハートビートを送信している未登録子機がありません。<br>子機が起動していることを確認して、もう一度お試しください。</div>';
     }
   } catch (error) {
     scanStatus.textContent = '❌ エラーが発生しました: ' + error.message;
-    scanStatus.style.color = '#f44336';
+    scanStatus.style.color = 'var(--danger-color)';
   } finally {
     scanButton.disabled = false;
+    scanButton.innerHTML = '<span>📡</span> 自動探知を開始';
   }
 }
 
@@ -167,7 +254,7 @@ async function registerUnit(unitName) {
   
   const button = document.querySelector(`#unit-${unitName} .register-btn`);
   button.disabled = true;
-  button.textContent = '登録中...';
+  button.innerHTML = '<span>⏳</span> 登録中...';
   
   try {
     const response = await fetch('/api/register_unit', {
@@ -182,27 +269,21 @@ async function registerUnit(unitName) {
     
     if (data.success) {
       alert(`✅ ${data.message}`);
-      // カードを削除
       document.getElementById(`unit-${unitName}`).remove();
       
-      // 全ての子機が登録された場合
       if (document.querySelectorAll('.unit-discovery-card').length === 0) {
         document.getElementById('unregisteredList').innerHTML = '<div class="no-units-message">✅ 全ての子機を登録しました</div>';
       }
     } else {
       alert(`❌ エラー: ${data.error}`);
       button.disabled = false;
-      button.textContent = 'この子機を登録';
+      button.innerHTML = '<span>✓</span> この子機を登録';
     }
   } catch (error) {
     alert(`❌ 登録に失敗しました: ${error.message}`);
     button.disabled = false;
-    button.textContent = 'この子機を登録';
+    button.innerHTML = '<span>✓</span> この子機を登録';
   }
 }
-
-// ページロード時に自動的にスキャン（オプション）
-// window.addEventListener('DOMContentLoaded', scanUnregisteredUnits);
 </script>
-
 {% endblock %}

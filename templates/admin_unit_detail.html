@@ -1,47 +1,346 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="admin-section">
-  <h2>子機編集 (ID: {{ unit['id'] }})</h2>
+  <div class="admin-card">
+    <div class="admin-card-header">
+      <h2><span class="icon">🖥️</span>子機編集 (ID: {{ unit['id'] }})</h2>
+      <div class="admin-card-actions">
+        {% if unit['connect'] == 1 %}
+          <span class="status-badge online">
+            <span class="status-dot online"></span> オンライン
+          </span>
+        {% else %}
+          <span class="status-badge offline">
+            <span class="status-dot offline"></span> オフライン
+          </span>
+        {% endif %}
+      </div>
+    </div>
 
-  <form method="post">
-    <p><label>名前:<br><input type="text" name="name" value="{{ unit['name'] }}" required></label></p>
-    <p>パスワード: {{ unit['password'] }}</p>
-    <p><label>初期在庫数:<br><input type="number" name="initial_stock" value="{{ unit['initial_stock'] or 100 }}"></label></p>
-    <p><label>現在の残り在庫:<br><input type="number" name="stock" value="{{ unit['stock'] }}"></label></p>
-    <p><strong>排出数: {{ (unit['initial_stock'] or 100) - (unit['stock'] or 0) }}</strong></p>
-    <p>接続状態: {% if unit['connect'] == 1 %}<span style="color: green;">● オンライン</span>{% else %}<span style="color: red;">● オフライン</span>{% endif %}</p>
-    <p><label>利用可能 (1=可/0=不可):<br><input type="text" name="available" value="{{ unit['available'] }}"></label></p>
-    <p>最終接続: {{ unit['last_seen'] or '未接続' }}</p>
-    <p>IPアドレス: {{ unit['ip_address'] or '不明' }}</p>
-    <button type="submit" class="btn">更新する</button>
-    <a href="{{ url_for('admin_units') }}" class="btn btn-secondary">一覧に戻る</a>
-  </form>
+    <!-- 基本情報（読み取り専用） -->
+    <div class="info-grid">
+      <div class="info-item">
+        <div class="info-label">子機名（システム識別子）</div>
+        <div class="info-value">{{ unit['name'] }}</div>
+        <div class="form-hint" style="margin-top:4px;font-size:0.8rem;color:var(--muted-text);">
+          ※ 通信で使用されるため変更不可
+        </div>
+      </div>
+      <div class="info-item">
+        <div class="info-label">パスワード</div>
+        <div class="info-value"><code>{{ unit['password'] }}</code></div>
+      </div>
+      <div class="info-item">
+        <div class="info-label">排出数</div>
+        <div class="info-value highlight">{{ (unit['initial_stock'] or 100) - (unit['stock'] or 0) }}</div>
+      </div>
+      <div class="info-item">
+        <div class="info-label">最終接続</div>
+        <div class="info-value">{{ unit['last_seen'] or '未接続' }}</div>
+      </div>
+      <div class="info-item">
+        <div class="info-label">IPアドレス</div>
+        <div class="info-value">{{ unit['ip_address'] or '不明' }}</div>
+      </div>
+    </div>
 
-  <hr style="margin: 30px 0;">
+    <!-- 利用可能トグル -->
+    <div style="background:#f8f9fa;padding:20px;border-radius:12px;margin-bottom:24px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">
+        <div>
+          <strong style="font-size:1.1rem;">利用可能状態</strong>
+          <p style="margin:4px 0 0;color:var(--muted-text);font-size:0.9rem;">
+            無効にすると、この子機でのカード利用ができなくなります
+          </p>
+        </div>
+        <div class="toggle-status">
+          <label class="toggle-switch" style="transform:scale(1.2);" title="クリックで切り替え">
+            <input type="checkbox" id="available-toggle"
+                   {% if unit['available'] == 1 %}checked{% endif %}
+                   onchange="toggleAvailable(this)">
+            <span class="toggle-slider"></span>
+          </label>
+          <span class="toggle-label {% if unit['available'] == 1 %}active{% else %}inactive{% endif %}" 
+                id="available-label" style="font-size:1.1rem;min-width:60px;">
+            {% if unit['available'] == 1 %}有効{% else %}無効{% endif %}
+          </span>
+        </div>
+      </div>
+    </div>
 
-  <form method="post" onsubmit="return confirm('この子機を本当に削除しますか？\n関連するログは残りますが、子機情報は完全に削除されます。');">
-    <input type="hidden" name="action" value="delete">
-    <button type="submit" class="btn btn-danger">この子機を削除する</button>
-  </form>
+    <!-- 編集フォーム -->
+    <form method="post">
+      <input type="hidden" name="available" id="available-input" value="{{ unit['available'] }}">
+      
+      <div class="section-divider">
+        <h3>📦 在庫管理</h3>
+      </div>
+      
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px;">
+        <div class="form-group">
+          <label for="initial_stock">初期在庫数</label>
+          <input type="number" class="form-control" id="initial_stock" name="initial_stock" 
+                 value="{{ unit['initial_stock'] or 100 }}">
+          <div class="form-hint">補充時に設定してください</div>
+        </div>
+        <div class="form-group">
+          <label for="stock">現在の残り在庫</label>
+          <input type="number" class="form-control" id="stock" name="stock" 
+                 value="{{ unit['stock'] }}">
+        </div>
+      </div>
 
-  <hr style="margin: 30px 0;">
+      <div class="btn-group" style="margin-top:24px;">
+        <button type="submit" class="btn btn-primary btn-icon">
+          <span>💾</span> 更新する
+        </button>
+        <a href="{{ url_for('admin_units') }}" class="btn btn-secondary btn-icon">
+          <span>←</span> 一覧に戻る
+        </a>
+      </div>
+    </form>
 
-  <div class="logs-section">
-    <h3>子機ログ</h3>
-    {% if logs %}
-      <ul class="history-list">
-        {% for log in logs %}
-          <li>{{ log.txt }}</li>
-        {% endfor %}
-      </ul>
-    {% else %}
-      <p>この子機からのログはまだ記録されていません。</p>
-    {% endif %}
+    <!-- 子機設定セクション -->
+    <div class="config-section" style="margin-top:32px;">
+      <div class="section-divider">
+        <h3>⚙️ 子機設定（リモート設定）</h3>
+      </div>
+      
+      {% if unit_config %}
+        <div style="margin-bottom:16px;">
+          <span class="status-badge" style="background:#e8f5e9;color:#2e7d32;padding:8px 16px;border-radius:8px;">
+            ✓ 設定取得済み
+          </span>
+          {% if config_last_updated %}
+            <span style="margin-left:12px;color:var(--muted-text);font-size:0.9rem;">
+              最終更新: {{ config_last_updated }}
+            </span>
+          {% endif %}
+          {% if has_pending_config %}
+            <span class="status-badge" style="background:#fff3e0;color:#e65100;padding:8px 16px;border-radius:8px;margin-left:12px;">
+              ⏳ 設定変更待ち（次回heartbeatで反映）
+            </span>
+          {% endif %}
+        </div>
+
+        <div style="background:#f8f9fa;padding:20px;border-radius:12px;">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;">
+            
+            <!-- モーター設定 -->
+            <div class="config-group">
+              <h4 style="margin:0 0 12px;font-size:1rem;color:var(--primary-color);">🔧 モーター設定</h4>
+              <div class="form-group">
+                <label>モータータイプ</label>
+                <select id="config-motor-type" class="form-control">
+                  <option value="servo" {% if unit_config.get('MOTOR_TYPE') == 'servo' %}selected{% endif %}>サーボモーター</option>
+                  <option value="stepper" {% if unit_config.get('MOTOR_TYPE') == 'stepper' %}selected{% endif %}>ステッピングモーター</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>制御方法</label>
+                <select id="config-control-method" class="form-control">
+                  <option value="raspi" {% if unit_config.get('CONTROL_METHOD') == 'raspi' %}selected{% endif %}>ラズパイ直結 (PCA9685)</option>
+                  <option value="arduino" {% if unit_config.get('CONTROL_METHOD') == 'arduino' %}selected{% endif %}>Arduino経由 (シリアル)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>モーター速度 (0-100)</label>
+                <input type="number" id="config-motor-speed" class="form-control" 
+                       value="{{ unit_config.get('MOTOR_SPEED', 50) }}" min="0" max="100">
+              </div>
+              <div class="form-group">
+                <label>動作時間 (秒)</label>
+                <input type="number" id="config-motor-duration" class="form-control" 
+                       value="{{ unit_config.get('MOTOR_DURATION', 2) }}" step="0.1" min="0.1">
+              </div>
+            </div>
+
+            <!-- センサー設定 -->
+            <div class="config-group">
+              <h4 style="margin:0 0 12px;font-size:1rem;color:var(--primary-color);">📡 センサー設定</h4>
+              <div class="form-group">
+                <label>排出検知センサー</label>
+                <div style="margin-top:8px;">
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="config-use-sensor"
+                           {% if unit_config.get('USE_SENSOR', False) %}checked{% endif %}>
+                    <span class="toggle-slider"></span>
+                  </label>
+                  <span id="sensor-label" style="margin-left:12px;">
+                    {% if unit_config.get('USE_SENSOR', False) %}使用する{% else %}使用しない{% endif %}
+                  </span>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>センサーGPIOピン (BCM)</label>
+                <input type="number" id="config-sensor-pin" class="form-control" 
+                       value="{{ unit_config.get('SENSOR_GPIO_PIN', 22) }}" min="0" max="40">
+              </div>
+              <div class="form-group">
+                <label>センサータイムアウト (秒)</label>
+                <input type="number" id="config-sensor-timeout" class="form-control" 
+                       value="{{ unit_config.get('SENSOR_TIMEOUT', 5) }}" step="0.5" min="0.5">
+              </div>
+            </div>
+
+            <!-- 通信設定 -->
+            <div class="config-group">
+              <h4 style="margin:0 0 12px;font-size:1rem;color:var(--primary-color);">🌐 通信設定</h4>
+              <div class="form-group">
+                <label>Heartbeat間隔 (秒)</label>
+                <input type="number" id="config-heartbeat-interval" class="form-control" 
+                       value="{{ unit_config.get('HEARTBEAT_INTERVAL', 30) }}" min="5" max="300">
+              </div>
+              <div class="form-group">
+                <label>Arduinoポート（Arduino使用時）</label>
+                <input type="text" id="config-arduino-port" class="form-control" 
+                       value="{{ unit_config.get('ARDUINO_PORT', '/dev/ttyUSB0') }}">
+              </div>
+              <div class="form-group">
+                <label>PCA9685チャンネル（サーボ使用時）</label>
+                <input type="number" id="config-pca-channel" class="form-control" 
+                       value="{{ unit_config.get('PCA9685_CHANNEL', 15) }}" min="0" max="15">
+              </div>
+            </div>
+          </div>
+
+          <div class="btn-group" style="margin-top:24px;">
+            <button type="button" class="btn btn-primary btn-icon" onclick="saveUnitConfig()">
+              <span>📤</span> 設定を子機に送信
+            </button>
+            <button type="button" class="btn btn-secondary btn-icon" onclick="refreshConfig()">
+              <span>🔄</span> 設定を再取得
+            </button>
+          </div>
+        </div>
+
+      {% else %}
+        <div style="background:#fff3e0;padding:24px;border-radius:12px;text-align:center;">
+          <div style="font-size:3rem;margin-bottom:12px;">📭</div>
+          <h4 style="margin:0 0 8px;">設定情報がありません</h4>
+          <p style="color:var(--muted-text);margin:0 0 16px;">
+            子機がまだ一度も接続していないか、設定情報を送信していません。<br>
+            子機が接続すると、ここに設定が表示されます。
+          </p>
+          {% if unit['connect'] == 0 %}
+            <span class="status-badge offline" style="padding:8px 16px;">
+              <span class="status-dot offline"></span> 子機がオフラインです
+            </span>
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- 危険ゾーン -->
+    <div class="danger-zone">
+      <h4>⚠️ 危険ゾーン</h4>
+      <p>この子機を削除すると、元に戻すことはできません。関連するログは残りますが、子機情報は完全に削除されます。</p>
+      <form method="post" onsubmit="return confirm('この子機を本当に削除しますか？\n関連するログは残りますが、子機情報は完全に削除されます。');">
+        <input type="hidden" name="action" value="delete">
+        <button type="submit" class="btn btn-danger btn-icon">
+          <span>🗑️</span> この子機を削除する
+        </button>
+      </form>
+    </div>
+
+    <!-- ログセクション -->
+    <div class="logs-section">
+      <h3>📋 子機ログ</h3>
+      {% if logs %}
+        <ul class="log-list">
+          {% for log in logs %}
+            <li>{{ log.txt }}</li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p style="color:var(--muted-text);font-style:italic;">この子機からのログはまだ記録されていません。</p>
+      {% endif %}
+    </div>
   </div>
-
 </div>
+
+<script>
+async function toggleAvailable(checkbox) {
+  const label = document.getElementById('available-label');
+  const hiddenInput = document.getElementById('available-input');
+  const originalChecked = !checkbox.checked;
+  
+  try {
+    const response = await fetch(`/api/unit/{{ unit['id'] }}/toggle_available`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      label.textContent = data.available === 1 ? '有効' : '無効';
+      label.className = 'toggle-label ' + (data.available === 1 ? 'active' : 'inactive');
+      hiddenInput.value = data.available;
+    } else {
+      checkbox.checked = originalChecked;
+      alert('エラー: ' + data.error);
+    }
+  } catch (error) {
+    checkbox.checked = originalChecked;
+    alert('通信エラーが発生しました');
+  }
+}
+
+// センサートグルのラベル更新
+document.addEventListener('DOMContentLoaded', function() {
+  const sensorCheckbox = document.getElementById('config-use-sensor');
+  const sensorLabel = document.getElementById('sensor-label');
+  if (sensorCheckbox && sensorLabel) {
+    sensorCheckbox.addEventListener('change', function() {
+      sensorLabel.textContent = this.checked ? '使用する' : '使用しない';
+    });
+  }
+});
+
+// 設定を子機に送信
+async function saveUnitConfig() {
+  const config = {
+    MOTOR_TYPE: document.getElementById('config-motor-type')?.value || 'servo',
+    CONTROL_METHOD: document.getElementById('config-control-method')?.value || 'raspi',
+    MOTOR_SPEED: parseInt(document.getElementById('config-motor-speed')?.value) || 50,
+    MOTOR_DURATION: parseFloat(document.getElementById('config-motor-duration')?.value) || 2,
+    USE_SENSOR: document.getElementById('config-use-sensor')?.checked || false,
+    SENSOR_GPIO_PIN: parseInt(document.getElementById('config-sensor-pin')?.value) || 22,
+    SENSOR_TIMEOUT: parseFloat(document.getElementById('config-sensor-timeout')?.value) || 5,
+    HEARTBEAT_INTERVAL: parseInt(document.getElementById('config-heartbeat-interval')?.value) || 30,
+    ARDUINO_PORT: document.getElementById('config-arduino-port')?.value || '/dev/ttyUSB0',
+    PCA9685_CHANNEL: parseInt(document.getElementById('config-pca-channel')?.value) || 15
+  };
+
+  try {
+    const response = await fetch(`/api/unit/{{ unit['name'] }}/config`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config)
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      alert('設定を保存しました。次回の子機接続時（heartbeat）に反映されます。');
+      location.reload();
+    } else {
+      alert('エラー: ' + (data.error || '設定の保存に失敗しました'));
+    }
+  } catch (error) {
+    alert('通信エラーが発生しました: ' + error.message);
+  }
+}
+
+// 設定を再取得（ページリロード）
+function refreshConfig() {
+  location.reload();
+}
+</script>
+
 <style>
-  .btn-danger { background-color: #dc3545; }
+  .btn-danger { background-color: #dc3545; color: white; }
   .btn-danger:hover { background-color: #c82333; }
 </style>
 {% endblock %}

@@ -15,6 +15,6 @@
     "docker_compose_file": "docker-compose.yml",
     "server_port": 5000,
     "auto_install_packages": true,
-    "last_mode": "normal",
+    "last_mode": "venv",
     "last_role": "parent"
 }
