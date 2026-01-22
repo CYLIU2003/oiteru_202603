@@ -209,6 +209,58 @@ def apply_remote_config(remote_config, current_config):
     else:
         print("[設定更新] 変更なし")
 
+
+# --------------------------------------------------------------------------
+# --- Flask API サーバー（親機からの即時設定変更を受信） ---
+# --------------------------------------------------------------------------
+def start_flask_api_server(config, port=5001):
+    """子機側でFlask APIサーバーを起動し、親機からの設定変更を受信する
+    
+    Args:
+        config: 設定辞書（参照）
+        port: APIサーバーのポート番号
+    """
+    from flask import Flask, request, jsonify
+    
+    app = Flask(__name__)
+    app.config['config_ref'] = config  # 設定への参照を保持
+    
+    @app.route('/api/config/update', methods=['POST'])
+    def update_config():
+        """親機から設定変更を受信"""
+        try:
+            data = request.json
+            if not data or 'config' not in data:
+                return jsonify({'error': 'Invalid request'}), 400
+            
+            new_config = data['config']
+            current_config = app.config['config_ref']
+            
+            # 設定を適用
+            apply_remote_config(new_config, current_config)
+            
+            return jsonify({
+                'success': True,
+                'message': '設定を更新しました'
+            })
+        except Exception as e:
+            print(f"[Flask API] 設定更新エラー: {e}")
+            return jsonify({'error': str(e)}), 500
+    
+    @app.route('/api/health', methods=['GET'])
+    def health_check():
+        """ヘルスチェック"""
+        return jsonify({'status': 'ok', 'unit_name': config.get('UNIT_NAME')})
+    
+    # バックグラウンドで起動（ログ出力を抑制）
+    import logging
+    log = logging.getLogger('werkzeug')
+    log.setLevel(logging.ERROR)
+    
+    print(f"[Flask API] ポート {port} で設定受信サーバーを起動しました")
+    app.run(host='0.0.0.0', port=port, threaded=True, use_reloader=False)
+
+
 # (ネットワークスキャン機能は変更なし)
 def scan_for_servers(timeout=5):
     """UDPブロードキャストとTailscaleネットワークをスキャンして親機サーバーを見つける"""
@@ -884,8 +936,12 @@ def run_client(config, stop_event, gui_queue):
                         # サーバーからの在庫数で同期（GUI更新）
                         gui_queue.put({'stock': data['stock']})
                     
-                    # 親機からの設定変更をチェック
-                    if 'pending_config' in data and data['pending_config']:
+                    # 親機からの設定変更をチェック（即時送信 or heartbeat経由）
+                    if 'config_update' in data and data['config_update']:
+                        print("[設定変更] 親機から設定変更を受信しました（即時反映）")
+                        new_config = data['config_update']
+                        apply_remote_config(new_config, config)
+                    elif 'pending_config' in data and data['pending_config']:
                         print("[設定変更] 親機から設定変更を受信しました")
                         new_config = data['pending_config']
                         apply_remote_config(new_config, config)
@@ -1137,6 +1193,10 @@ def run_client(config, stop_event, gui_queue):
 
     heartbeat_thread = threading.Thread(target=send_heartbeat, daemon=True)
     heartbeat_thread.start()
+
+    # Flask APIサーバーを別スレッドで起動
+    flask_thread = threading.Thread(target=start_flask_api_server, args=(config, 5001), daemon=True)
+    flask_thread.start()
 
     clf = None
     retry_count = 0

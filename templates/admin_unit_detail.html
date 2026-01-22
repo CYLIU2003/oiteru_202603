@@ -398,7 +398,13 @@ async function saveUnitConfig() {
     const data = await response.json();
     
     if (data.success) {
-      alert('設定を保存しました。次回の子機接続時（heartbeat）に反映されます。');
+      let message = '';
+      if (data.push_success) {
+        message = '✓ 設定を子機に即座に送信しました！\n設定は直ちに反映されます。';
+      } else {
+        message = '⏳ 設定を保存しました。\n' + data.message;
+      }
+      alert(message);
       location.reload();
     } else {
       alert('エラー: ' + (data.error || '設定の保存に失敗しました'));

@@ -29,6 +29,7 @@ import socket
 import subprocess
 import threading
 import time
+import requests
 from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta
 from flask import (
@@ -1353,7 +1354,7 @@ def api_get_unit_config(unit_name):
 
 @app.route('/api/unit/<string:unit_name>/config', methods=['POST'])
 def api_update_unit_config(unit_name):
-    """子機の設定を更新（次回ハートビートで同期）"""
+    """子機の設定を更新し、即座に子機に送信"""
     if not session.get("admin_logged_in"):
         return jsonify({'error': 'Unauthorized'}), 401
     
@@ -1361,14 +1362,61 @@ def api_update_unit_config(unit_name):
     if not new_config:
         return jsonify({'error': 'No config provided'}), 400
     
-    # 保留中の設定変更として保存
+    # 保留中の設定変更として保存（heartbeatのバックアップとして）
     pending_unit_config_updates[unit_name] = new_config
     
-    add_history(f"子機({unit_name})の設定変更を予約", 'system')
+    # 子機のIPアドレスを取得
+    with get_connection() as conn:
+        unit = db.fetchone(conn, "SELECT * FROM units WHERE name = ?", (unit_name,))
+    
+    if not unit:
+        return jsonify({'error': 'Unit not found'}), 404
+    
+    unit_ip = unit.get('ip_address')
+    
+    # 子機に即座に設定を送信
+    push_success = False
+    push_error = None
+    
+    if unit_ip and unit['connect'] == 1:
+        try:
+            # 子機のポート番号を推測（デフォルト5001）
+            unit_port = 5001
+            unit_url = f"http://{unit_ip}:{unit_port}/api/config/update"
+            
+            # タイムアウトを短く設定（子機が応答しない場合に備えて）
+            response = requests.post(
+                unit_url,
+                json={'config': new_config},
+                timeout=5
+            )
+            
+            if response.status_code == 200:
+                push_success = True
+                add_history(f"子機({unit_name})に設定を即座に送信しました", 'system')
+                # 成功したら保留中の設定から削除
+                if unit_name in pending_unit_config_updates:
+                    del pending_unit_config_updates[unit_name]
+            else:
+                push_error = f"子機が設定を受け付けませんでした (status: {response.status_code})"
+                
+        except requests.exceptions.Timeout:
+            push_error = "子機への接続がタイムアウトしました"
+        except requests.exceptions.ConnectionError:
+            push_error = "子機に接続できませんでした"
+        except Exception as e:
+            push_error = f"エラー: {str(e)}"
+    else:
+        push_error = "子機がオフラインです"
+    
+    if not push_success:
+        add_history(f"子機({unit_name})の設定変更を予約（次回heartbeatで同期）", 'system')
     
     return jsonify({
         'success': True,
-        'message': f'設定変更を予約しました。次回ハートビートで子機に同期されます。',
+        'push_success': push_success,
+        'push_error': push_error,
+        'message': '設定を即座に送信しました' if push_success else f'設定変更を予約しました（{push_error}）。次回ハートビートで子機に同期されます。',
         'pending_config': new_config
     })
 
