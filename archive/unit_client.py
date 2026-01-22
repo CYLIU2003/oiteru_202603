@@ -682,22 +682,31 @@ def startup_diagnostics(config):
     # 3. GPIO/I2Cチェック
     print("\n[3/6] GPIO/I2Cチェック...")
     if PLATFORM == "RASPI":
+        # GPIOチェック
         try:
             import RPi.GPIO as GPIO
             GPIO.setmode(GPIO.BCM)
             print("  ✓ GPIO: 利用可能")
             diagnostics.append(("GPIO", "OK", "BCMモード"))
-            
-            # I2Cチェック
-            if config.get('CONTROL_METHOD') == 'RASPI_DIRECT':
+        except Exception as e:
+            print(f"  ⚠ GPIO: エラー ({str(e)[:40]})")
+            diagnostics.append(("GPIO", "エラー", str(e)[:30]))
+        
+        # I2Cチェック
+        if config.get('CONTROL_METHOD') == 'RASPI_DIRECT':
+            try:
                 import Adafruit_PCA9685
-                pwm = Adafruit_PCA9685.PCA9685()
+                # I2Cバスを明示的に指定 (通常はbus=1)
+                pwm = Adafruit_PCA9685.PCA9685(busnum=1)
                 pwm.set_pwm_freq(50)
                 print("  ✓ I2C/PCA9685: 利用可能")
                 diagnostics.append(("I2C/PCA9685", "OK", "0x40"))
-        except Exception as e:
-            print(f"  ⚠ GPIO/I2C: エラー ({str(e)[:40]})")
-            diagnostics.append(("GPIO/I2C", "エラー", str(e)[:30]))
+            except Exception as e:
+                print(f"  ⚠ I2C/PCA9685: エラー ({str(e)[:40]})")
+                diagnostics.append(("I2C/PCA9685", "エラー", str(e)[:30]))
+        else:
+            print("  - I2C: スキップ (Arduino制御モード)")
+            diagnostics.append(("I2C", "スキップ", "Arduino制御"))
     else:
         print("  - GPIO/I2C: PCモード (スキップ)")
         diagnostics.append(("GPIO/I2C", "スキップ", "PCモード"))

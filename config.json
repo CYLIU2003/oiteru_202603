@@ -2,8 +2,6 @@
     "SERVER_URL": "http://100.114.99.67:5000",
     "UNIT_NAME": "2号機",
     "UNIT_PASSWORD": "password123",
-    "UNIT_LOCATION": "7号館1階",
-    "IS_SECONDARY": true,
     "MOTOR_TYPE": "SERVO",
     "CONTROL_METHOD": "RASPI_DIRECT",
     "USE_SENSOR": true,
@@ -12,6 +10,12 @@
     "SENSOR_PIN": 22,
     "ARDUINO_PORT": "/dev/ttyACM0",
     "MOTOR_SPEED": 100,
-    "MOTOR_DURATION": 2.0,
-    "MOTOR_REVERSE": false
+    "MOTOR_DURATION": 2.5,
+    "MOTOR_REVERSE": true,
+    "SENSOR_CHECK_PRE": true,
+    "SENSOR_CHECK_POST": true,
+    "JAM_CLEAR_ATTEMPTS": 3,
+    "SENSOR_STABILIZE_TIME": 0.3,
+    "UNIT_LOCATION": "7号館1階",
+    "IS_SECONDARY": true
 }
