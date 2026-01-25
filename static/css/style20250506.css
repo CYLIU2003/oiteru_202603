@@ -64,6 +64,10 @@ body {
 .brand-block img {
     height: 56px;
     width: auto;
+    background-color: #ffffff;
+    padding: 8px 12px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .brand-text h1 {
@@ -120,6 +124,34 @@ body {
     font-size: 0.95rem;
     font-weight: 600;
     color: var(--text-color);
+}
+
+.clock-display {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 14px 18px;
+    background: var(--card-bg);
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(20, 75, 120, 0.08);
+    min-width: 200px;
+}
+
+.clock-time {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--primary-color);
+    font-family: 'Segoe UI', 'Arial', sans-serif;
+    letter-spacing: 0.08em;
+    line-height: 1;
+}
+
+.clock-date {
+    font-size: 0.75rem;
+    color: var(--muted-text);
+    margin-top: 6px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
 }
 
 .main-content {

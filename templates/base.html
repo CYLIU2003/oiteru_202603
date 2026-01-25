@@ -37,6 +37,12 @@
               <span class="status-value" id="units-text">確認中...</span>
             </div>
           </div>
+          
+          <!-- 現在時刻表示 -->
+          <div class="clock-display" role="status" aria-live="off">
+            <div class="clock-time" id="clock-time">--:--:--</div>
+            <div class="clock-date" id="clock-date">----/--/--</div>
+          </div>
         </div>
       </div>
     </header>
@@ -137,6 +143,33 @@
         
         setInterval(checkLocalNFCReader, 10000);  // 10秒ごと（頻繁にチェックする必要なし）
         setInterval(checkUnitsStatus, 5000);       // 5秒ごと
+        
+        // 時計の更新
+        function updateClock() {
+            const now = new Date();
+            const timeElement = document.getElementById("clock-time");
+            const dateElement = document.getElementById("clock-date");
+            
+            if (timeElement && dateElement) {
+                // 時刻表示 (HH:MM:SS)
+                const hours = String(now.getHours()).padStart(2, '0');
+                const minutes = String(now.getMinutes()).padStart(2, '0');
+                const seconds = String(now.getSeconds()).padStart(2, '0');
+                timeElement.textContent = `${hours}:${minutes}:${seconds}`;
+                
+                // 日付表示 (YYYY/MM/DD 曜日)
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const date = String(now.getDate()).padStart(2, '0');
+                const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+                const weekday = weekdays[now.getDay()];
+                dateElement.textContent = `${year}/${month}/${date} (${weekday})`;
+            }
+        }
+        
+        // 初回実行と1秒ごとの更新
+        updateClock();
+        setInterval(updateClock, 1000);
     });
   </script>
 </body>
