@@ -205,6 +205,51 @@ def get_period_display_name(period: str) -> str:
     return period_names.get(period, '1日')
 
 
+def check_and_reset_user_stock(conn, user, period: str) -> dict:
+    """期間が変わった場合、ユーザーのstockをリセットする
+    
+    Args:
+        conn: データベース接続
+        user: ユーザー情報の辞書
+        period: 期間 ('day', 'week', 'month')
+    
+    Returns:
+        更新されたユーザー情報（リセットされた場合）、またはそのまま（リセット不要の場合）
+    """
+    card_id = user['card_id']
+    last_reset = user.get('last_reset_date')
+    
+    # last_reset_dateがNullの場合は今日の日付を設定
+    if not last_reset:
+        today = datetime.now().strftime("%Y-%m-%d")
+        db.execute(conn, "UPDATE users SET last_reset_date = ? WHERE card_id = ?", (today, card_id))
+        user['last_reset_date'] = today
+        return user
+    
+    # 期間の開始日を取得
+    period_start = get_period_start_date(period)
+    
+    # last_reset_dateが期間の開始日より前なら、stockをリセット
+    if last_reset < period_start:
+        # stockを自動登録時の初期値にリセット
+        reset_stock = server_settings['auto_register_stock']
+        today = datetime.now().strftime("%Y-%m-%d")
+        
+        db.execute(conn, 
+            "UPDATE users SET stock = ?, last_reset_date = ? WHERE card_id = ?",
+            (reset_stock, today, card_id))
+        
+        # ユーザー情報を更新
+        user['stock'] = reset_stock
+        user['last_reset_date'] = today
+        
+        period_name = get_period_display_name(period)
+        add_history(f"[自動リセット] {period_name}が変わったため、カードID {card_id} の残数を {reset_stock} にリセットしました", 'system')
+        print(f"[自動リセット] カードID {card_id} の残数を {reset_stock} にリセット（{period_name}変更）")
+    
+    return user
+
+
 # --- 履歴追加 ---
 def add_history(message: str, hist_type: str = 'usage'):
     """履歴を追加する"""
@@ -280,6 +325,7 @@ def init_db():
                     stock INTEGER DEFAULT 2,
                     today INTEGER DEFAULT 0,
                     total INTEGER DEFAULT 0,
+                    last_reset_date TEXT,
                     last1 TEXT, last2 TEXT, last3 TEXT, last4 TEXT, last5 TEXT,
                     last6 TEXT, last7 TEXT, last8 TEXT, last9 TEXT, last10 TEXT
                 )
@@ -346,6 +392,16 @@ def migrate_db():
                 except Exception:
                     pass  # 既に存在する場合はスキップ
                 
+                # usersテーブルにlast_reset_dateカラムを追加
+                try:
+                    db.execute(conn, "ALTER TABLE users ADD COLUMN last_reset_date DATE")
+                    print("  - usersテーブルに last_reset_date カラムを追加しました")
+                    # 既存ユーザーには今日の日付を設定
+                    today = datetime.now().strftime("%Y-%m-%d")
+                    db.execute(conn, "UPDATE users SET last_reset_date = ? WHERE last_reset_date IS NULL", (today,))
+                except Exception:
+                    pass
+                
                 # daily_limitの値をusage_limitに移行
                 try:
                     db.execute(conn, "UPDATE settings SET usage_limit = daily_limit WHERE usage_limit IS NULL OR usage_limit = 0")
@@ -362,6 +418,16 @@ def migrate_db():
                 try:
                     db.execute(conn, "ALTER TABLE settings ADD COLUMN limit_period TEXT DEFAULT 'day'")
                     print("  - settingsテーブルに limit_period カラムを追加しました")
+                except Exception:
+                    pass
+                
+                # usersテーブルにlast_reset_dateカラムを追加
+                try:
+                    db.execute(conn, "ALTER TABLE users ADD COLUMN last_reset_date TEXT")
+                    print("  - usersテーブルに last_reset_date カラムを追加しました")
+                    # 既存ユーザーには今日の日付を設定
+                    today = datetime.now().strftime("%Y-%m-%d")
+                    db.execute(conn, "UPDATE users SET last_reset_date = ? WHERE last_reset_date IS NULL", (today,))
                 except Exception:
                     pass
                 
@@ -1156,11 +1222,12 @@ def api_record_usage():
                 # 自動登録モードの場合は新規登録
                 if server_settings['auto_register_mode']:
                     now = datetime.now().strftime("%Y-%m-%d %H:%M")
+                    today = datetime.now().strftime("%Y-%m-%d")
                     initial_stock = server_settings['auto_register_stock']
                     print(f"[DEBUG] 自動登録実行: card_id={card_id}, initial_stock={initial_stock}")
                     db.execute(conn, 
-                        "INSERT INTO users (card_id, entry, stock, allow) VALUES (?, ?, ?, 1)", 
-                        (card_id, now, initial_stock))
+                        "INSERT INTO users (card_id, entry, stock, allow, last_reset_date) VALUES (?, ?, ?, 1, ?)", 
+                        (card_id, now, initial_stock, today))
                     message = f"[{unit_name}] 自動登録 (カードID: {card_id}, 初期残数: {initial_stock})"
                     add_history(message, 'system')
                     # 新しく登録したユーザーを取得
@@ -1175,6 +1242,10 @@ def api_record_usage():
                 message = f"[{unit_name}] 利用不許可 (カードID: {card_id})"
                 add_history(message, 'usage')
                 return jsonify({'error': 'User is not allowed'}), 403
+            
+            # --- 期間が変わった場合、stockを自動リセット ---
+            period = server_settings['limit_period']
+            user = check_and_reset_user_stock(conn, user, period)
             
             # 残数チェック
             if user['stock'] <= 0:

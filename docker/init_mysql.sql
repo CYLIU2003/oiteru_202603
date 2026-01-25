@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
     stock INT DEFAULT 2,
     today INT DEFAULT 0,
     total INT DEFAULT 0,
+    last_reset_date DATE,
     last1 VARCHAR(50),
     last2 VARCHAR(50),
     last3 VARCHAR(50),
