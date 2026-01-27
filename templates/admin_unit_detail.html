@@ -100,11 +100,13 @@
       </div>
     </form>
 
-    <!-- 子機設定セクション -->
-    <div class="config-section" style="margin-top:32px;">
-      <div class="section-divider">
-        <h3>⚙️ 子機設定（リモート設定）</h3>
+    <!-- 子機設定セクション（折りたたみ可能） -->
+    <div class="collapsible-section" style="margin-top:32px;">
+      <div class="section-header" onclick="toggleSection('config-section')">
+        <h3><span class="icon">⚙️</span> 子機設定（リモート設定）</h3>
+        <span class="toggle-icon" id="config-section-icon">▼</span>
       </div>
+      <div class="section-content" id="config-section" style="display:none;">
       
       {% if unit_config %}
         <div style="margin-bottom:16px;">
@@ -273,6 +275,86 @@
           {% endif %}
         </div>
       {% endif %}
+      </div><!-- /section-content -->
+    </div><!-- /collapsible-section (子機設定) -->
+
+    <!-- ログセクション（折りたたみ可能） -->
+    <div class="collapsible-section" style="margin-top:32px;">
+      <div class="section-header" onclick="toggleSection('log-section')">
+        <h3><span class="icon">📋</span> 子機ログ</h3>
+        <span class="toggle-icon" id="log-section-icon">▼</span>
+      </div>
+      <div class="section-content" id="log-section" style="display:none;">
+        <div style="background:#f8f9fa;padding:20px;border-radius:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <span id="log-count" style="color:var(--muted-text);">ログ: 読み込み中...</span>
+            <button class="btn btn-secondary btn-sm" onclick="refreshLogs()">
+              <span>🔄</span> 更新
+            </button>
+          </div>
+          <div id="log-container" style="max-height:400px;overflow-y:auto;font-family:monospace;font-size:0.85rem;">
+            <p style="color:var(--muted-text);font-style:italic;">ログを読み込み中...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- デバッグセクション（折りたたみ可能） -->
+    <div class="collapsible-section" style="margin-top:32px;">
+      <div class="section-header" onclick="toggleSection('debug-section')">
+        <h3><span class="icon">🔧</span> デバッグ・診断</h3>
+        <span class="toggle-icon" id="debug-section-icon">▼</span>
+      </div>
+      <div class="section-content" id="debug-section" style="display:none;">
+        <div style="background:#f8f9fa;padding:20px;border-radius:12px;">
+          <p style="color:var(--muted-text);margin-bottom:16px;">
+            子機への診断コマンドを送信できます。子機がオンラインの場合のみ有効です。
+          </p>
+          
+          <!-- tmuxデバッグ情報 -->
+          <div style="background:#e3f2fd;padding:16px;border-radius:8px;margin-bottom:20px;">
+            <h4 style="margin:0 0 12px;color:#1565c0;">🖥️ tmuxでのデバッグ手順</h4>
+            <p style="font-size:0.9rem;margin-bottom:12px;">子機がtmuxで起動している場合、以下のコマンドでログを確認できます：</p>
+            <div style="background:#263238;color:#aed581;padding:12px;border-radius:6px;font-family:monospace;font-size:0.85rem;">
+              <div>$ ssh pi@{{ unit['ip_address'] or '子機IP' }}</div>
+              <div>$ tmux attach -t oiteru</div>
+              <div style="color:#90a4ae;margin-top:8px;"># リアルタイムログが表示されます</div>
+              <div style="color:#90a4ae;"># Ctrl+B → D で切り離し</div>
+            </div>
+          </div>
+          
+          <!-- コマンドボタン -->
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
+            <button class="btn btn-primary btn-icon" onclick="sendCommand('ping')" {% if unit['connect'] == 0 %}disabled{% endif %}>
+              <span>📡</span> 接続テスト
+            </button>
+            <button class="btn btn-warning btn-icon" onclick="sendCommand('restart_nfc')" {% if unit['connect'] == 0 %}disabled{% endif %}>
+              <span>🔄</span> NFCリーダー再起動
+            </button>
+            <button class="btn btn-secondary btn-icon" onclick="sendCommand('test_motor')" {% if unit['connect'] == 0 %}disabled{% endif %}>
+              <span>⚙️</span> モーターテスト
+            </button>
+            <button class="btn btn-secondary btn-icon" onclick="sendCommand('test_sensor')" {% if unit['connect'] == 0 %}disabled{% endif %}>
+              <span>📡</span> センサーテスト
+            </button>
+            <button class="btn btn-info btn-icon" onclick="sendCommand('get_status')" {% if unit['connect'] == 0 %}disabled{% endif %}>
+              <span>📊</span> ステータス取得
+            </button>
+          </div>
+          
+          <!-- コマンド結果表示 -->
+          <div id="command-result" style="margin-top:16px;display:none;">
+            <h4 style="margin:0 0 8px;">実行結果:</h4>
+            <pre id="command-output" style="background:#263238;color:#aed581;padding:12px;border-radius:6px;max-height:200px;overflow-y:auto;font-size:0.85rem;"></pre>
+          </div>
+          
+          {% if unit['connect'] == 0 %}
+          <div style="margin-top:16px;background:#ffebee;padding:12px;border-radius:8px;color:#c62828;">
+            ⚠️ 子機がオフラインのため、コマンドは送信できません。
+          </div>
+          {% endif %}
+        </div>
+      </div>
     </div>
 
     <!-- 危険ゾーン -->
@@ -285,20 +367,6 @@
           <span>🗑️</span> この子機を削除する
         </button>
       </form>
-    </div>
-
-    <!-- ログセクション -->
-    <div class="logs-section">
-      <h3>📋 子機ログ</h3>
-      {% if logs %}
-        <ul class="log-list">
-          {% for log in logs %}
-            <li>{{ log.txt }}</li>
-          {% endfor %}
-        </ul>
-      {% else %}
-        <p style="color:var(--muted-text);font-style:italic;">この子機からのログはまだ記録されていません。</p>
-      {% endif %}
     </div>
   </div>
 </div>
@@ -418,10 +486,125 @@ async function saveUnitConfig() {
 function refreshConfig() {
   location.reload();
 }
+
+// 折りたたみセクション切り替え
+function toggleSection(sectionId) {
+  const section = document.getElementById(sectionId);
+  const icon = document.getElementById(sectionId + '-icon');
+  if (section.style.display === 'none') {
+    section.style.display = 'block';
+    icon.textContent = '▲';
+  } else {
+    section.style.display = 'none';
+    icon.textContent = '▼';
+  }
+}
+
+// ログを取得して表示
+async function refreshLogs() {
+  const container = document.getElementById('log-container');
+  const countEl = document.getElementById('log-count');
+  
+  try {
+    const response = await fetch(`/api/unit/{{ unit['name'] }}/logs`);
+    const data = await response.json();
+    
+    if (data.logs && data.logs.length > 0) {
+      countEl.textContent = `ログ: ${data.count}件`;
+      container.innerHTML = data.logs.map(log => 
+        `<div style="padding:4px 0;border-bottom:1px solid #eee;">
+          <span style="color:#888;">[${log.time}]</span> ${log.message}
+        </div>`
+      ).reverse().join('');
+    } else {
+      countEl.textContent = 'ログ: 0件';
+      container.innerHTML = '<p style="color:var(--muted-text);font-style:italic;">この子機からのログはまだ記録されていません。</p>';
+    }
+  } catch (error) {
+    container.innerHTML = '<p style="color:#c62828;">ログの取得に失敗しました。</p>';
+  }
+}
+
+// デバッグコマンド送信
+async function sendCommand(command) {
+  const resultDiv = document.getElementById('command-result');
+  const outputPre = document.getElementById('command-output');
+  
+  resultDiv.style.display = 'block';
+  outputPre.textContent = `コマンド "${command}" を送信中...`;
+  
+  try {
+    const response = await fetch(`/api/unit/{{ unit['name'] }}/command`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ command: command })
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      if (typeof data.result?.output === 'object') {
+        outputPre.textContent = JSON.stringify(data.result.output, null, 2);
+      } else {
+        outputPre.textContent = data.result?.output || data.message || '成功';
+      }
+    } else {
+      outputPre.textContent = `エラー: ${data.error}`;
+    }
+  } catch (error) {
+    outputPre.textContent = `通信エラー: ${error.message}`;
+  }
+}
+
+// ページ読み込み時にログを取得
+document.addEventListener('DOMContentLoaded', function() {
+  // 初回ログ取得（ログセクションが開かれている場合のみ）
+  // refreshLogs();  // 必要なら有効化
+});
 </script>
 
 <style>
   .btn-danger { background-color: #dc3545; color: white; }
   .btn-danger:hover { background-color: #c82333; }
+  .btn-warning { background-color: #ffc107; color: #212529; }
+  .btn-warning:hover { background-color: #e0a800; }
+  .btn-info { background-color: #17a2b8; color: white; }
+  .btn-info:hover { background-color: #138496; }
+  .btn-sm { padding: 6px 12px; font-size: 0.85rem; }
+  
+  .collapsible-section {
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    background: #f8f9fa;
+    cursor: pointer;
+    user-select: none;
+  }
+  
+  .section-header:hover {
+    background: #e9ecef;
+  }
+  
+  .section-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+  }
+  
+  .toggle-icon {
+    font-size: 0.9rem;
+    color: var(--muted-text);
+  }
+  
+  .section-content {
+    padding: 20px;
+    background: white;
+  }
 </style>
 {% endblock %}

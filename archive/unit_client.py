@@ -250,6 +250,66 @@ def start_flask_api_server(config, port=5001):
         """ヘルスチェック"""
         return jsonify({'status': 'ok', 'unit_name': config.get('UNIT_NAME')})
     
+    @app.route('/api/command', methods=['POST'])
+    def execute_command():
+        """親機からのデバッグコマンドを実行"""
+        try:
+            data = request.json
+            command = data.get('command')
+            
+            if not command:
+                return jsonify({'error': 'Command required'}), 400
+            
+            result = {
+                'command': command,
+                'executed': False,
+                'output': None,
+                'error': None
+            }
+            
+            # サポートするコマンド
+            if command == 'restart_nfc':
+                result['output'] = 'NFCリーダーの再起動をリクエストしました'
+                result['executed'] = True
+                # NFCリーダー再起動フラグを設定（メインループで処理）
+                config['_restart_nfc'] = True
+                
+            elif command == 'test_motor':
+                result['output'] = 'モーターテストをリクエストしました'
+                result['executed'] = True
+                config['_test_motor'] = True
+                
+            elif command == 'test_sensor':
+                result['output'] = 'センサーテストをリクエストしました'
+                result['executed'] = True
+                config['_test_sensor'] = True
+                
+            elif command == 'get_status':
+                # 現在の状態を返す
+                import psutil
+                result['output'] = {
+                    'unit_name': config.get('UNIT_NAME'),
+                    'motor_type': config.get('MOTOR_TYPE'),
+                    'control_method': config.get('CONTROL_METHOD'),
+                    'use_sensor': config.get('USE_SENSOR'),
+                    'cpu_percent': psutil.cpu_percent() if 'psutil' in dir() else 'N/A',
+                    'memory_percent': psutil.virtual_memory().percent if 'psutil' in dir() else 'N/A'
+                }
+                result['executed'] = True
+                
+            elif command == 'ping':
+                result['output'] = 'pong'
+                result['executed'] = True
+                
+            else:
+                result['error'] = f'不明なコマンド: {command}'
+            
+            return jsonify(result)
+            
+        except Exception as e:
+            print(f"[Flask API] コマンド実行エラー: {e}")
+            return jsonify({'error': str(e)}), 500
+    
     # バックグラウンドで起動（ログ出力を抑制）
     import logging
     log = logging.getLogger('werkzeug')

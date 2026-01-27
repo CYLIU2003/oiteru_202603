@@ -1183,8 +1183,27 @@ def api_add_log():
     if message:
         log_entry = f"[{unit_name}] {message}"
         add_history(log_entry)
+        
+        # unit_logsにも保存（最新100件まで）
+        if unit_name not in unit_logs:
+            unit_logs[unit_name] = []
+        unit_logs[unit_name].append({
+            'time': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            'message': message
+        })
+        # 最新100件に制限
+        if len(unit_logs[unit_name]) > 100:
+            unit_logs[unit_name] = unit_logs[unit_name][-100:]
+        
         return jsonify({'success': True}), 200
     return jsonify({'success': False, 'error': 'Message not provided'}), 400
+
+
+@app.route('/api/unit/<unit_name>/logs', methods=['GET'])
+def api_get_unit_logs(unit_name):
+    """子機のログを取得"""
+    logs = unit_logs.get(unit_name, [])
+    return jsonify({'logs': logs, 'count': len(logs)})
 
 
 @app.route('/api/record_usage', methods=['POST'])
@@ -1501,6 +1520,61 @@ def api_update_unit_config(unit_name):
         'message': '設定を即座に送信しました' if push_success else f'設定変更を予約しました（{push_error}）。次回ハートビートで子機に同期されます。',
         'pending_config': new_config
     })
+
+
+@app.route('/api/unit/<unit_name>/command', methods=['POST'])
+def api_send_unit_command(unit_name):
+    """子機にコマンドを送信（デバッグ用）"""
+    if not session.get("admin_logged_in"):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    data = request.json
+    command = data.get('command')
+    
+    if not command:
+        return jsonify({'error': 'Command required'}), 400
+    
+    with get_connection() as conn:
+        unit = db.fetchone(conn, "SELECT * FROM units WHERE name = ?", (unit_name,))
+    
+    if not unit:
+        return jsonify({'error': 'Unit not found'}), 404
+    
+    unit_ip = unit.get('ip_address')
+    
+    if not unit_ip or unit['connect'] == 0:
+        return jsonify({'error': 'Unit is offline'}), 503
+    
+    try:
+        unit_port = 5001
+        unit_url = f"http://{unit_ip}:{unit_port}/api/command"
+        
+        response = requests.post(
+            unit_url,
+            json={'command': command},
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            add_history(f"子機({unit_name})にコマンド送信: {command}", 'system')
+            return jsonify({
+                'success': True,
+                'result': result,
+                'message': 'コマンドを送信しました'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'子機がエラーを返しました (status: {response.status_code})'
+            })
+            
+    except requests.exceptions.Timeout:
+        return jsonify({'success': False, 'error': 'タイムアウト'}), 504
+    except requests.exceptions.ConnectionError:
+        return jsonify({'success': False, 'error': '接続エラー'}), 503
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/api/settings', methods=['GET'])
