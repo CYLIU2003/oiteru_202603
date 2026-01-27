@@ -286,15 +286,35 @@ def start_flask_api_server(config, port=5001):
                 
             elif command == 'get_status':
                 # 現在の状態を返す
-                import psutil
-                result['output'] = {
+                status_info = {
                     'unit_name': config.get('UNIT_NAME'),
                     'motor_type': config.get('MOTOR_TYPE'),
                     'control_method': config.get('CONTROL_METHOD'),
                     'use_sensor': config.get('USE_SENSOR'),
-                    'cpu_percent': psutil.cpu_percent() if 'psutil' in dir() else 'N/A',
-                    'memory_percent': psutil.virtual_memory().percent if 'psutil' in dir() else 'N/A'
+                    'motor_speed': config.get('MOTOR_SPEED'),
+                    'motor_duration': config.get('MOTOR_DURATION'),
+                    'motor_reverse': config.get('MOTOR_REVERSE'),
+                    'heartbeat_interval': config.get('HEARTBEAT_INTERVAL', 30),
                 }
+                
+                # psutilを使ってシステム情報を取得
+                try:
+                    import psutil
+                    status_info['cpu_percent'] = round(psutil.cpu_percent(interval=0.1), 1)
+                    status_info['memory_percent'] = round(psutil.virtual_memory().percent, 1)
+                    status_info['disk_percent'] = round(psutil.disk_usage('/').percent, 1)
+                    
+                    # 起動時間
+                    import datetime
+                    boot_time = datetime.datetime.fromtimestamp(psutil.boot_time())
+                    status_info['boot_time'] = boot_time.strftime('%Y-%m-%d %H:%M:%S')
+                    
+                except ImportError:
+                    status_info['system_info'] = 'psutil未インストール (pip install psutil)'
+                except Exception as e:
+                    status_info['system_info_error'] = str(e)
+                
+                result['output'] = status_info
                 result['executed'] = True
                 
             elif command == 'ping':

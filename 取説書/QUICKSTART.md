@@ -346,31 +346,60 @@ sudo ./quick_start_unit.sh 100.114.99.67
 
 ### 方法2: 🐍 仮想環境で起動（開発・デバッグ向け）
 
+> ⚠️ **重要: Raspberry Pi OS Bookworm (2023年10月〜) 以降のバージョンについて**
+> 
+> Raspberry Pi OS BookwormではPEP 668が適用され、システムのPython環境に直接パッケージをインストールすることができなくなりました。
+> **仮想環境（venv）の使用が必須**です。
+> 
+> ```bash
+> # ❌ これはエラーになります
+> pip install requests
+> # error: externally-managed-environment
+> 
+> # ✅ 仮想環境内で実行してください
+> source .venv/bin/activate
+> pip install requests
+> ```
+> 
+> 詳細な環境セットアップは `scripts/SETUP_UNIT.md` を参照してください。
+
 #### 📝 手順
 
-1. **プロジェクトフォルダに移動**
+1. **必要なパッケージをインストール（Bookworm以降では必須）**
+   ```bash
+   # python3-fullとpython3-venvをインストール
+   sudo apt update
+   sudo apt install -y python3-full python3-venv python3-pip
+   ```
+
+2. **プロジェクトフォルダに移動**
    ```bash
    cd /home/pi/oiteru_250827_restAPI
    ```
 
-2. **仮想環境をセットアップ（初回のみ）**
+3. **仮想環境をセットアップ（初回のみ）**
    ```bash
    # 仮想環境を作成
    python3 -m venv .venv
    
    # 依存パッケージをインストール
-   .venv/bin/pip install -r requirements.txt
+   .venv/bin/pip install -r docker/requirements-client.txt
    
-   # Raspberry Pi用ハードウェアライブラリをインストール
-   .venv/bin/pip install RPi.GPIO Adafruit-PCA9685 pyserial
+   # システム監視ライブラリをインストール（CPU/メモリ使用率の取得用）
+   .venv/bin/pip install psutil
    ```
+   
+   > 💡 **ヒント**: セットアップを自動化するスクリプトも用意しています：
+   > ```bash
+   > sudo ./scripts/setup_unit_environment.sh
+   > ```
 
-3. **実行権限を付与（初回のみ）**
+4. **実行権限を付与（初回のみ）**
    ```bash
    chmod +x venv-start.sh
    ```
 
-4. **仮想環境スクリプトを実行（CUIモードがデフォルト）**
+5. **仮想環境スクリプトを実行（CUIモードがデフォルト）**
    ```bash
    ./venv-start.sh unit
    ```
@@ -499,25 +528,44 @@ cd ~/oiteru_250827_restAPI
 cd ~/Desktop/oiteru_250827_restAPI-1
 ```
 
-**4️⃣ 仮想環境をセットアップ（初回のみ）**
+**4️⃣ 必要なパッケージをインストール（Bookworm以降では必須）**
+```bash
+# python3-fullとpython3-venvをインストール
+sudo apt update
+sudo apt install -y python3-full python3-venv python3-pip
+```
+
+> ⚠️ **Raspberry Pi OS Bookworm (2023年10月〜) 以降の注意**
+> 
+> PEP 668により、仮想環境の使用が必須です。以下のエラーが出る場合は上記コマンドを実行してください：
+> ```
+> error: externally-managed-environment
+> ```
+
+**5️⃣ 仮想環境をセットアップ（初回のみ）**
 ```bash
 # 仮想環境を作成
 python3 -m venv .venv
 
 # 依存パッケージをインストール
-.venv/bin/pip install -r requirements.txt
+.venv/bin/pip install -r docker/requirements-client.txt
 
-# Raspberry Pi用ハードウェアライブラリをインストール
-.venv/bin/pip install RPi.GPIO Adafruit-PCA9685 pyserial
+# システム監視ライブラリをインストール（CPU/メモリ使用率の取得用）
+.venv/bin/pip install psutil
 ```
 
-**5️⃣ 実行権限を確認・付与（初回のみ）**
+> 💡 **ヒント**: 自動セットアップスクリプトも用意しています：
+> ```bash
+> sudo ./scripts/setup_unit_environment.sh
+> ```
+
+**6️⃣ 実行権限を確認・付与（初回のみ）**
 ```bash
 # 実行権限を付与
 chmod +x venv-start.sh
 ```
 
-**6️⃣ 子機を起動（CUIモード）**
+**7️⃣ 子機を起動（CUIモード）**
 ```bash
 ./venv-start.sh unit
 ```
@@ -527,7 +575,7 @@ chmod +x venv-start.sh
 > - Heartbeat経由: 30秒ごとに設定を同期
 > - 即時反映: Flask API (ポート5001) で親機から直接受信
 
-**7️⃣ 一時退出（デタッチ）してSSH/PowerShellを閉じてOK！**
+**8️⃣ 一時退出（デタッチ）してSSH/PowerShellを閉じてOK！**
 
 ```bash
 # tmuxセッションから離れる（デタッチ）
@@ -807,7 +855,58 @@ powershell -ExecutionPolicy Bypass -File .\scripts\setup_config.ps1
 
 ---
 
-## 🔌 接続できない
+## � pip installで「externally-managed-environment」エラー
+
+**Raspberry Pi OS Bookworm（2023年10月〜）以降** でこのエラーが出ます：
+
+```
+error: externally-managed-environment
+
+× This environment is externally managed
+╰─> To install Python packages system-wide, try apt install python3-xyz
+```
+
+### 原因
+
+PEP 668により、システムのPython環境を保護するため、直接パッケージをインストールすることができなくなりました。
+
+### ✅ 解決方法: 仮想環境を使う（推奨）
+
+```bash
+# 必要なパッケージをインストール
+sudo apt update
+sudo apt install -y python3-full python3-venv python3-pip
+
+# プロジェクトフォルダに移動
+cd /home/pi/oiteru_250827_restAPI
+
+# 仮想環境を作成
+python3 -m venv .venv
+
+# 仮想環境をアクティベート
+source .venv/bin/activate
+
+# これでpip installが使えるようになります
+pip install requests flask psutil
+```
+
+> 💡 **ヒント**: 自動セットアップスクリプトも用意しています：
+> ```bash
+> sudo ./scripts/setup_unit_environment.sh
+> ```
+
+### ❌ 非推奨の方法
+
+以下の方法は **システムを壊す可能性があるため非推奨** です：
+
+```bash
+# ❌ これは使わないでください
+pip install --break-system-packages requests
+```
+
+---
+
+## �🔌 接続できない
 
 ### 1. Tailscaleは接続してる？
 
