@@ -384,13 +384,28 @@ sudo ./quick_start_unit.sh 100.114.99.67
    
    # 依存パッケージをインストール
    .venv/bin/pip install -r docker/requirements-client.txt
-   
-   # システム監視ライブラリをインストール（CPU/メモリ使用率の取得用）
-   .venv/bin/pip install psutil
    ```
    
-   > 💡 **ヒント**: セットアップを自動化するスクリプトも用意しています：
+   > ⚠️ **重要: psutilのインストールについて**
+   > 
+   > システム監視機能（CPU/メモリ/ディスク使用率）を利用するには、**psutilのインストールが必須**です：
    > ```bash
+   > .venv/bin/pip install psutil
+   > ```
+   > 
+   > インストールしない場合、管理画面で以下のように表示されます：
+   > - システム情報: `psutil未インストール (pip install psutil)`
+   > 
+   > **psutilをインストールすると表示される情報：**
+   > - CPU使用率: `15.2%`
+   > - メモリ使用率: `45.8% (使用中: 1.8GB / 全体: 4.0GB)`
+   > - ディスク使用率: `62.3% (使用中: 18.7GB / 全体: 30.0GB)`
+   
+   > 💡 **ヒント**: セットアップを自動化するスクリプトも用意しています（psutilも自動インストール）：
+   > ```bash
+   > # スクリプトに実行権限を付与（初回のみ）
+   > chmod +x scripts/setup_unit_environment.sh
+   > # 実行
    > sudo ./scripts/setup_unit_environment.sh
    > ```
 
@@ -549,13 +564,28 @@ python3 -m venv .venv
 
 # 依存パッケージをインストール
 .venv/bin/pip install -r docker/requirements-client.txt
-
-# システム監視ライブラリをインストール（CPU/メモリ使用率の取得用）
-.venv/bin/pip install psutil
 ```
 
-> 💡 **ヒント**: 自動セットアップスクリプトも用意しています：
+> ⚠️ **重要: psutilのインストールについて**
+> 
+> システム監視機能（CPU/メモリ/ディスク使用率）を利用するには、**psutilのインストールが必須**です：
 > ```bash
+> .venv/bin/pip install psutil
+> ```
+> 
+> インストールしない場合、管理画面で以下のように表示されます：
+> - システム情報: `psutil未インストール (pip install psutil)`
+> 
+> **psutilをインストールすると表示される情報：**
+> - CPU使用率: `15.2%`
+> - メモリ使用率: `45.8% (使用中: 1.8GB / 全体: 4.0GB)`
+> - ディスク使用率: `62.3% (使用中: 18.7GB / 全体: 30.0GB)`
+
+> 💡 **ヒント**: 自動セットアップスクリプトも用意しています（psutilも自動インストール）：
+> ```bash
+> # スクリプトに実行権限を付与（初回のみ）
+> chmod +x scripts/setup_unit_environment.sh
+> # 実行
 > sudo ./scripts/setup_unit_environment.sh
 > ```
 
@@ -892,6 +922,9 @@ pip install requests flask psutil
 
 > 💡 **ヒント**: 自動セットアップスクリプトも用意しています：
 > ```bash
+> # スクリプトに実行権限を付与（初回のみ）
+> chmod +x scripts/setup_unit_environment.sh
+> # 実行
 > sudo ./scripts/setup_unit_environment.sh
 > ```
 
@@ -960,6 +993,60 @@ sudo reboot
 - 1日の上限に達してない？
 - モーターの配線は正しい？
 - 排出口が詰まってない？
+
+---
+
+## 📊 管理画面で「psutil未インストール」と表示される
+
+```
+システム情報: psutil未インストール (pip install psutil)
+```
+
+このメッセージは、子機でシステム監視ライブラリ（psutil）がインストールされていないことを示しています。
+
+### 原因
+
+psutilライブラリがないと、CPU/メモリ/ディスク使用率などのシステム情報を取得できません。
+
+### ✅ 解決方法: psutilをインストール
+
+子機のSSHセッションで以下を実行：
+
+```bash
+# プロジェクトフォルダに移動
+cd ~/oiteru_250827_restAPI
+
+# 仮想環境をアクティベート
+source .venv/bin/activate
+
+# psutilをインストール
+pip install psutil
+
+# 子機を再起動
+# (nohupの場合は停止してから再起動)
+# (tmuxの場合はCtrl+Cで停止してから再起動)
+# (systemdの場合)
+sudo systemctl restart oiteru-unit
+```
+
+### インストール後の表示例
+
+正常にインストールされると、管理画面で以下のように表示されます：
+
+```
+システム情報:
+  CPU使用率: 15.2%
+  メモリ使用率: 45.8% (使用中: 1.8GB / 全体: 4.0GB)
+  ディスク使用率: 62.3% (使用中: 18.7GB / 全体: 30.0GB)
+```
+
+> 💡 **ヒント**: 自動セットアップスクリプトを使うと、psutilも一緒にインストールされます：
+> ```bash
+> # スクリプトに実行権限を付与（初回のみ）
+> chmod +x scripts/setup_unit_environment.sh
+> # 実行
+> sudo ./scripts/setup_unit_environment.sh
+> ```
 
 ---
 
