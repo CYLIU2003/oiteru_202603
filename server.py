@@ -226,6 +226,10 @@ def check_and_reset_user_stock(conn, user, period: str) -> dict:
         user['last_reset_date'] = today
         return user
     
+    # last_reset_dateを文字列に統一（MySQLはdatetime.dateを返す場合がある）
+    if hasattr(last_reset, 'strftime'):
+        last_reset = last_reset.strftime("%Y-%m-%d")
+    
     # 期間の開始日を取得
     period_start = get_period_start_date(period)
     
