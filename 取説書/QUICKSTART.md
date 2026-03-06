@@ -101,6 +101,42 @@ cd D:\oiteru_202603
 
 この方法なら、SSH を切断しても子機を動かし続けやすく、あとから画面に戻ってログも確認できます。
 
+### 5-0. Windows PowerShell から Raspberry Pi に SSH 接続する
+
+まず、Windows の PowerShell を開きます。
+
+そのあと、次のように入力して Raspberry Pi に接続します。
+
+```powershell
+ssh pi@<ラズパイのIPアドレス>
+```
+
+例:
+
+```powershell
+ssh pi@192.168.1.50
+```
+
+Tailscale を使っている場合は、Tailscale 側のアドレスや名前でも接続できます。
+
+```powershell
+ssh pi@100.x.x.x
+```
+
+初回は次のような確認が出ることがあります。
+
+```text
+Are you sure you want to continue connecting (yes/no/[fingerprint])?
+```
+
+この場合は `yes` と入力して Enter を押します。
+
+その後、パスワードを聞かれたら Raspberry Pi のログインパスワードを入力します。
+
+接続に成功すると、PowerShell の表示が Raspberry Pi 側の表示に変わります。
+
+---
+
 ### 5-1. 事前に `config.json` を確認する
 
 最低でも次の3つを確認してください。

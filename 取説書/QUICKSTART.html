@@ -67,6 +67,15 @@ docker-compose -f docker-compose.mysql.yml down</code></pre>
             <h2>子機の起動</h2>
             <p>子機は Raspberry Pi で <code>tmux</code> を使って起動します。</p>
 
+            <h3>0. Windows PowerShell から SSH 接続する</h3>
+            <p>まず Windows の PowerShell を開いて、Raspberry Pi に SSH 接続します。</p>
+            <pre><code>ssh pi@&lt;ラズパイのIPアドレス&gt;</code></pre>
+            <p>例:</p>
+            <pre><code>ssh pi@192.168.1.50</code></pre>
+            <p>Tailscale を使っている場合は、Tailscale のアドレスでも接続できます。</p>
+            <pre><code>ssh pi@100.x.x.x</code></pre>
+            <p>初回は確認メッセージが出ることがあるので、その場合は <code>yes</code> を入力します。続いて Raspberry Pi のログインパスワードを入力してください。</p>
+
             <h3>1. config.json を確認する</h3>
             <pre><code>{
     "SERVER_URL": "http://100.114.99.67:5000",
