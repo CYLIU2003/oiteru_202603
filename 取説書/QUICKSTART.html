@@ -2,751 +2,158 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="theme-color" content="#6366f1">
-    <meta name="description" content="OITERUプライバシー配慮型ナプキン配布システム - 親機・従親機・子機の立ち上げ方法">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="OITERUの親機・従親機・子機の起動手順。子機はtmux前提で説明。">
     <title>OITERU かんたんスタートガイド</title>
     <link rel="stylesheet" href="manual.css">
-    <style>
-        /* ============================================
-           ナビゲーションカード
-           ============================================ */
-        .nav-cards {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 12px;
-            margin: 28px 0;
-        }
-        
-        @media (min-width: 600px) {
-            .nav-cards {
-                grid-template-columns: repeat(4, 1fr);
-                gap: 16px;
-            }
-        }
-        
-        .nav-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border-radius: 16px;
-            padding: 20px 16px;
-            text-align: center;
-            text-decoration: none;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 10px;
-            border: none;
-        }
-        
-        .nav-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 20px 25px -5px rgba(102, 126, 234, 0.3);
-            border-bottom: none;
-        }
-        
-        .nav-card:active {
-            transform: translateY(-2px) scale(0.98);
-        }
-        
-        .nav-card .emoji { 
-            font-size: 2.25rem; 
-            line-height: 1;
-        }
-        
-        @media (min-width: 600px) {
-            .nav-card .emoji {
-                font-size: 2.75rem;
-            }
-        }
-        
-        .nav-card h3 { 
-            color: white; 
-            margin: 0; 
-            font-size: 0.9rem;
-            font-weight: 600;
-            border: none;
-            padding: 0;
-        }
-        
-        @media (min-width: 600px) {
-            .nav-card h3 {
-                font-size: 1rem;
-            }
-        }
-
-        /* ============================================
-           目次
-           ============================================ */
-        .toc { 
-            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-            border-radius: 16px; 
-            padding: 24px; 
-            margin: 28px 0;
-            border: 1px solid #e2e8f0;
-        }
-        
-        @media (prefers-color-scheme: dark) {
-            .toc {
-                background: linear-gradient(135deg, rgba(30, 41, 59, 0.5) 0%, rgba(51, 65, 85, 0.5) 100%);
-            }
-        }
-        
-        .toc h3 { 
-            margin: 0 0 16px 0;
-            padding: 0;
-            border: none;
-            font-size: 1.1rem;
-            color: var(--text-color);
-        }
-        
-        .toc ul { 
-            list-style: none;
-            margin: 0;
-            padding: 0;
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 10px;
-        }
-        
-        @media (min-width: 500px) {
-            .toc ul {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 12px 24px;
-            }
-        }
-        
-        .toc li {
-            margin: 0;
-        }
-        
-        .toc a { 
-            display: flex;
-            align-items: center;
-            padding: 10px 14px;
-            border-radius: 10px;
-            background: white;
-            color: #6366f1;
-            font-weight: 500;
-            text-decoration: none;
-            transition: all 0.2s ease;
-            border: 1px solid transparent;
-            font-size: 0.95rem;
-        }
-        
-        @media (prefers-color-scheme: dark) {
-            .toc a {
-                background: rgba(30, 41, 59, 0.8);
-            }
-        }
-        
-        .toc a:hover { 
-            background: #6366f1;
-            color: white;
-            border-color: #6366f1;
-        }
-
-        /* ============================================
-           コマンドボックス
-           ============================================ */
-        .command-box {
-            background: #1e1e2e;
-            color: #4ade80;
-            padding: 16px 20px;
-            border-radius: 14px;
-            font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
-            font-size: 0.875rem;
-            margin: 14px 0;
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-            line-height: 1.8;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        }
-
-        /* ============================================
-           アラートボックス
-           ============================================ */
-        .warning-box {
-            background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
-            border-left: 4px solid #f59e0b;
-            padding: 18px 22px;
-            margin: 18px 0;
-            border-radius: 0 14px 14px 0;
-            color: #92400e;
-        }
-        
-        .info-box {
-            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-            border-left: 4px solid #3b82f6;
-            padding: 18px 22px;
-            margin: 18px 0;
-            border-radius: 0 14px 14px 0;
-            color: #1e40af;
-        }
-        
-        .success-box {
-            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
-            border-left: 4px solid #10b981;
-            padding: 18px 22px;
-            margin: 18px 0;
-            border-radius: 0 14px 14px 0;
-            color: #166534;
-            font-weight: 600;
-            text-align: center;
-            font-size: 1.15rem;
-        }
-        
-        @media (prefers-color-scheme: dark) {
-            .warning-box {
-                background: rgba(245, 158, 11, 0.15);
-                color: #fcd34d;
-            }
-            .info-box {
-                background: rgba(59, 130, 246, 0.15);
-                color: #93c5fd;
-            }
-            .success-box {
-                background: rgba(16, 185, 129, 0.15);
-                color: #6ee7b7;
-            }
-        }
-
-        /* ============================================
-           セクションヘッダー
-           ============================================ */
-        .section-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 22px 26px;
-            border-radius: 16px;
-            margin: 52px 0 26px 0;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        }
-        
-        .section-header h2 { 
-            color: white; 
-            margin: 0;
-            padding: 0;
-            background: none;
-            border: none;
-            font-size: clamp(1.25rem, 4vw, 1.5rem);
-        }
-
-        /* ============================================
-           メソッドボックス
-           ============================================ */
-        .method-box {
-            background: white;
-            border-radius: 16px;
-            padding: 24px;
-            margin: 20px 0;
-            border: 1px solid #e5e7eb;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-            transition: all 0.2s ease;
-        }
-        
-        @media (prefers-color-scheme: dark) {
-            .method-box {
-                background: #1e293b;
-                border-color: #334155;
-            }
-        }
-        
-        .method-box:hover {
-            border-color: #818cf8;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        }
-        
-        .method-box h3 { 
-            margin: 0 0 18px 0;
-            padding: 0;
-            border: none;
-            color: #6366f1;
-            font-size: 1.1rem;
-        }
-        
-        .method-box ol,
-        .method-box ul {
-            margin: 0;
-            padding-left: 1.5rem;
-        }
-        
-        .method-box li {
-            margin-bottom: 10px;
-            line-height: 1.65;
-        }
-
-        /* ============================================
-           テーブル
-           ============================================ */
-        .table-scroll {
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-            margin: 20px 0;
-        }
-        
-        table { 
-            width: 100%; 
-            border-collapse: collapse;
-            font-size: 0.95rem;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-            min-width: 400px;
-        }
-        
-        th, td { 
-            padding: 14px 16px; 
-            text-align: left; 
-            border-bottom: 1px solid #e5e7eb;
-        }
-        
-        th { 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            font-weight: 600;
-            font-size: 0.85rem;
-            text-transform: uppercase;
-            letter-spacing: 0.03em;
-        }
-        
-        tr:last-child td {
-            border-bottom: none;
-        }
-        
-        tr:hover { 
-            background: rgba(99, 102, 241, 0.05);
-        }
-        
-        @media (prefers-color-scheme: dark) {
-            th, td {
-                border-bottom-color: #334155;
-            }
-            tr:hover {
-                background: rgba(99, 102, 241, 0.1);
-            }
-        }
-
-        /* ============================================
-           フッター
-           ============================================ */
-        footer {
-            text-align: center;
-            margin-top: 50px;
-            padding-top: 24px;
-            border-top: 1px solid #e5e7eb;
-            color: #64748b;
-        }
-        
-        footer p {
-            margin: 0;
-            font-size: 1rem;
-        }
-        
-        @media (prefers-color-scheme: dark) {
-            footer {
-                border-top-color: #334155;
-            }
-        }
-
-        /* ============================================
-           タッチデバイス最適化
-           ============================================ */
-        @media (hover: none) and (pointer: coarse) {
-            .nav-card:hover,
-            .method-box:hover,
-            tr:hover {
-                transform: none;
-                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-                background: inherit;
-            }
-            
-            .toc a {
-                min-height: 48px;
-            }
-        }
-
-        /* ============================================
-           追加スタイル
-           ============================================ */
-        .highlight-text {
-            color: #6366f1;
-            font-weight: 600;
-        }
-        
-        .admin-url {
-            background: #1e1e2e;
-            color: white;
-            padding: 16px 20px;
-            border-radius: 14px;
-            text-align: center;
-            font-size: 1.15rem;
-            font-family: 'SF Mono', 'Consolas', monospace;
-            margin: 16px 0;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        }
-        
-        .admin-url a {
-            color: #60a5fa;
-            text-decoration: none;
-        }
-        
-        .admin-url a:hover {
-            text-decoration: underline;
-        }
-
-        /* スムーズスクロール */
-        html {
-            scroll-behavior: smooth;
-        }
-        
-        /* スクロールマージン（ヘッダー分） */
-        section[id] {
-            scroll-margin-top: 20px;
-        }
-    </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>🚀 OITERU かんたんスタートガイド</h1>
-            <p class="subtitle">プライバシー配慮型ナプキン配布システム<br>親機・従親機・子機の立ち上げ方法</p>
-            <p class="last-updated">最終更新: 2026年1月16日</p>
+            <h1>OITERU かんたんスタートガイド</h1>
+            <p class="subtitle">親機・従親機・子機の起動手順を、初心者向けに整理したガイドです。</p>
+            <p class="last-updated">最終更新: 2026-03-06</p>
         </header>
 
         <main>
-            <!-- クイックリンク -->
-            <div class="nav-cards">
-                <a href="#parent" class="nav-card">
-                    <span class="emoji">🖥️</span>
-                    <h3>親機を起動</h3>
-                </a>
-                <a href="#sub-parent" class="nav-card">
-                    <span class="emoji">🔗</span>
-                    <h3>従親機を起動</h3>
-                </a>
-                <a href="#unit" class="nav-card">
-                    <span class="emoji">📡</span>
-                    <h3>子機を起動</h3>
-                </a>
-                <a href="#troubleshooting" class="nav-card">
-                    <span class="emoji">🔧</span>
-                    <h3>困ったら</h3>
-                </a>
+            <h2>最初に読むポイント</h2>
+            <ul>
+                <li>レポジトリ名は <code>oiteru_202603</code> です</li>
+                <li>親機URLは <code>http://100.114.99.67:5000</code> です</li>
+                <li>子機は <code>tmux</code> を使う方法だけを案内しています</li>
+            </ul>
+
+            <h2>役割の違い</h2>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>名前</th>
+                            <th>役割</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>親機</td>
+                            <td>メインサーバー。管理画面、利用履歴、設定を持つ</td>
+                        </tr>
+                        <tr>
+                            <td>従親機</td>
+                            <td>親機のデータを使うサブサーバー</td>
+                        </tr>
+                        <tr>
+                            <td>子機</td>
+                            <td>Raspberry Piで動き、カード読み取りと排出を行う</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
 
-            <!-- 目次 -->
-            <nav class="toc">
-                <h3>📚 目次</h3>
-                <ul>
-                    <li><a href="#about">🎯 はじめに</a></li>
-                    <li><a href="#parent">🖥️ 親機の起動方法</a></li>
-                    <li><a href="#sub-parent">🔗 従親機の起動方法</a></li>
-                    <li><a href="#unit">📡 子機の起動方法</a></li>
-                    <li><a href="#admin">⚙️ 管理画面の使い方</a></li>
-                    <li><a href="#troubleshooting">🔧 トラブルシューティング</a></li>
-                </ul>
-            </nav>
+            <h2>親機の起動</h2>
+            <p>親機は Windows 側で Docker を使って起動するのがおすすめです。</p>
+            <pre><code>cd D:\oiteru_202603
+docker-compose -f docker-compose.mysql.yml up -d</code></pre>
+            <p>確認:</p>
+            <pre><code>docker ps</code></pre>
+            <p>停止:</p>
+            <pre><code>cd D:\oiteru_202603
+docker-compose -f docker-compose.mysql.yml down</code></pre>
 
-            <!-- はじめに -->
-            <section id="about">
-                <div class="section-header">
-                    <h2>🎯 はじめに</h2>
-                </div>
-                
-                <h3>OITERUって何？</h3>
-                <p>ICカード（社員証・学生証など）をかざすと、<strong>生理用ナプキンが自動で提供される</strong>プライバシー配慮型の配布システムです！</p>
+            <h2>従親機の起動</h2>
+            <pre><code>cd D:\oiteru_202603
+.\venv-start.ps1 sub-parent</code></pre>
+            <p>親機と通信できるネットワークにいることを確認してください。</p>
 
-                <div class="info-box">
-                    💡 <strong>システムの特長</strong><br>
-                    🔒 プライバシー保護 | 📱 簡単操作 | 📊 自動在庫管理 | 🌐 複数拠点対応
-                </div>
+            <h2>子機の起動</h2>
+            <p>子機は Raspberry Pi で <code>tmux</code> を使って起動します。</p>
 
-                <h3>用語の説明</h3>
-                <div class="table-scroll">
-                    <table>
-                        <thead>
-                            <tr><th>用語</th><th>説明</th><th>IPアドレス</th></tr>
-                        </thead>
-                        <tbody>
-                            <tr><td><strong>親機</strong></td><td>データベースを持つメインサーバー</td><td><code>100.114.99.67</code></td></tr>
-                            <tr><td><strong>従親機</strong></td><td>親機のDBを参照するサブサーバー</td><td>設置場所による</td></tr>
-                            <tr><td><strong>子機</strong></td><td>ナプキンを排出するラズパイ端末</td><td>設置場所による</td></tr>
-                        </tbody>
-                    </table>
-                </div>
+            <h3>1. config.json を確認する</h3>
+            <pre><code>{
+    "SERVER_URL": "http://100.114.99.67:5000",
+    "UNIT_NAME": "2号機",
+    "UNIT_PASSWORD": "password123"
+}</code></pre>
 
-                <div class="info-box">
-                    💡 <strong>Tailscale</strong>を使っているので、親機のアドレスは <code>100.114.99.67</code> で固定です！
-                </div>
-            </section>
+            <h3>2. tmux を入れる</h3>
+            <pre><code>sudo apt update
+sudo apt install -y tmux</code></pre>
 
-            <!-- 親機の起動方法 -->
-            <section id="parent">
-                <div class="section-header">
-                    <h2>🖥️ 親機の起動方法</h2>
-                </div>
-                <p>親機はデータベース（MySQL）を持つメインサーバーです。</p>
+            <h3>3. tmux を開始する</h3>
+            <pre><code>tmux new -s oiteru</code></pre>
 
-                <div class="method-box">
-                    <h3>方法1: 🚀 ランチャーで起動（一番簡単！）</h3>
-                    <ol>
-                        <li><code>scripts</code> フォルダを開く</li>
-                        <li><code>launcher.bat</code> をダブルクリック</li>
-                        <li><strong>「1. GUI版」</strong> を選択</li>
-                        <li>起動モード: <strong>「親機」</strong>、実行方法: <strong>「Dockerモード」</strong> を選択</li>
-                        <li><strong>「起動」</strong> ボタンを押す</li>
-                    </ol>
-                    <div class="success-box">これだけ！ 🎉</div>
-                </div>
+            <h3>4. プロジェクトへ移動する</h3>
+            <pre><code>cd ~/oiteru_202603</code></pre>
 
-                <div class="method-box">
-                    <h3>方法2: 📦 Dockerで起動（推奨）</h3>
-                    <div class="command-box">
-cd C:\Users\RTDS_admin\source\repos\CYLIU2003\oiteru_250827_restAPI<br>
-docker-compose -f docker-compose.mysql.yml up -d
-                    </div>
-                    <p>確認：<code>docker ps</code> で <code>oiteru_mysql</code> と <code>oiteru_web</code> が Up ならOK</p>
-                </div>
+            <h3>5. 子機を起動する</h3>
+            <pre><code>./venv-start.sh unit</code></pre>
 
-                <div class="method-box">
-                    <h3>方法3: 🐍 仮想環境で起動（開発向け）</h3>
-                    <div class="command-box">.\venv-start.ps1 parent-mysql</div>
-                    <div class="warning-box">⚠️ MySQLが別途起動している必要があります</div>
-                </div>
+            <h3>6. tmux から抜ける</h3>
+            <pre><code>Ctrl + B を押してから D を押す</code></pre>
 
-                <div class="method-box">
-                    <h3>方法4: 🔧 通常モードで起動（非推奨・テスト用）</h3>
-                    <div class="command-box">
-$env:DB_TYPE = 'mysql'<br>
-$env:MYSQL_HOST = 'localhost'<br>
-$env:MYSQL_PORT = '3306'<br>
-$env:MYSQL_DATABASE = 'oiteru'<br>
-$env:MYSQL_USER = 'oiteru_user'<br>
-$env:MYSQL_PASSWORD = 'oiteru_password_2025'<br>
-python server.py
-                    </div>
-                </div>
-            </section>
+            <h3>7. 後で戻る</h3>
+            <pre><code>tmux attach -t oiteru</code></pre>
 
-            <!-- 従親機の起動方法 -->
-            <section id="sub-parent">
-                <div class="section-header">
-                    <h2>🔗 従親機の起動方法</h2>
-                </div>
-                <p>従親機は、親機のデータベースを参照するサブサーバーです。</p>
+            <h3>8. 停止する</h3>
+            <ol>
+                <li><code>tmux attach -t oiteru</code> で戻る</li>
+                <li><code>Ctrl + C</code> で停止する</li>
+                <li>必要なら <code>exit</code> で tmux を閉じる</li>
+            </ol>
 
-                <div class="method-box">
-                    <h3>方法1: 🚀 ランチャーで起動</h3>
-                    <ol>
-                        <li><code>scripts/launcher.bat</code> をダブルクリック</li>
-                        <li>GUI版を選択</li>
-                        <li>起動モード: <strong>「従親機」</strong> を選択</li>
-                        <li>設定で MySQLホスト を <code>100.114.99.67</code> に変更</li>
-                        <li>「起動」ボタンを押す</li>
-                    </ol>
-                </div>
+            <h2>管理画面</h2>
+            <ul>
+                <li>URL: <code>http://100.114.99.67:5000/admin</code></li>
+                <li>初期パスワード: <code>admin</code></li>
+            </ul>
 
-                <div class="method-box">
-                    <h3>方法2: 📦 Dockerで起動</h3>
-                    <div class="command-box">./docker-start.sh external</div>
-                </div>
+            <h2>よくあるトラブル</h2>
 
-                <div class="method-box">
-                    <h3>方法3: 🐍 仮想環境で起動</h3>
-                    <p><strong>Windows:</strong></p>
-                    <div class="command-box">
-$env:MYSQL_HOST = '100.114.99.67'<br>
-.\venv-start.ps1 sub-parent
-                    </div>
-                    <p><strong>Linux:</strong></p>
-                    <div class="command-box">
-export MYSQL_HOST=100.114.99.67<br>
-./venv-start.sh sub-parent
-                    </div>
-                </div>
+            <h3>親機につながらない</h3>
+            <ul>
+                <li><code>SERVER_URL</code> が正しいか確認する</li>
+                <li>親機が起動しているか確認する</li>
+                <li>ネットワークや Tailscale を確認する</li>
+            </ul>
 
-                <div class="method-box">
-                    <h3>方法4: 🔧 通常モードで起動（非推奨）</h3>
-                    <div class="command-box">
-$env:DB_TYPE = 'mysql'<br>
-$env:MYSQL_HOST = '100.114.99.67'<br>
-$env:SERVER_NAME = '従親機A'<br>
-python server.py
-                    </div>
-                </div>
-            </section>
+            <h3>tmux がない</h3>
+            <pre><code>sudo apt update
+sudo apt install -y tmux</code></pre>
 
-            <!-- 子機の起動方法 -->
-            <section id="unit">
-                <div class="section-header">
-                    <h2>📡 子機の起動方法</h2>
-                </div>
-                <p>子機はRaspberry Piで動き、NFCカードの読み取りとナプキンの排出を行います。</p>
+            <h3>duplicate session と出る</h3>
+            <pre><code>tmux attach -t oiteru
+tmux ls</code></pre>
 
-                <div class="warning-box">
-                    <strong>⚠️ 前準備: config.json を編集してね！</strong>
-                    <div class="command-box" style="color: #d4d4d4;">
-{<br>
-&nbsp;&nbsp;"SERVER_URL": "http://100.114.99.67:5000",<br>
-&nbsp;&nbsp;"UNIT_NAME": "あなたの子機名",<br>
-&nbsp;&nbsp;"UNIT_PASSWORD": "パスワード"<br>
-}
-                    </div>
-                </div>
+            <h3>NFC が読めない</h3>
+            <pre><code>lsusb</code></pre>
 
-                <div class="method-box">
-                    <h3>方法1: 🚀 クイック起動スクリプト（おすすめ！）</h3>
-                    <div class="command-box">
-cd /home/pi/oiteru_250827_restAPI/scripts<br>
-sudo ./quick_start_unit.sh 100.114.99.67
-                    </div>
-                </div>
+            <h3>モーターが動かない</h3>
+            <ul>
+                <li>配線</li>
+                <li><code>config.json</code> の設定</li>
+                <li>センサーの詰まり判定</li>
+            </ul>
 
-                <div class="method-box">
-                    <h3>方法2: 🐍 仮想環境で起動</h3>
-                    <div class="command-box">
-cd /home/pi/oiteru_250827_restAPI<br>
-./venv-start.sh unit
-                    </div>
-                </div>
+            <h2>最短手順まとめ</h2>
+            <p>親機:</p>
+            <pre><code>cd D:\oiteru_202603
+docker-compose -f docker-compose.mysql.yml up -d</code></pre>
+            <p>子機:</p>
+            <pre><code>sudo apt install -y tmux
+tmux new -s oiteru
+cd ~/oiteru_202603
+./venv-start.sh unit</code></pre>
 
-                <div class="method-box">
-                    <h3>方法3: 🔧 通常モードで起動（非推奨）</h3>
-                    <div class="command-box">
-cd /home/pi/oiteru_250827_restAPI<br>
-sudo python3 unit.py
-                    </div>
-                </div>
-
-                <div class="method-box">
-                    <h3>方法4: 🔄 自動起動の設定</h3>
-                    <div class="command-box">
-sudo cp oiteru-unit.service /etc/systemd/system/<br>
-sudo systemctl enable oiteru-unit<br>
-sudo systemctl start oiteru-unit
-                    </div>
-                </div>
-            </section>
-
-            <!-- 管理画面 -->
-            <section id="admin">
-                <div class="section-header">
-                    <h2>⚙️ 管理画面の使い方</h2>
-                </div>
-                
-                <p>ブラウザで以下のURLにアクセスしてください：</p>
-                
-                <div class="admin-url">
-                    <a href="http://100.114.99.67:5000/admin" target="_blank">http://100.114.99.67:5000/admin</a>
-                </div>
-                
-                <p style="text-align: center;"><strong>初期パスワード</strong>: <code>admin</code></p>
-
-                <h3>できること</h3>
-                <div class="table-scroll">
-                    <table>
-                        <thead>
-                            <tr><th>メニュー</th><th>説明</th></tr>
-                        </thead>
-                        <tbody>
-                            <tr><td>👥 ユーザー管理</td><td>ユーザーの登録・編集、個人在庫数調整</td></tr>
-                            <tr><td>🤖 子機管理</td><td>子機の登録・接続状態確認・在庫管理</td></tr>
-                            <tr><td>📜 利用履歴</td><td>匿名化された利用統計の確認</td></tr>
-                            <tr><td>⚙️ 設定</td><td>自動登録モード、1日の配布上限数など</td></tr>
-                            <tr><td>🔒 プライバシー</td><td>個人情報保護とデータ管理設定</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-                
-                <div class="info-box">
-                    💡 <strong>プライバシーに配慮した設計</strong><br>
-                    利用履歴は統計目的で記録されますが、個人を特定する情報は含まれません。
-                </div>
-            </section>
-
-            <!-- トラブルシューティング -->
-            <section id="troubleshooting">
-                <div class="section-header">
-                    <h2>🔧 トラブルシューティング</h2>
-                </div>
-
-                <div class="method-box">
-                    <h3>🔌 接続できない</h3>
-                    <p><strong>1. Tailscaleは接続してる？</strong></p>
-                    <div class="command-box">tailscale status</div>
-                    <p>「connected」と出てなければ以下を実行：</p>
-                    <div class="command-box">sudo tailscale up</div>
-
-                    <p><strong>2. config.jsonは正しい？</strong></p>
-                    <ul>
-                        <li><code>http://</code> で始まる？（<code>https://</code> じゃない）</li>
-                        <li>最後にスラッシュ <code>/</code> は付いてない？</li>
-                        <li>ポート番号 <code>:5000</code> は付いてる？</li>
-                    </ul>
-                </div>
-
-                <div class="method-box">
-                    <h3>📱 NFCカードが読めない</h3>
-                    <p>以下のコマンドでデバイスを確認：</p>
-                    <div class="command-box">lsusb</div>
-                    <p>→ <strong>Sony</strong> か <strong>ACS</strong> のデバイスが表示されればOK。<br>なければUSBを確認してください！</p>
-                </div>
-
-                <div class="method-box">
-                    <h3>🩹 ナプキンが出ない</h3>
-                    <ul>
-                        <li>在庫は残ってる？（管理画面で確認）</li>
-                        <li>1日の上限に達してない？</li>
-                        <li>モーターの配線は正しい？</li>
-                        <li>排出口が詰まってない？</li>
-                    </ul>
-                </div>
-            </section>
-
-            <!-- 起動方法まとめ -->
-            <section id="summary">
-                <div class="section-header">
-                    <h2>📋 起動方法まとめ</h2>
-                </div>
-                <div class="table-scroll">
-                    <table>
-                        <thead>
-                            <tr><th>対象</th><th>おすすめ</th><th>コマンド</th></tr>
-                        </thead>
-                        <tbody>
-                            <tr><td>親機</td><td>Docker</td><td><code>docker-compose -f docker-compose.mysql.yml up -d</code></td></tr>
-                            <tr><td>親機</td><td>仮想環境</td><td><code>.\venv-start.ps1 parent-mysql</code></td></tr>
-                            <tr><td>従親機</td><td>仮想環境</td><td><code>.\venv-start.ps1 sub-parent</code></td></tr>
-                            <tr><td>子機</td><td>クイック起動</td><td><code>sudo ./quick_start_unit.sh 100.114.99.67</code></td></tr>
-                            <tr><td>子機</td><td>仮想環境</td><td><code>./venv-start.sh unit</code></td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-
-            <!-- 困ったら -->
-            <section id="contact">
-                <div class="warning-box">
-                    <h3 style="margin-top: 0;">📞 困ったら</h3>
-                    <p>管理者に連絡！以下を伝えてね：</p>
-                    <ol style="margin-bottom: 0;">
-                        <li><strong>何をしたか</strong> → 例：「カードをかざした」</li>
-                        <li><strong>何が起きたか</strong> → 例：「エラーが出た」</li>
-                        <li><strong>エラーメッセージ</strong> → 画面に出た文字</li>
-                        <li><strong>子機の名前</strong> → <code>UNIT_NAME</code> の値</li>
-                    </ol>
-                </div>
-            </section>
+            <h2>管理者へ伝えること</h2>
+            <ul>
+                <li>何をしたか</li>
+                <li>何が起きたか</li>
+                <li>エラー文</li>
+                <li>子機名</li>
+            </ul>
         </main>
 
         <footer>
-            <p><strong>わからないことがあったら、遠慮なく管理者にお問い合わせください！</strong> 😊</p>
-            <p style="font-size: 0.9rem; color: #94a3b8; margin-top: 8px;">
-                OITERU プライバシー配慮型ナプキン配布システム | 最終更新: 2026年1月16日
-            </p>
+            <p>OITERU manual</p>
         </footer>
     </div>
 </body>
