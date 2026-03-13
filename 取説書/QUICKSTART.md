@@ -6,7 +6,7 @@
 
 💻 **プライバシー配慮型ナプキン配布システム**
 
-📅 最終更新: 2026年1月23日
+📅 最終更新: 2026年3月13日
 
 > 💡 **スマホで見る場合は [QUICKSTART.html](QUICKSTART.html) がおすすめです！**
 
@@ -35,6 +35,8 @@
 - 親機: `db_server.py`
 - DB: `MySQL 8 (InnoDB)`
 - `server.py` は legacy 互換経路です
+
+この取説の標準起動は `MySQL + .env + db_server.py` です。
 
 ### OITERUって何？
 
@@ -190,17 +192,11 @@ cd C:\Users\RTDS_admin\source\repos\CYLIU2003\oiteru_250827_restAPI
 
 仮想環境を使わず直接実行します。環境が汚れるので非推奨。
 
-```powershell
-# 環境変数を設定
-$env:DB_TYPE = 'mysql'
-$env:MYSQL_HOST = 'localhost'
-$env:MYSQL_PORT = '3306'
-$env:MYSQL_DATABASE = 'oiteru'
-$env:MYSQL_USER = 'oiteru_user'
-$env:MYSQL_PASSWORD = 'oiteru_password_2025'
+`.env` を設定済みで、MySQL が起動している前提です。
 
+```powershell
 # 起動
-python server.py
+python db_server.py
 ```
 
 ---
@@ -287,13 +283,11 @@ export MYSQL_HOST=100.114.99.67
 
 ### 方法4: 🔧 通常モードで起動（非推奨）
 
+`.env` を設定済みで、必要な MySQL 接続情報が入っている前提です。
+
 ```powershell
 $env:DB_TYPE = 'mysql'
 $env:MYSQL_HOST = '100.114.99.67'
-$env:MYSQL_PORT = '3306'
-$env:MYSQL_DATABASE = 'oiteru'
-$env:MYSQL_USER = 'oiteru_user'
-$env:MYSQL_PASSWORD = 'oiteru_password_2025'
 $env:SERVER_NAME = '従親機A'
 
 python server.py

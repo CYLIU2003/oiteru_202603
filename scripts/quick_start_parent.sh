@@ -36,6 +36,14 @@ elif [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
 fi
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ENV_FILE="$PROJECT_ROOT/.env"
+ENV_EXAMPLE_FILE="$PROJECT_ROOT/.env.example"
+
+if [ ! -f "$ENV_FILE" ]; then
+    echo -e "${YELLOW}❌ .env が見つかりません。${NC}"
+    echo -e "${GRAY}   $ENV_EXAMPLE_FILE をコピーし、必須値を設定してから再実行してください。${NC}"
+    exit 1
+fi
 
 if [ "$DOCKER_MODE" = true ]; then
     echo -e "${CYAN}🐳 Dockerモードで起動します...${NC}"
@@ -48,7 +56,7 @@ if [ "$DOCKER_MODE" = true ]; then
     echo ""
     echo -e "${GREEN}✅ 親機起動完了！${NC}"
     echo -e "${CYAN}📡 アクセス: http://localhost:5000${NC}"
-    echo -e "${CYAN}🔧 管理画面: http://localhost:5000/admin${NC}"
+    echo -e "${CYAN}🔧 管理画面: http://localhost:5000/admin (.env の OITERU_ADMIN_PASSWORD を使用)${NC}"
     echo ""
     echo -e "${GRAY}📋 ログ表示: docker-compose -f docker-compose.mysql.yml logs -f${NC}"
     echo -e "${GRAY}🛑 停止: docker-compose -f docker-compose.mysql.yml down${NC}"
@@ -96,24 +104,16 @@ else
         echo -e "${GREEN}✓ MySQLコンテナは既に起動中${NC}"
     fi
     
-    # 環境変数設定
-    export DB_TYPE='mysql'
-    export MYSQL_HOST='localhost'
-    export MYSQL_PORT='3306'
-    export MYSQL_DATABASE='oiteru'
-    export MYSQL_USER='oiteru_user'
-    export MYSQL_PASSWORD='oiteru_password_2025'
-    
     echo ""
     echo -e "${CYAN}🚀 サーバーを起動します...${NC}"
     echo ""
     echo -e "${CYAN}📡 アクセス: http://localhost:5000${NC}"
-    echo -e "${CYAN}🔧 管理画面: http://localhost:5000/admin (パスワード: admin)${NC}"
+    echo -e "${CYAN}🔧 管理画面: http://localhost:5000/admin (.env の OITERU_ADMIN_PASSWORD を使用)${NC}"
     echo ""
     echo -e "${GRAY}🛑 停止: Ctrl+C を押してください${NC}"
     echo ""
     
     # サーバー起動
     cd "$PROJECT_ROOT"
-    "$VENV_PATH/bin/python" server.py
+    "$VENV_PATH/bin/python" db_server.py
 fi

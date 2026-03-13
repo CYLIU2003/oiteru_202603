@@ -42,6 +42,28 @@ from flask import (
 )
 from db_adapter import db, get_connection, DatabaseError
 
+
+def load_env_file(env_path: str):
+    """.env を読み込み、未設定の環境変数だけを補完する。"""
+    if not os.path.exists(env_path):
+        return
+    with open(env_path, encoding='utf-8') as env_file:
+        for raw_line in env_file:
+            line = raw_line.strip()
+            if not line or line.startswith('#') or '=' not in line:
+                continue
+            key, value = line.split('=', 1)
+            key = key.strip()
+            value = value.strip()
+            if not key:
+                continue
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
+                value = value[1:-1]
+            os.environ.setdefault(key, value)
+
+
+load_env_file(os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env'))
+
 # --- Flaskアプリケーションの初期化 ---
 app = Flask(__name__, template_folder='templates', static_folder='static')
 app.secret_key = os.getenv('FLASK_SECRET_KEY') or secrets.token_hex(32)

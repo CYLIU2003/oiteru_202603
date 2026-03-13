@@ -1,4 +1,4 @@
-# 🍬 OITERU (オイテル) システム
+# OITERU (オイテル) システム
 
 **NFCカードで「生理用品(ナプキン)」を管理するスマートIoTシステム**
 
@@ -9,7 +9,7 @@
 ## 📁 ファイル構成（これだけ覚えればOK！）
 
 ```
-oiteru_250827_restAPI/
+oiteru_202603/
 │
 ├── 🗄️  db_server.py     ← 標準の親機エントリポイント（MySQL）
 ├── 🖥️  server.py        ← legacy 親機エントリポイント（SQLite/互換用）
@@ -19,7 +19,7 @@ oiteru_250827_restAPI/
 ├── ⚙️  config.example.json ← 子機設定テンプレート
 ├── ⚙️  .env.example     ← サーバー設定のテンプレート
 │
-├── �  docker/          ← Docker関連ファイル
+├── 📁  docker/          ← Docker関連ファイル
 ├── 📁  docs/            ← 運用資料・引き継ぎ資料
 ├── 📁  scripts/         ← 便利スクリプト集
 ├── 📁  tools/           ← テスト・診断ツール
@@ -37,10 +37,15 @@ oiteru_250827_restAPI/
 
 - 親機: `db_server.py`
 - DB: `MySQL 8 (InnoDB)`
-- Docker: `docker/docker-compose.mysql.yml`
+- Docker: `docker-compose.mysql.yml`
 - `server.py` は legacy 互換経路で、新規開発対象外です
 
-## ⚡ 4ステップで始める
+## 標準起動手順
+
+この README の標準経路は `MySQL + .env + db_server.py` の 1 本です。
+`server.py + SQLite` は既存検証用の legacy 経路として扱います。
+
+## ⚡ 5ステップで始める
 
 ### ステップ1: `.env` を作成
 
@@ -73,8 +78,7 @@ cp config.example.json config.json
 
 ```bash
 # Dockerで起動（推奨・標準）
-cd docker
-docker-compose -f docker-compose.mysql.yml up -d
+docker compose -f docker-compose.mysql.yml up -d
 
 # または直接起動（MySQL接続）
 python db_server.py
@@ -92,7 +96,13 @@ sudo python unit.py --no-gui
 
 ### ステップ5: 管理画面にアクセス
 
-ブラウザで http://localhost:5000/admin を開き、`.env` で設定した管理者パスワードでログインします。
+ブラウザで http://localhost:5000/admin を開き、`.env` の `OITERU_ADMIN_PASSWORD` でログインします。
+
+## legacy / 互換構成
+
+- `server.py + SQLite` は既存データ確認や互換検証向けです
+- 新規セットアップ、運用手順、障害切り分けは `db_server.py + MySQL` を前提にしてください
+- `config.json`、`*.sqlite3`、`*.log` はローカル生成物として Git 管理しません
 
 ---
 
@@ -124,4 +134,4 @@ sudo python unit.py --no-gui
 
 ---
 
-**最終更新: 2026年1月12日**
+**最終更新: 2026年3月13日**

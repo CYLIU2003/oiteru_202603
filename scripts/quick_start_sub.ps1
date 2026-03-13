@@ -26,6 +26,14 @@ $ErrorActionPreference = "Stop"
 
 # プロジェクトルート
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
+$EnvFile = Join-Path $ProjectRoot ".env"
+$EnvExampleFile = Join-Path $ProjectRoot ".env.example"
+
+if (-not (Test-Path $EnvFile)) {
+    Write-Host "❌ .env が見つかりません。" -ForegroundColor Red
+    Write-Host "   $EnvExampleFile をコピーし、必須値を設定してから再実行してください。" -ForegroundColor Yellow
+    exit 1
+}
 
 Write-Host "🐍 従親機を起動します..." -ForegroundColor Cyan
 Write-Host "📡 接続先親機: $Host" -ForegroundColor Yellow
@@ -62,16 +70,12 @@ if (-not $VenvPath) {
 # 環境変数設定
 $env:DB_TYPE = 'mysql'
 $env:MYSQL_HOST = $Host
-$env:MYSQL_PORT = '3306'
-$env:MYSQL_DATABASE = 'oiteru'
-$env:MYSQL_USER = 'oiteru_user'
-$env:MYSQL_PASSWORD = 'oiteru_password_2025'
 
 Write-Host ""
 Write-Host "🚀 サーバーを起動します..." -ForegroundColor Cyan
 Write-Host ""
 Write-Host "📡 アクセス: http://localhost:5000" -ForegroundColor Cyan
-Write-Host "🔧 管理画面: http://localhost:5000/admin (パスワード: admin)" -ForegroundColor Cyan
+Write-Host "🔧 管理画面: http://localhost:5000/admin (.env の OITERU_ADMIN_PASSWORD を使用)" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "🛑 停止: Ctrl+C を押してください" -ForegroundColor Gray
 Write-Host ""

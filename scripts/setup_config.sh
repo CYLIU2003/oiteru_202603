@@ -40,7 +40,7 @@ if [ -n "$1" ]; then
 else
     # 対話モード
     echo -e "${YELLOW}何を設定しますか？${NC}"
-    echo "  1. 子機（お菓子を出す端末）"
+    echo "  1. 子機（生理用品を排出する端末）"
     echo "  2. 従親機（サブサーバー）"
     echo ""
     read -p "選択 [1/2]: " choice
