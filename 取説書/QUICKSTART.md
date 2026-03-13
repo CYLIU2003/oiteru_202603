@@ -800,7 +800,7 @@ sudo systemctl status oiteru-unit
 
 ### 📝 使い方
 
-1. 管理画面にログイン (`http://100.114.99.67:5000/admin`)
+1. 管理画面にログイン (`http://100.114.99.67:5000/admin`, パスワードは `.env` の `OITERU_ADMIN_PASSWORD`)
 2. 「子機管理」→ 対象の子機を選択
 3. 「子機設定（リモート設定）」セクションで設定を変更
 4. 「📤 設定を子機に送信」ボタンをクリック
@@ -831,7 +831,7 @@ sudo systemctl status oiteru-unit
 
 ```
 🌐 http://100.114.99.67:5000/admin
-🔑 初期パスワード: admin
+🔑 パスワード: `.env` の `OITERU_ADMIN_PASSWORD`
 ```
 
 ### できること

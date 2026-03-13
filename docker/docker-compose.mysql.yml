@@ -5,10 +5,10 @@ services:
     container_name: oiteru_mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: oiteru_root_password_2025
-      MYSQL_DATABASE: oiteru
-      MYSQL_USER: oiteru_user
-      MYSQL_PASSWORD: oiteru_password_2025
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-change-this-root-password}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-oiteru}
+      MYSQL_USER: ${MYSQL_USER:-oiteru_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-change-this-mysql-password}
       MYSQL_ROOT_HOST: '%'
     volumes:
       - mysql_data:/var/lib/mysql
@@ -19,7 +19,7 @@ services:
       - oiteru_network
     command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "oiteru_user", "-poiteru_password_2025"]
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u ${MYSQL_USER:-oiteru_user} -p${MYSQL_PASSWORD:-change-this-mysql-password}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -46,10 +46,15 @@ services:
     environment:
       - DB_TYPE=mysql
       - MYSQL_HOST=mysql
-      - MYSQL_PORT=3306
-      - MYSQL_DATABASE=oiteru
-      - MYSQL_USER=oiteru_user
-      - MYSQL_PASSWORD=oiteru_password_2025
+      - MYSQL_PORT=${MYSQL_PORT:-3306}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-oiteru}
+      - MYSQL_USER=${MYSQL_USER:-oiteru_user}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-change-this-mysql-password}
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:-change-this-secret-key}
+      - OITERU_ADMIN_PASSWORD=${OITERU_ADMIN_PASSWORD:-change-this-admin-password}
+      - ADMIN_SESSION_MINUTES=${ADMIN_SESSION_MINUTES:-30}
+      - ADMIN_LOGIN_MAX_ATTEMPTS=${ADMIN_LOGIN_MAX_ATTEMPTS:-5}
+      - ADMIN_LOGIN_BLOCK_WINDOW_SECONDS=${ADMIN_LOGIN_BLOCK_WINDOW_SECONDS:-900}
       - PCSCLITE_SOCKET=/run/pcscd/pcscd.comm
     depends_on:
       mysql:

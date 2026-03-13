@@ -19,18 +19,22 @@ OITELU 親機 / 従親機 (Webサーバー)
 
 import os
 import hashlib
-import random
+import hmac
 import io
-import pandas as pd
-import traceback
-import re
 import json
+import random
+import re
+import secrets
 import socket
 import subprocess
 import threading
 import time
+import traceback
+
+import pandas as pd
 import requests
 from werkzeug.utils import secure_filename
+from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 from flask import (
     Flask, request, jsonify, render_template,
@@ -40,8 +44,17 @@ from db_adapter import db, get_connection, DatabaseError
 
 # --- Flaskアプリケーションの初期化 ---
 app = Flask(__name__, template_folder='templates', static_folder='static')
-app.secret_key = 'oiteru_secret_key_2025_final'
+app.secret_key = os.getenv('FLASK_SECRET_KEY') or secrets.token_hex(32)
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = os.getenv('SESSION_COOKIE_SECURE', 'false').lower() == 'true'
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(
+    minutes=int(os.getenv('ADMIN_SESSION_MINUTES', '30'))
+)
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'oiteru.sqlite3')
+
+if 'FLASK_SECRET_KEY' not in os.environ:
+    print("警告: FLASK_SECRET_KEY が未設定です。再起動ごとに一時キーを生成します。")
 
 # ========================================
 # サーバー設定
@@ -80,6 +93,162 @@ unit_configs = {}
 
 # 子機への保留中の設定変更（unit_name -> config dict）
 pending_unit_config_updates = {}
+unit_session_tokens = {}
+
+ADMIN_LOGIN_ATTEMPTS = {}
+MAX_LOGIN_ATTEMPTS = int(os.getenv('ADMIN_LOGIN_MAX_ATTEMPTS', '5'))
+LOGIN_BLOCK_WINDOW_SECONDS = int(os.getenv('ADMIN_LOGIN_BLOCK_WINDOW_SECONDS', '900'))
+UNIT_API_AUTH_HEADER = 'X-Oiteru-Unit-Auth'
+DEFAULT_ADMIN_HASHES = {
+    hashlib.sha256('admin'.encode()).hexdigest(),
+    '1b2169971e65007dea2905a92b3f93cceea332f35baf0d1acc74c0dbb3426368',
+}
+
+
+def hash_secret(secret_value: str) -> str:
+    """パスワードや共有秘密を安全な形式で保存する。"""
+    return generate_password_hash(secret_value)
+
+
+def verify_secret(stored_secret: str, provided_secret: str) -> bool:
+    """ハッシュ化済みと旧形式の両方を互換的に検証する。"""
+    if not stored_secret or not provided_secret:
+        return False
+    if hmac.compare_digest(stored_secret, provided_secret):
+        return True
+    try:
+        if stored_secret.startswith(('pbkdf2:', 'scrypt:')):
+            return check_password_hash(stored_secret, provided_secret)
+    except ValueError:
+        pass
+    legacy_hash = hashlib.sha256(provided_secret.encode()).hexdigest()
+    return hmac.compare_digest(stored_secret, legacy_hash)
+
+
+def is_default_admin_secret(stored_secret: str) -> bool:
+    return stored_secret in DEFAULT_ADMIN_HASHES or stored_secret == 'admin'
+
+
+def get_request_ip() -> str:
+    forwarded_for = request.headers.get('X-Forwarded-For', '')
+    if forwarded_for:
+        return forwarded_for.split(',')[0].strip()
+    return request.remote_addr or 'unknown'
+
+
+def prune_login_attempts():
+    cutoff = time.time() - LOGIN_BLOCK_WINDOW_SECONDS
+    expired = [
+        ip for ip, attempts in ADMIN_LOGIN_ATTEMPTS.items()
+        if attempts and attempts[-1] < cutoff
+    ]
+    for ip in expired:
+        del ADMIN_LOGIN_ATTEMPTS[ip]
+
+
+def is_login_blocked(ip_address: str) -> bool:
+    prune_login_attempts()
+    attempts = [
+        attempt_time for attempt_time in ADMIN_LOGIN_ATTEMPTS.get(ip_address, [])
+        if attempt_time >= time.time() - LOGIN_BLOCK_WINDOW_SECONDS
+    ]
+    ADMIN_LOGIN_ATTEMPTS[ip_address] = attempts
+    return len(attempts) >= MAX_LOGIN_ATTEMPTS
+
+
+def record_login_failure(ip_address: str):
+    prune_login_attempts()
+    ADMIN_LOGIN_ATTEMPTS.setdefault(ip_address, []).append(time.time())
+
+
+def clear_login_failures(ip_address: str):
+    ADMIN_LOGIN_ATTEMPTS.pop(ip_address, None)
+
+
+def require_admin_api():
+    if not session.get("admin_logged_in"):
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+    session.permanent = True
+    return None
+
+
+def validate_unit_credentials(conn, unit_name: str, unit_password: str):
+    if not unit_name or not unit_password:
+        return None
+    unit = db.fetchone(conn, "SELECT * FROM units WHERE name = ?", (unit_name,))
+    if not unit:
+        return None
+    if not verify_secret(unit['password'], unit_password):
+        return None
+    return unit
+
+
+def issue_unit_session_token(unit_name: str) -> str:
+    token = secrets.token_urlsafe(24)
+    unit_session_tokens[unit_name] = token
+    return token
+
+
+def validate_unit_token(unit_name: str, provided_token: str) -> bool:
+    expected_token = unit_session_tokens.get(unit_name)
+    return bool(expected_token and provided_token) and hmac.compare_digest(
+        expected_token,
+        provided_token,
+    )
+
+
+def get_authenticated_unit(conn, unit_name: str, unit_password: str = None, unit_token: str = None):
+    unit = db.fetchone(conn, "SELECT * FROM units WHERE name = ?", (unit_name,))
+    if not unit:
+        return None
+    if unit_token and validate_unit_token(unit_name, unit_token):
+        return unit
+    if unit_password and verify_secret(unit['password'], unit_password):
+        return unit
+    return None
+
+
+def get_push_headers(unit_name: str) -> dict:
+    unit_token = unit_session_tokens.get(unit_name)
+    if not unit_token:
+        return {}
+    return {UNIT_API_AUTH_HEADER: unit_token}
+
+
+def ensure_admin_password():
+    """管理者パスワードを初期化し、固定値運用を防ぐ。"""
+    configured_password = os.getenv('OITERU_ADMIN_PASSWORD', '').strip()
+    generated_password = None
+    warning_message = None
+
+    with get_connection() as conn:
+        info = db.fetchone(conn, "SELECT pass FROM info WHERE id = 1")
+        if not info:
+            generated_password = configured_password or secrets.token_urlsafe(16)
+            db.execute(
+                conn,
+                "INSERT INTO info (id, pass) VALUES (?, ?)",
+                (1, hash_secret(generated_password)),
+            )
+        elif configured_password and is_default_admin_secret(info['pass']):
+            db.execute(
+                conn,
+                "UPDATE info SET pass = ? WHERE id = 1",
+                (hash_secret(configured_password),),
+            )
+        elif is_default_admin_secret(info['pass']):
+            warning_message = (
+                "管理者パスワードが既定値のままです。"
+                " OITERU_ADMIN_PASSWORD を設定して更新してください。"
+            )
+
+    if generated_password:
+        print("管理者アカウントを初期化しました。")
+        print(f"管理者パスワード: {generated_password}")
+        if not configured_password:
+            print("OITERU_ADMIN_PASSWORD を設定して恒久値へ更新してください。")
+    if warning_message:
+        print(f"警告: {warning_message}")
 
 
 # ========================================
@@ -267,20 +436,53 @@ def add_history(message: str, hist_type: str = 'usage'):
 # --- パスワード確認 ---
 def check_password(entered_password: str) -> bool:
     """管理者パスワードを確認する"""
-    hashed = hashlib.sha256(entered_password.encode()).hexdigest()
     with get_connection() as conn:
         info = db.fetchone(conn, "SELECT pass FROM info WHERE id = 1")
-    return info and info['pass'] == hashed
+    return bool(info and verify_secret(info['pass'], entered_password))
 
 
 # --- データベース初期化 ---
 def init_db():
     """データベースのテーブルを初期化する"""
     if db.db_type == 'mysql':
-        print("MySQLモード: docker/init_mysql.sqlで初期化してください")
-        # settingsテーブルの作成を試みる
+        print("MySQLモード: 必要テーブルを確認します")
         try:
             with get_connection() as conn:
+                db.execute(conn, """
+                    CREATE TABLE IF NOT EXISTS users (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        card_id VARCHAR(255) UNIQUE NOT NULL,
+                        allow TINYINT DEFAULT 1,
+                        entry VARCHAR(50),
+                        stock INT DEFAULT 2,
+                        today INT DEFAULT 0,
+                        total INT DEFAULT 0,
+                        last_reset_date DATE,
+                        last1 VARCHAR(50), last2 VARCHAR(50), last3 VARCHAR(50), last4 VARCHAR(50), last5 VARCHAR(50),
+                        last6 VARCHAR(50), last7 VARCHAR(50), last8 VARCHAR(50), last9 VARCHAR(50), last10 VARCHAR(50)
+                    )
+                """)
+                db.execute(conn, """
+                    CREATE TABLE IF NOT EXISTS units (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        name VARCHAR(255) UNIQUE NOT NULL,
+                        password VARCHAR(255) NOT NULL,
+                        stock INT DEFAULT 0,
+                        initial_stock INT DEFAULT 100,
+                        connect TINYINT DEFAULT 0,
+                        available TINYINT DEFAULT 1,
+                        last_seen DATETIME,
+                        ip_address VARCHAR(50)
+                    )
+                """)
+                db.execute(conn, """
+                    CREATE TABLE IF NOT EXISTS history (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        txt TEXT NOT NULL,
+                        type VARCHAR(20) DEFAULT 'usage',
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
                 db.execute(conn, """
                     CREATE TABLE IF NOT EXISTS settings (
                         id INT PRIMARY KEY,
@@ -292,8 +494,15 @@ def init_db():
                         updated_at DATETIME
                     )
                 """)
+                db.execute(conn, """
+                    CREATE TABLE IF NOT EXISTS info (
+                        id INT PRIMARY KEY,
+                        pass VARCHAR(255) NOT NULL,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
         except Exception as e:
-            print(f"settingsテーブル作成エラー: {e}")
+            print(f"MySQL初期化エラー: {e}")
         return
         
     if os.path.exists(DB_PATH):
@@ -367,13 +576,8 @@ def init_db():
                     pass TEXT NOT NULL
                 )
             ''')
-            
-            # デフォルトの管理者パスワード
-            default_password = hashlib.sha256('admin'.encode()).hexdigest()
-            db.execute(conn, "INSERT INTO info (id, pass) VALUES (?, ?)", (1, default_password))
-            
+
             print("データベースの初期化が完了しました。")
-            print("デフォルト管理者パスワード: admin")
 
 
 # --- DBマイグレーション ---
@@ -599,11 +803,19 @@ def admin_login():
         flash("ログアウトしました。", "success")
         return redirect(url_for('admin_login'))
     if request.method == "POST":
+        request_ip = get_request_ip()
+        if is_login_blocked(request_ip):
+            flash("ログイン試行回数が上限に達しました。しばらく待ってから再試行してください。", "error")
+            return render_template("admin_login.html")
+
         entered_pass = request.form.get("password", "")
         if check_password(entered_pass):
             session["admin_logged_in"] = True
+            session.permanent = True
+            clear_login_failures(request_ip)
             return redirect(url_for("admin_dashboard"))
         else:
+            record_login_failure(request_ip)
             flash("パスワードが違います。", "error")
     return render_template("admin_login.html")
 
@@ -753,7 +965,7 @@ def admin_new_unit():
             with get_connection() as conn:
                 db.execute(conn, 
                     "INSERT INTO units (name, password, stock, initial_stock) VALUES (?, ?, ?, ?)",
-                    (name, password, stock, stock))
+                    (name, hash_secret(password), stock, stock))
             add_history(f"新しい子機を登録 ({name})", 'system')
             flash(f"子機({name})を登録しました。", "success")
             return redirect(url_for("admin_units"))
@@ -1066,6 +1278,10 @@ def api_read_card():
 @app.route('/api/unregistered_units', methods=['GET'])
 def api_unregistered_units():
     """未登録子機の一覧を取得"""
+    auth_error = require_admin_api()
+    if auth_error:
+        return auth_error
+
     now = datetime.now()
     units = []
     for name, info in unregistered_units.items():
@@ -1083,7 +1299,6 @@ def api_unregistered_units():
             'last_seen': info.get('last_seen', ''),
             'seconds_ago': round(seconds_ago, 1),
             'heartbeat_count': info.get('heartbeat_count', 0),
-            'password': info.get('password', '')
         })
     
     return jsonify({
@@ -1096,6 +1311,10 @@ def api_unregistered_units():
 @app.route('/api/register_unit', methods=['POST'])
 def api_register_unit():
     """未登録子機を正式登録"""
+    auth_error = require_admin_api()
+    if auth_error:
+        return auth_error
+
     data = request.json
     unit_name = data.get('name')
     
@@ -1111,7 +1330,7 @@ def api_register_unit():
         with get_connection() as conn:
             db.execute(conn,
                 "INSERT INTO units (name, password, stock, connect, available, ip_address) VALUES (?, ?, ?, 1, 1, ?)",
-                (unit_name, pending_unit['password'], server_settings.get('auto_register_stock', 5), pending_unit.get('ip_address', ''))
+                (unit_name, pending_unit['password_hash'], server_settings.get('auto_register_stock', 5), pending_unit.get('ip_address', ''))
             )
         del unregistered_units[unit_name]
         add_history(f"子機登録: {unit_name}", 'system')
@@ -1164,6 +1383,10 @@ def api_toggle_user_allow(uid):
 
 @app.route('/api/users', methods=['GET'])
 def api_get_users():
+    auth_error = require_admin_api()
+    if auth_error:
+        return auth_error
+
     with get_connection() as conn:
         users = db.fetchall(conn, 'SELECT * FROM users')
     return jsonify([dict(row) for row in users])
@@ -1171,6 +1394,10 @@ def api_get_users():
 
 @app.route('/api/users/<string:card_id>', methods=['GET'])
 def api_get_user_by_card(card_id):
+    auth_error = require_admin_api()
+    if auth_error:
+        return auth_error
+
     with get_connection() as conn:
         user = db.fetchone(conn, 'SELECT * FROM users WHERE card_id = ?', (card_id,))
     if user:
@@ -1181,9 +1408,17 @@ def api_get_user_by_card(card_id):
 @app.route('/api/log', methods=['POST'])
 def api_add_log():
     """子機からのログを受け取る"""
-    data = request.json
+    data = request.json or {}
     message = data.get('message')
     unit_name = data.get('unit_name', '不明な子機')
+    unit_password = data.get('unit_password')
+    unit_token = data.get('unit_token')
+
+    with get_connection() as conn:
+        unit = get_authenticated_unit(conn, unit_name, unit_password, unit_token)
+    if not unit:
+        return jsonify({'success': False, 'error': 'Invalid unit credentials'}), 401
+
     if message:
         log_entry = f"[{unit_name}] {message}"
         add_history(log_entry)
@@ -1206,6 +1441,10 @@ def api_add_log():
 @app.route('/api/unit/<unit_name>/logs', methods=['GET'])
 def api_get_unit_logs(unit_name):
     """子機のログを取得"""
+    auth_error = require_admin_api()
+    if auth_error:
+        return auth_error
+
     logs = unit_logs.get(unit_name, [])
     return jsonify({'logs': logs, 'count': len(logs)})
 
@@ -1216,19 +1455,21 @@ def api_record_usage():
     子機からの利用記録API
     自動登録モードが有効な場合、未登録カードも自動登録してから利用記録を行う
     """
-    data = request.json
+    data = request.json or {}
     card_id = data.get('card_id')
     unit_name = data.get('unit_name')
+    unit_password = data.get('unit_password')
+    unit_token = data.get('unit_token')
 
-    if not all([card_id, unit_name]):
-        return jsonify({'error': 'Card ID and Unit Name are required'}), 400
+    if not all([card_id, unit_name]) or not (unit_password or unit_token):
+        return jsonify({'error': 'Card ID, Unit Name and unit credentials are required'}), 400
 
     try:
         with get_connection() as conn:
             # --- 1. 子機の在庫と利用可能状態を確認 ---
-            unit = db.fetchone(conn, "SELECT * FROM units WHERE name = ?", (unit_name,))
+            unit = get_authenticated_unit(conn, unit_name, unit_password, unit_token)
             if not unit:
-                return jsonify({'error': 'Unit not found'}), 404
+                return jsonify({'error': 'Invalid unit credentials'}), 401
             
             if unit['stock'] <= 0 or unit['available'] == 0:
                 message = f"[{unit_name}] 在庫不足のため利用不可 (カードID: {card_id})"
@@ -1336,7 +1577,7 @@ def api_unit_heartbeat():
         return jsonify({'error': 'No JSON data received'}), 400
     
     unit_name = data.get('unit_name') or data.get('name')  # 両方のキーに対応
-    unit_password = data.get('password')
+    unit_password = data.get('unit_password') or data.get('password')
     ip_address = request.remote_addr
     
     # 子機から送られた設定情報を保存
@@ -1344,7 +1585,7 @@ def api_unit_heartbeat():
     if unit_config and unit_name:
         unit_configs[unit_name] = {
             'config': unit_config,
-            'last_update': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            'last_updated': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             'ip_address': ip_address
         }
     
@@ -1356,7 +1597,7 @@ def api_unit_heartbeat():
         unit = db.fetchone(conn, "SELECT * FROM units WHERE name = ?", (unit_name,))
         
         if unit:
-            if unit['password'] != unit_password:
+            if not verify_secret(unit['password'], unit_password):
                 return jsonify({'error': 'Invalid password'}), 401
             
             now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -1373,7 +1614,8 @@ def api_unit_heartbeat():
                 'auto_register_stock': server_settings['auto_register_stock'],
                 'usage_limit': server_settings['usage_limit'],
                 'limit_period': server_settings['limit_period'],
-                'settings_version': settings_version
+                'settings_version': settings_version,
+                'unit_api_token': unit_session_tokens.get(unit_name) or issue_unit_session_token(unit_name),
             }
             
             # 保留中の設定変更があれば送信
@@ -1388,7 +1630,7 @@ def api_unit_heartbeat():
             now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             if unit_name not in unregistered_units:
                 unregistered_units[unit_name] = {
-                    'password': unit_password,
+                    'password_hash': hash_secret(unit_password),
                     'ip_address': ip_address,
                     'first_seen': now,
                     'last_seen': now,
@@ -1417,7 +1659,7 @@ def api_register_pending_unit(unit_name):
         with get_connection() as conn:
             db.execute(conn,
                 "INSERT INTO units (name, password, stock, connect, ip_address) VALUES (?, ?, 0, 1, ?)",
-                (unit_name, pending_unit['password'], pending_unit['ip_address']))
+                (unit_name, pending_unit['password_hash'], pending_unit['ip_address']))
         
         del unregistered_units[unit_name]
         add_history(f"子機を登録 ({unit_name})", 'system')
@@ -1478,12 +1720,13 @@ def api_update_unit_config(unit_name):
         return jsonify({'error': 'Unit not found'}), 404
     
     unit_ip = unit.get('ip_address')
+    push_headers = get_push_headers(unit_name)
     
     # 子機に即座に設定を送信
     push_success = False
     push_error = None
     
-    if unit_ip and unit['connect'] == 1:
+    if unit_ip and unit['connect'] == 1 and push_headers:
         try:
             # 子機のポート番号を推測（デフォルト5001）
             unit_port = 5001
@@ -1493,6 +1736,7 @@ def api_update_unit_config(unit_name):
             response = requests.post(
                 unit_url,
                 json={'config': new_config},
+                headers=push_headers,
                 timeout=5
             )
             
@@ -1512,7 +1756,7 @@ def api_update_unit_config(unit_name):
         except Exception as e:
             push_error = f"エラー: {str(e)}"
     else:
-        push_error = "子機がオフラインです"
+        push_error = "子機がオフライン、または認証トークン未取得です"
     
     if not push_success:
         add_history(f"子機({unit_name})の設定変更を予約（次回heartbeatで同期）", 'system')
@@ -1545,9 +1789,10 @@ def api_send_unit_command(unit_name):
         return jsonify({'error': 'Unit not found'}), 404
     
     unit_ip = unit.get('ip_address')
+    push_headers = get_push_headers(unit_name)
     
-    if not unit_ip or unit['connect'] == 0:
-        return jsonify({'error': 'Unit is offline'}), 503
+    if not unit_ip or unit['connect'] == 0 or not push_headers:
+        return jsonify({'error': 'Unit is offline or session token unavailable'}), 503
     
     try:
         unit_port = 5001
@@ -1556,6 +1801,7 @@ def api_send_unit_command(unit_name):
         response = requests.post(
             unit_url,
             json={'command': command},
+            headers=push_headers,
             timeout=10
         )
         
@@ -1666,6 +1912,7 @@ if __name__ == '__main__':
     print("\nデータベースを初期化中...")
     init_db()
     migrate_db()
+    ensure_admin_password()
     
     print("設定をDBから読み込み中...")
     load_settings_from_db()
@@ -1685,4 +1932,4 @@ if __name__ == '__main__':
     print("Webブラウザで http://localhost:5000 にアクセスしてください")
     print("="*60 + "\n")
     
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=False)

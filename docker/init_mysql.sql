@@ -54,6 +54,18 @@ CREATE TABLE IF NOT EXISTS history (
     INDEX idx_type (type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- settingsテーブル
+CREATE TABLE IF NOT EXISTS settings (
+    id INT PRIMARY KEY,
+    auto_register_mode TINYINT(1) DEFAULT 0,
+    auto_register_stock INT DEFAULT 2,
+    usage_limit INT DEFAULT 2,
+    limit_period VARCHAR(10) DEFAULT 'day',
+    version INT DEFAULT 0,
+    updated_at DATETIME,
+    INDEX idx_updated_at (updated_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- infoテーブル（システム情報）
 CREATE TABLE IF NOT EXISTS info (
     id INT PRIMARY KEY DEFAULT 1,
@@ -61,15 +73,11 @@ CREATE TABLE IF NOT EXISTS info (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- デフォルトの管理者パスワードを設定（SHA256ハッシュ: "Yume2Tsubasa"）
--- 実運用時は必ず変更してください
-INSERT INTO info (id, pass) VALUES (1, '1b2169971e65007dea2905a92b3f93cceea332f35baf0d1acc74c0dbb3426368')
-ON DUPLICATE KEY UPDATE pass = VALUES(pass);
-
 -- インデックスの最適化
 OPTIMIZE TABLE users;
 OPTIMIZE TABLE units;
 OPTIMIZE TABLE history;
+OPTIMIZE TABLE settings;
 OPTIMIZE TABLE info;
 
 -- 確認用

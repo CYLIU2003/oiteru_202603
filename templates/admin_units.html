@@ -16,7 +16,7 @@
         <tr>
           <th>ID</th>
           <th>名前</th>
-          <th>パスワード</th>
+          <th>認証情報</th>
           <th>在庫数</th>
           <th>接続状態</th>
           <th>利用可能</th>
@@ -28,7 +28,7 @@
         <tr data-unit-id="{{ unit['id'] }}">
           <td><strong>{{ unit['id'] }}</strong></td>
           <td>{{ unit['name'] }}</td>
-          <td><code style="background:#f1f5f9;padding:4px 8px;border-radius:4px;">{{ unit['password'] }}</code></td>
+          <td><span style="color:var(--muted-text);">登録済み</span></td>
           <td>{{ unit['stock'] }}</td>
           <td>
             {% if unit['connect'] == 1 %}

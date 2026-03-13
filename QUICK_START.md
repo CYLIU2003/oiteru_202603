@@ -1,8 +1,20 @@
 # 🚀 OITERUシステム クイック起動ガイド
 
-## 📌 1分で起動する方法
+## 📌 最短起動手順
 
-### 親機（データベース持ち）
+### 事前準備
+
+```bash
+cp .env.example .env
+```
+
+以下は必ず変更してください。
+
+- `FLASK_SECRET_KEY`
+- `OITERU_ADMIN_PASSWORD`
+- `MYSQL_PASSWORD`
+
+### 親機（MySQL標準構成）
 
 **Windows:**
 ```powershell
@@ -70,7 +82,7 @@ cd /home/pi/oiteru_250827_restAPI
 
 - **トップページ:** http://localhost:5000
 - **管理画面:** http://localhost:5000/admin
-  - パスワード: `admin`
+  - パスワード: `.env` の `OITERU_ADMIN_PASSWORD`
 
 ---
 

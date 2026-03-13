@@ -3,6 +3,7 @@ import sys
 import threading
 import json
 import os
+import hmac
 import socket
 import subprocess # Tailscale対応のため追加
 import queue
@@ -141,8 +142,12 @@ DEFAULT_CONFIG = {
 
 def save_config(config):
     try:
+        persisted_config = {
+            key: value for key, value in config.items()
+            if not key.startswith('_')
+        }
         with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
-            json.dump(config, f, indent=4, ensure_ascii=False)
+            json.dump(persisted_config, f, indent=4, ensure_ascii=False)
         return True
     except IOError:
         return False
@@ -222,10 +227,20 @@ def start_flask_api_server(config, port=5001):
     
     app = Flask(__name__)
     app.config['config_ref'] = config  # 設定への参照を保持
+
+    def is_authorized_request():
+        expected_secret = str(app.config['config_ref'].get('_unit_api_token') or '')
+        provided_secret = request.headers.get('X-Oiteru-Unit-Auth', '')
+        return bool(expected_secret and provided_secret) and hmac.compare_digest(
+            expected_secret,
+            provided_secret,
+        )
     
     @app.route('/api/config/update', methods=['POST'])
     def update_config():
         """親機から設定変更を受信"""
+        if not is_authorized_request():
+            return jsonify({'error': 'Unauthorized'}), 401
         try:
             data = request.json
             if not data or 'config' not in data:
@@ -253,6 +268,8 @@ def start_flask_api_server(config, port=5001):
     @app.route('/api/command', methods=['POST'])
     def execute_command():
         """親機からのデバッグコマンドを実行"""
+        if not is_authorized_request():
+            return jsonify({'error': 'Unauthorized'}), 401
         try:
             data = request.json
             command = data.get('command')
@@ -1017,6 +1034,8 @@ def run_client(config, stop_event, gui_queue):
                 response = requests.post(f"{SERVER_URL}/api/unit/heartbeat", json=payload, timeout=5)
                 if response.status_code == 200:
                     data = response.json()
+                    if data.get('unit_api_token'):
+                        config['_unit_api_token'] = data['unit_api_token']
                     if 'stock' in data:
                         # サーバーからの在庫数で同期（GUI更新）
                         gui_queue.put({'stock': data['stock']})
@@ -1044,6 +1063,9 @@ def run_client(config, stop_event, gui_queue):
     def send_log_to_server(message):
         try:
             payload = {"unit_name": UNIT_NAME, "message": message}
+            payload["unit_password"] = UNIT_PASSWORD
+            if config.get('_unit_api_token'):
+                payload["unit_token"] = config['_unit_api_token']
             requests.post(f"{SERVER_URL}/api/log", json=payload, timeout=3)
         except requests.exceptions.RequestException: pass
 
@@ -1245,6 +1267,9 @@ def run_client(config, stop_event, gui_queue):
         
         try:
             payload = {"card_id": card_id, "unit_name": UNIT_NAME}
+            payload["unit_password"] = UNIT_PASSWORD
+            if config.get('_unit_api_token'):
+                payload["unit_token"] = config['_unit_api_token']
             response = requests.post(f"{SERVER_URL}/api/record_usage", json=payload, timeout=10)
             
             if response.status_code == 200:
