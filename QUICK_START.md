@@ -2,6 +2,12 @@
 
 ## 📌 最短起動手順
 
+### 標準構成
+
+- 親機: `db_server.py`
+- DB: `MySQL 8 (InnoDB)`
+- `server.py` は legacy 互換用です
+
 ### 事前準備
 
 ```bash
@@ -13,6 +19,21 @@ cp .env.example .env
 - `FLASK_SECRET_KEY`
 - `OITERU_ADMIN_PASSWORD`
 - `MYSQL_PASSWORD`
+- `MYSQL_ROOT_PASSWORD`
+
+`OITERU_STRICT_SECURITY=true` の場合、既定値のままでは起動時に停止します。
+
+### 子機設定を作成
+
+```bash
+cp config.example.json config.json
+```
+
+以下を子機ごとに変更してください。
+
+- `SERVER_URL`
+- `UNIT_NAME`
+- `UNIT_PASSWORD`
 
 ### 親機（MySQL標準構成）
 

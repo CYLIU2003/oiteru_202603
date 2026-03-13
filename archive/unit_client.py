@@ -1122,7 +1122,7 @@ def run_client(config, stop_event, gui_queue):
         if PLATFORM_RUNTIME != 'RASPI':
             print("INFO: PCモードのためモーターは動作しません。")
             send_log_to_server("排出完了 (PCモード)")
-            return
+            return True
         
         if current_motor_type == 'SERVO' and current_control_method == 'RASPI_DIRECT':
             try:
@@ -1199,8 +1199,7 @@ def run_client(config, stop_event, gui_queue):
                             else:
                                 print("✗ 排出失敗: 物体が詰まっています")
                                 send_log_to_server("エラー: 排出失敗 (詰まり)")
-                                indicate('failure')
-                                return
+                                return False
                     else:
                         # SENSOR_CHECK_POSTが無効の場合は成功とみなす
                         print("✓ 排出完了 (回転後チェック無効)")
@@ -1213,12 +1212,13 @@ def run_client(config, stop_event, gui_queue):
                     pwm.set_pwm(15, 0, 0)
                     print("排出動作が完了しました。")
                     send_log_to_server("排出完了 (センサーなし)")
+                return True
 
             except Exception as e:
                 msg = f"モーター/センサー制御エラー: {e}"
                 print(f"!! {msg}")
                 send_log_to_server(msg)
-                indicate('failure')
+                return False
 
         elif current_control_method == 'ARDUINO_SERIAL':
             try:
@@ -1230,16 +1230,17 @@ def run_client(config, stop_event, gui_queue):
                 print(f"Arduinoにコマンド送信: {command.strip()}")
                 send_log_to_server(f"Arduinoに排出指令: {command.strip()}")
                 ser.close()
+                return True
             except Exception as e:
                 msg = f"Arduino通信エラー: {e}"
                 print(f"!! {msg}")
                 send_log_to_server(msg)
-                indicate('failure')
+                return False
         else:
             error_message = f"未サポートのモーター設定です: {current_motor_type}, {current_control_method}"
             print(f"!! {error_message}")
             send_log_to_server(error_message)
-            indicate('failure')
+            return False
 
     def handle_card_touch(tag):
         """NFCカードタッチ時の処理（改良版）"""
@@ -1273,9 +1274,66 @@ def run_client(config, stop_event, gui_queue):
             response = requests.post(f"{SERVER_URL}/api/record_usage", json=payload, timeout=10)
             
             if response.status_code == 200:
-                send_log_to_server(f"利用を記録 ({card_id})")
-                indicate("success")
-                dispense_item()
+                response_data = response.json()
+                event_id = response_data.get('event_id')
+                if not event_id:
+                    send_log_to_server(f"利用認可レスポンス不正 (event_idなし) ({card_id})")
+                    indicate("failure")
+                    return True
+
+                send_log_to_server(f"利用認可 ({card_id}) event={event_id[:8]}")
+                dispense_ok = dispense_item()
+                result_payload = {
+                    "event_id": event_id,
+                    "unit_name": UNIT_NAME,
+                    "success": dispense_ok,
+                    "error_code": None if dispense_ok else "DISPENSE_FAILED_CLIENT",
+                    "unit_password": UNIT_PASSWORD,
+                }
+                if config.get('_unit_api_token'):
+                    result_payload["unit_token"] = config['_unit_api_token']
+
+                result_response = None
+                last_result_error = None
+                for _ in range(3):
+                    try:
+                        result_response = requests.post(
+                            f"{SERVER_URL}/api/dispense_result",
+                            json=result_payload,
+                            timeout=10
+                        )
+                        break
+                    except requests.exceptions.RequestException as req_error:
+                        last_result_error = req_error
+                        time.sleep(1)
+
+                if result_response is None:
+                    send_log_to_server(
+                        f"排出結果確定APIへの送信失敗 ({card_id}) event={event_id[:8]} err={last_result_error}"
+                    )
+                    indicate("failure")
+                    return True
+
+                if result_response.status_code == 200:
+                    result_data = result_response.json()
+                    if result_data.get('success'):
+                        send_log_to_server(f"排出結果を確定 ({card_id}) event={event_id[:8]}")
+                        indicate("success")
+                    else:
+                        fail_code = result_data.get('error_code', 'UNKNOWN')
+                        send_log_to_server(
+                            f"排出結果は失敗として確定 ({card_id}) event={event_id[:8]} code={fail_code}"
+                        )
+                        indicate("failure")
+                else:
+                    try:
+                        result_error = result_response.json().get('error', '不明なエラー')
+                    except Exception:
+                        result_error = f"HTTP {result_response.status_code}"
+                    send_log_to_server(
+                        f"排出結果確定APIエラー ({result_error}) ({card_id}) event={event_id[:8]}"
+                    )
+                    indicate("failure")
             else:
                 # JSONパースエラーを安全に処理
                 try:

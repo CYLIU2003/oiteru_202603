@@ -33,7 +33,7 @@ class DatabaseConnection:
                 'host': os.getenv('MYSQL_HOST', 'localhost'),
                 'port': int(os.getenv('MYSQL_PORT', 3306)),
                 'user': os.getenv('MYSQL_USER', 'oiteru_user'),
-                'password': os.getenv('MYSQL_PASSWORD', 'oiteru_password_2025'),
+                'password': os.getenv('MYSQL_PASSWORD', ''),
                 'database': os.getenv('MYSQL_DATABASE', 'oiteru'),
                 'charset': 'utf8mb4',
                 'cursorclass': DictCursor,

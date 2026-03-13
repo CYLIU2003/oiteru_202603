@@ -54,6 +54,21 @@ CREATE TABLE IF NOT EXISTS history (
     INDEX idx_type (type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- dispense_eventsテーブル（排出イベント状態管理）
+CREATE TABLE IF NOT EXISTS dispense_events (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    event_id VARCHAR(64) UNIQUE NOT NULL,
+    unit_name VARCHAR(255) NOT NULL,
+    card_id VARCHAR(255) NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    error_code VARCHAR(64),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_event_id (event_id),
+    INDEX idx_unit_status (unit_name, status),
+    INDEX idx_card_created (card_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- settingsテーブル
 CREATE TABLE IF NOT EXISTS settings (
     id INT PRIMARY KEY,
@@ -77,6 +92,7 @@ CREATE TABLE IF NOT EXISTS info (
 OPTIMIZE TABLE users;
 OPTIMIZE TABLE units;
 OPTIMIZE TABLE history;
+OPTIMIZE TABLE dispense_events;
 OPTIMIZE TABLE settings;
 OPTIMIZE TABLE info;
 

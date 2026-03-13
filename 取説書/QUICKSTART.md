@@ -30,6 +30,12 @@
 
 ## 🎯 はじめに
 
+### 標準構成
+
+- 親機: `db_server.py`
+- DB: `MySQL 8 (InnoDB)`
+- `server.py` は legacy 互換経路です
+
 ### OITERUって何？
 
 ICカードをかざすと、**生理用ナプキンが自動で提供される**プライバシー配慮型の配布システムです！
@@ -63,6 +69,34 @@ ICカードをかざすと、**生理用ナプキンが自動で提供される*
 | 📡 **子機** | ナプキンを排出するラズパイ端末 | 設置場所による |
 
 > 💡 **Tailscale**を使っているので、親機のアドレスは `100.114.99.67` で固定です！
+
+---
+
+## ⚙️ 事前準備
+
+### 1. 親機の `.env` を作成
+
+```bash
+cp .env.example .env
+```
+
+最低限、以下を変更してください。
+
+- `FLASK_SECRET_KEY`
+- `OITERU_ADMIN_PASSWORD`
+- `MYSQL_PASSWORD`
+
+### 2. 子機の `config.json` を作成
+
+```bash
+cp config.example.json config.json
+```
+
+最低限、以下を変更してください。
+
+- `SERVER_URL`
+- `UNIT_NAME`
+- `UNIT_PASSWORD`
 
 ---
 

@@ -10,7 +10,7 @@ OITELU 親機 / 従親機 (Webサーバー)
 - データベースを持つ場合は「親機」として動作（db_server.pyの使用を推奨）
 
 起動方法:
-    python server.py
+    python server.py  # legacy互換経路
 
 環境変数:
     DB_TYPE=mysql の場合、外部MySQLに接続
@@ -101,8 +101,78 @@ LOGIN_BLOCK_WINDOW_SECONDS = int(os.getenv('ADMIN_LOGIN_BLOCK_WINDOW_SECONDS', '
 UNIT_API_AUTH_HEADER = 'X-Oiteru-Unit-Auth'
 DEFAULT_ADMIN_HASHES = {
     hashlib.sha256('admin'.encode()).hexdigest(),
+    hashlib.sha256('change-this-admin-password'.encode()).hexdigest(),
     '1b2169971e65007dea2905a92b3f93cceea332f35baf0d1acc74c0dbb3426368',
 }
+INSECURE_ADMIN_PASSWORDS = {
+    'admin',
+    'password',
+    'change-this-admin-password',
+    '12345678',
+    '123456789',
+}
+INSECURE_FLASK_SECRET_KEYS = {
+    'change-this-secret-key',
+    'secret',
+    'flask-secret',
+}
+INSECURE_MYSQL_PASSWORDS = {
+    'change-this-mysql-password',
+    'rootpassword',
+    'password',
+    'oiteru_password_2025',
+}
+
+
+def parse_env_bool(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {'1', 'true', 'yes', 'on'}
+
+
+def validate_runtime_security():
+    """起動前に最低限のセキュリティ設定を検証する。"""
+    strict_security = parse_env_bool(
+        'OITERU_STRICT_SECURITY',
+        default=(db.db_type == 'mysql'),
+    )
+    errors = []
+    warnings = []
+
+    secret_key = (os.getenv('FLASK_SECRET_KEY') or '').strip()
+    if not secret_key:
+        message = "FLASK_SECRET_KEY が未設定です。"
+        (errors if strict_security else warnings).append(message)
+    elif secret_key in INSECURE_FLASK_SECRET_KEYS or len(secret_key) < 32:
+        message = "FLASK_SECRET_KEY が既定値または短すぎる値です（32文字以上推奨）。"
+        (errors if strict_security else warnings).append(message)
+
+    admin_password = (os.getenv('OITERU_ADMIN_PASSWORD') or '').strip()
+    if not admin_password:
+        message = "OITERU_ADMIN_PASSWORD が未設定です。"
+        (errors if strict_security else warnings).append(message)
+    elif admin_password.lower() in INSECURE_ADMIN_PASSWORDS:
+        errors.append("OITERU_ADMIN_PASSWORD に既定値/弱い値は使用できません。")
+    elif len(admin_password) < 12:
+        message = "OITERU_ADMIN_PASSWORD は12文字以上を推奨します。"
+        (errors if strict_security else warnings).append(message)
+
+    if db.db_type == 'mysql':
+        mysql_password = (os.getenv('MYSQL_PASSWORD') or '').strip()
+        if not mysql_password:
+            errors.append("MYSQL_PASSWORD が未設定です。")
+        elif mysql_password in INSECURE_MYSQL_PASSWORDS:
+            errors.append("MYSQL_PASSWORD に既定値/弱い値は使用できません。")
+
+    for warning in warnings:
+        print(f"警告: {warning}")
+
+    if errors:
+        raise RuntimeError(
+            "セキュリティ設定エラーにより起動を停止しました:\n- "
+            + "\n- ".join(errors)
+        )
 
 
 def hash_secret(secret_value: str) -> str:
@@ -218,6 +288,8 @@ def get_push_headers(unit_name: str) -> dict:
 def ensure_admin_password():
     """管理者パスワードを初期化し、固定値運用を防ぐ。"""
     configured_password = os.getenv('OITERU_ADMIN_PASSWORD', '').strip()
+    if configured_password and configured_password.lower() in INSECURE_ADMIN_PASSWORDS:
+        raise RuntimeError("既定値または弱い管理者パスワードは使用できません。")
     generated_password = None
     warning_message = None
 
@@ -351,17 +423,24 @@ def get_period_start_date(period: str) -> str:
 def get_usage_count_in_period(conn, card_id: str, period: str) -> int:
     """指定期間内のユーザーの利用回数を取得する"""
     period_start = get_period_start_date(period)
-    
-    # historyテーブルから成功した利用回数をカウント
-    # カードIDを含む成功ログを検索
-    result = db.fetchone(conn, """
-        SELECT COUNT(*) as count FROM history 
-        WHERE type = 'success' 
-        AND txt LIKE ?
-        AND created_at >= ?
-    """, (f"%{card_id}%", period_start + " 00:00:00"))
-    
-    return result['count'] if result else 0
+
+    # 先にイベントテーブルを参照し、なければ旧history集計にフォールバック
+    try:
+        result = db.fetchone(conn, """
+            SELECT COUNT(*) as count FROM dispense_events
+            WHERE card_id = ?
+              AND status = 'recorded'
+              AND created_at >= ?
+        """, (card_id, period_start + " 00:00:00"))
+        return result['count'] if result else 0
+    except Exception:
+        result = db.fetchone(conn, """
+            SELECT COUNT(*) as count FROM history 
+            WHERE type = 'success' 
+              AND txt LIKE ?
+              AND created_at >= ?
+        """, (f"%{card_id}%", period_start + " 00:00:00"))
+        return result['count'] if result else 0
 
 
 def get_period_display_name(period: str) -> str:
@@ -433,6 +512,27 @@ def add_history(message: str, hist_type: str = 'usage'):
             (message, hist_type, now))
 
 
+def create_dispense_event(conn, event_id: str, unit_name: str, card_id: str, status: str, error_code: str = None):
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    db.execute(conn, """
+        INSERT INTO dispense_events (event_id, unit_name, card_id, status, error_code, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (event_id, unit_name, card_id, status, error_code, now, now))
+
+
+def update_dispense_event(conn, event_id: str, status: str, error_code: str = None):
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    db.execute(conn, """
+        UPDATE dispense_events
+           SET status = ?, error_code = ?, updated_at = ?
+         WHERE event_id = ?
+    """, (status, error_code, now, event_id))
+
+
+def generate_event_id() -> str:
+    return secrets.token_hex(16)
+
+
 # --- パスワード確認 ---
 def check_password(entered_password: str) -> bool:
     """管理者パスワードを確認する"""
@@ -484,6 +584,18 @@ def init_db():
                     )
                 """)
                 db.execute(conn, """
+                    CREATE TABLE IF NOT EXISTS dispense_events (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        event_id VARCHAR(64) UNIQUE NOT NULL,
+                        unit_name VARCHAR(255) NOT NULL,
+                        card_id VARCHAR(255) NOT NULL,
+                        status VARCHAR(20) NOT NULL,
+                        error_code VARCHAR(64),
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                    )
+                """)
+                db.execute(conn, """
                     CREATE TABLE IF NOT EXISTS settings (
                         id INT PRIMARY KEY,
                         auto_register_mode TINYINT DEFAULT 0,
@@ -518,6 +630,18 @@ def init_db():
                         usage_limit INTEGER DEFAULT 2,
                         limit_period TEXT DEFAULT 'day',
                         version INTEGER DEFAULT 0,
+                        updated_at TEXT
+                    )
+                """)
+                db.execute(conn, """
+                    CREATE TABLE IF NOT EXISTS dispense_events (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        event_id TEXT UNIQUE NOT NULL,
+                        unit_name TEXT NOT NULL,
+                        card_id TEXT NOT NULL,
+                        status TEXT NOT NULL,
+                        error_code TEXT,
+                        created_at TEXT,
                         updated_at TEXT
                     )
                 """)
@@ -568,6 +692,20 @@ def init_db():
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
+
+            # dispense_eventsテーブル
+            db.execute(conn, '''
+                CREATE TABLE dispense_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_id TEXT UNIQUE NOT NULL,
+                    unit_name TEXT NOT NULL,
+                    card_id TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    error_code TEXT,
+                    created_at TEXT,
+                    updated_at TEXT
+                )
+            ''')
             
             # infoテーブル
             db.execute(conn, '''
@@ -588,6 +726,19 @@ def migrate_db():
             # settingsテーブルに新しいカラムを追加（存在しない場合）
             if db.db_type == 'mysql':
                 # MySQLの場合
+                db.execute(conn, """
+                    CREATE TABLE IF NOT EXISTS dispense_events (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        event_id VARCHAR(64) UNIQUE NOT NULL,
+                        unit_name VARCHAR(255) NOT NULL,
+                        card_id VARCHAR(255) NOT NULL,
+                        status VARCHAR(20) NOT NULL,
+                        error_code VARCHAR(64),
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                    )
+                """)
+
                 try:
                     db.execute(conn, "ALTER TABLE settings ADD COLUMN usage_limit INT DEFAULT 2")
                     print("  - settingsテーブルに usage_limit カラムを追加しました")
@@ -617,6 +768,19 @@ def migrate_db():
                     pass
             else:
                 # SQLiteの場合
+                db.execute(conn, """
+                    CREATE TABLE IF NOT EXISTS dispense_events (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        event_id TEXT UNIQUE NOT NULL,
+                        unit_name TEXT NOT NULL,
+                        card_id TEXT NOT NULL,
+                        status TEXT NOT NULL,
+                        error_code TEXT,
+                        created_at TEXT,
+                        updated_at TEXT
+                    )
+                """)
+
                 try:
                     db.execute(conn, "ALTER TABLE settings ADD COLUMN usage_limit INTEGER DEFAULT 2")
                     print("  - settingsテーブルに usage_limit カラムを追加しました")
@@ -1452,8 +1616,8 @@ def api_get_unit_logs(unit_name):
 @app.route('/api/record_usage', methods=['POST'])
 def api_record_usage():
     """
-    子機からの利用記録API
-    自動登録モードが有効な場合、未登録カードも自動登録してから利用記録を行う
+    子機からの利用認可API（在庫減算はまだ行わない）
+    認可成功後、子機は /api/dispense_result で物理排出結果を通知する
     """
     data = request.json or {}
     card_id = data.get('card_id')
@@ -1464,17 +1628,23 @@ def api_record_usage():
     if not all([card_id, unit_name]) or not (unit_password or unit_token):
         return jsonify({'error': 'Card ID, Unit Name and unit credentials are required'}), 400
 
+    event_id = generate_event_id()
+
     try:
         with get_connection() as conn:
+            create_dispense_event(conn, event_id, unit_name, card_id, 'requested')
+
             # --- 1. 子機の在庫と利用可能状態を確認 ---
             unit = get_authenticated_unit(conn, unit_name, unit_password, unit_token)
             if not unit:
-                return jsonify({'error': 'Invalid unit credentials'}), 401
+                update_dispense_event(conn, event_id, 'failed', 'INVALID_UNIT_CREDENTIALS')
+                return jsonify({'error': 'Invalid unit credentials', 'event_id': event_id}), 401
             
             if unit['stock'] <= 0 or unit['available'] == 0:
                 message = f"[{unit_name}] 在庫不足のため利用不可 (カードID: {card_id})"
                 add_history(message, 'usage')
-                return jsonify({'error': 'Unit has no stock remaining'}), 400
+                update_dispense_event(conn, event_id, 'failed', 'UNIT_STOCK_EMPTY')
+                return jsonify({'error': 'Unit has no stock remaining', 'event_id': event_id}), 400
 
             # --- 2. 利用者の確認（自動登録モード対応） ---
             user = db.fetchone(conn, "SELECT * FROM users WHERE card_id = ?", (card_id,))
@@ -1499,13 +1669,15 @@ def api_record_usage():
                 else:
                     message = f"[{unit_name}] 未登録カード (カードID: {card_id})"
                     add_history(message, 'usage')
-                    return jsonify({'error': 'User not found', 'auto_register': False}), 404
+                    update_dispense_event(conn, event_id, 'failed', 'USER_NOT_FOUND')
+                    return jsonify({'error': 'User not found', 'auto_register': False, 'event_id': event_id}), 404
             
             # 利用不許可のユーザー
             if user.get('allow', 1) == 0:
                 message = f"[{unit_name}] 利用不許可 (カードID: {card_id})"
                 add_history(message, 'usage')
-                return jsonify({'error': 'User is not allowed'}), 403
+                update_dispense_event(conn, event_id, 'failed', 'USER_DENIED')
+                return jsonify({'error': 'User is not allowed', 'event_id': event_id}), 403
             
             # --- 期間が変わった場合、stockを自動リセット ---
             period = server_settings['limit_period']
@@ -1515,7 +1687,8 @@ def api_record_usage():
             if user['stock'] <= 0:
                 message = f"[{unit_name}] 残数不足 (カードID: {card_id})"
                 add_history(message, 'usage')
-                return jsonify({'error': 'User has no stock remaining'}), 400
+                update_dispense_event(conn, event_id, 'failed', 'USER_STOCK_EMPTY')
+                return jsonify({'error': 'User has no stock remaining', 'event_id': event_id}), 400
 
             # --- 期間内の利用上限チェック ---
             period = server_settings['limit_period']
@@ -1526,41 +1699,174 @@ def api_record_usage():
                 period_name = get_period_display_name(period)
                 message = f"[{unit_name}] {period_name}の上限({usage_limit}個)に達しています (カードID: {card_id})"
                 add_history(message, 'usage')
+                update_dispense_event(conn, event_id, 'failed', 'PERIOD_LIMIT_EXCEEDED')
                 return jsonify({
                     'error': 'Period limit exceeded',
                     'message': f'{period_name}あたりの取得上限（{usage_limit}個）に達しました',
                     'usage_count': usage_count,
                     'usage_limit': usage_limit,
-                    'period': period
+                    'period': period,
+                    'event_id': event_id,
                 }), 429
 
-            # --- 3. 両方の残数/在庫を更新 ---
+            update_dispense_event(conn, event_id, 'authorized')
+            add_history(f"[{unit_name}] 排出認可 (event_id: {event_id}, カードID: {card_id})", 'usage')
+
+            return jsonify({
+                'success': True, 
+                'authorized': True,
+                'message': 'Dispense authorized',
+                'event_id': event_id,
+            })
+
+    except Exception as e:
+        print(f"!! 利用認可エラー: {e}")
+        return jsonify({'error': f'Database error: {e}'}), 500
+
+
+def parse_bool(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value == 1
+    if isinstance(value, str):
+        return value.strip().lower() in ('1', 'true', 'yes', 'y', 'on')
+    return False
+
+
+@app.route('/api/dispense_result', methods=['POST'])
+def api_dispense_result():
+    """子機からの物理排出結果を受け取り、在庫を確定更新する"""
+    data = request.json or {}
+    event_id = data.get('event_id')
+    unit_name = data.get('unit_name')
+    unit_password = data.get('unit_password')
+    unit_token = data.get('unit_token')
+    dispense_success = parse_bool(data.get('success'))
+    error_code = data.get('error_code')
+
+    if not all([event_id, unit_name]) or not (unit_password or unit_token):
+        return jsonify({'error': 'Event ID, Unit Name and unit credentials are required'}), 400
+
+    try:
+        with get_connection() as conn:
+            unit = get_authenticated_unit(conn, unit_name, unit_password, unit_token)
+            if not unit:
+                return jsonify({'error': 'Invalid unit credentials'}), 401
+
+            event = db.fetchone(conn, "SELECT * FROM dispense_events WHERE event_id = ?", (event_id,))
+            if not event:
+                return jsonify({'error': 'Event not found'}), 404
+            if event['unit_name'] != unit_name:
+                return jsonify({'error': 'Event does not belong to unit'}), 403
+
+            current_status = event['status']
+            if current_status == 'recorded':
+                return jsonify({'success': True, 'recorded': True, 'idempotent': True, 'event_id': event_id})
+            if current_status == 'failed':
+                return jsonify({
+                    'success': False,
+                    'recorded': False,
+                    'idempotent': True,
+                    'event_id': event_id,
+                    'error_code': event.get('error_code'),
+                })
+
+            if not dispense_success:
+                fail_code = error_code or 'DISPENSE_FAILED'
+                update_dispense_event(conn, event_id, 'failed', fail_code)
+                add_history(
+                    f"[{unit_name}] 排出失敗 (event_id: {event_id}, カードID: {event['card_id']}, code: {fail_code})",
+                    'usage',
+                )
+                return jsonify({
+                    'success': False,
+                    'recorded': False,
+                    'event_id': event_id,
+                    'error_code': fail_code,
+                })
+
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            transitioned = db.update(
+                conn,
+                "UPDATE dispense_events SET status = ?, updated_at = ? WHERE event_id = ? AND status IN ('authorized', 'requested')",
+                ('dispensing', now, event_id),
+            )
+            if transitioned == 0:
+                latest = db.fetchone(conn, "SELECT status, error_code FROM dispense_events WHERE event_id = ?", (event_id,))
+                if latest and latest['status'] == 'recorded':
+                    return jsonify({'success': True, 'recorded': True, 'idempotent': True, 'event_id': event_id})
+                if latest and latest['status'] == 'failed':
+                    return jsonify({
+                        'success': False,
+                        'recorded': False,
+                        'idempotent': True,
+                        'event_id': event_id,
+                        'error_code': latest.get('error_code'),
+                    })
+                return jsonify({'error': f"Event is not processable (status: {latest['status'] if latest else 'unknown'})"}), 409
+
+            latest_unit = db.fetchone(conn, "SELECT * FROM units WHERE name = ?", (unit_name,))
+            user = db.fetchone(conn, "SELECT * FROM users WHERE card_id = ?", (event['card_id'],))
+
+            if not user:
+                update_dispense_event(conn, event_id, 'failed', 'USER_NOT_FOUND')
+                return jsonify({'error': 'User not found'}), 404
+
+            if latest_unit['stock'] <= 0 or latest_unit['available'] == 0:
+                update_dispense_event(conn, event_id, 'failed', 'UNIT_STOCK_EMPTY')
+                return jsonify({'error': 'Unit has no stock remaining'}), 400
+
+            if user.get('allow', 1) == 0:
+                update_dispense_event(conn, event_id, 'failed', 'USER_DENIED')
+                return jsonify({'error': 'User is not allowed'}), 403
+
+            period = server_settings['limit_period']
+            user = check_and_reset_user_stock(conn, user, period)
+
+            if user['stock'] <= 0:
+                update_dispense_event(conn, event_id, 'failed', 'USER_STOCK_EMPTY')
+                return jsonify({'error': 'User has no stock remaining'}), 400
+
+            usage_limit = server_settings['usage_limit']
+            usage_count = get_usage_count_in_period(conn, event['card_id'], period)
+            if usage_count >= usage_limit:
+                update_dispense_event(conn, event_id, 'failed', 'PERIOD_LIMIT_EXCEEDED')
+                period_name = get_period_display_name(period)
+                return jsonify({
+                    'error': 'Period limit exceeded',
+                    'message': f'{period_name}あたりの取得上限（{usage_limit}個）に達しました',
+                    'usage_count': usage_count,
+                    'usage_limit': usage_limit,
+                    'period': period,
+                }), 429
+
             new_user_stock = user['stock'] - 1
             new_total = user['total'] + 1
-            db.execute(conn, "UPDATE users SET stock = ?, total = ? WHERE card_id = ?", 
-                       (new_user_stock, new_total, card_id))
-            
-            new_unit_stock = unit['stock'] - 1
-            db.execute(conn, "UPDATE units SET stock = ? WHERE name = ?", 
-                       (new_unit_stock, unit_name))
+            db.execute(conn, "UPDATE users SET stock = ?, total = ? WHERE card_id = ?", (new_user_stock, new_total, event['card_id']))
 
-            message = f"[{unit_name}] 利用成功 (カードID: {card_id}, 残数: {new_user_stock})"
-            add_history(message, 'success')  # 排出成功のみ 'success' タイプで記録
+            new_unit_stock = latest_unit['stock'] - 1
+            db.execute(conn, "UPDATE units SET stock = ? WHERE name = ?", (new_unit_stock, unit_name))
 
-            # 子機の在庫が0になったら利用不可に
             if new_unit_stock <= 0:
                 db.execute(conn, "UPDATE units SET available = 0 WHERE name = ?", (unit_name,))
                 add_history(f"[{unit_name}] 在庫0のため排出停止", 'system')
 
-            return jsonify({
-                'success': True, 
-                'message': 'Usage recorded',
-                'user_stock': new_user_stock,
-                'unit_stock': new_unit_stock
-            })
+            update_dispense_event(conn, event_id, 'recorded')
+            add_history(
+                f"[{unit_name}] 利用成功 (event_id: {event_id}, カードID: {event['card_id']}, 残数: {new_user_stock})",
+                'success',
+            )
 
+            return jsonify({
+                'success': True,
+                'recorded': True,
+                'event_id': event_id,
+                'user_stock': new_user_stock,
+                'unit_stock': new_unit_stock,
+            })
     except Exception as e:
-        print(f"!! 在庫更新エラー: {e}")
+        print(f"!! 排出結果更新エラー: {e}")
         return jsonify({'error': f'Database error: {e}'}), 500
 
 
@@ -1908,7 +2214,16 @@ if __name__ == '__main__':
     print("\n" + "="*60)
     print("OITELU 親機/従親機 を起動しています...")
     print("="*60)
-    
+
+    if db.db_type == 'sqlite':
+        print("警告: server.py + SQLite は legacy 互換経路です。")
+        print("標準構成は db_server.py + MySQL を使用してください。")
+    try:
+        validate_runtime_security()
+    except RuntimeError as error:
+        print(str(error))
+        raise
+
     print("\nデータベースを初期化中...")
     init_db()
     migrate_db()

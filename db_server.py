@@ -40,6 +40,7 @@ from server import (
     migrate_db,
     load_settings_from_db,
     ensure_admin_password,
+    validate_runtime_security,
     broadcast_server_info,
 )
 import threading
@@ -56,6 +57,8 @@ if __name__ == '__main__':
     print(f"\n自動登録モード: {'有効' if os.getenv('AUTO_REGISTER_MODE', 'true').lower() == 'true' else '無効'}")
     print(f"自動登録時の初期残数: {os.getenv('AUTO_REGISTER_STOCK', '2')}")
     
+    validate_runtime_security()
+
     print("\n子機向けブロードキャストスレッドを起動中...")
     heartbeat_thread = threading.Thread(target=broadcast_server_info, daemon=True)
     heartbeat_thread.start()
