@@ -1,4 +1,4 @@
-# PowerShell スクリプト - OITELU親機起動（USBデバイス自動アタッチ付き）
+# PowerShell スクリプト - OITERU親機起動（USBデバイス自動アタッチ付き）
 # 管理者権限で実行してください
 
 param(
@@ -6,7 +6,7 @@ param(
 )
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  OITELU 親機起動スクリプト" -ForegroundColor Cyan
+Write-Host "  OITERU 親機起動スクリプト" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 

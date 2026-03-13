@@ -27,7 +27,7 @@ NC='\033[0m' # No Color
 
 echo ""
 echo -e "${CYAN}========================================"
-echo "   🍬 OITERU 設定ウィザード"
+echo "   OITERU 設定ウィザード"
 echo -e "========================================${NC}"
 echo ""
 
@@ -113,7 +113,7 @@ else
     "MYSQL_PORT": 3306,
     "MYSQL_DATABASE": "oiteru",
     "MYSQL_USER": "oiteru_user",
-    "MYSQL_PASSWORD": "oiteru_password_2025",
+    "MYSQL_PASSWORD": "change-this-mysql-password",
     "SERVER_NAME": "$NAME",
     "SERVER_LOCATION": "$LOCATION",
     "IS_SECONDARY": true

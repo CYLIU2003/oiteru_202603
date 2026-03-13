@@ -89,7 +89,7 @@ if ($Type -eq "unit") {
         MYSQL_PORT = 3306
         MYSQL_DATABASE = "oiteru"
         MYSQL_USER = "oiteru_user"
-        MYSQL_PASSWORD = "oiteru_password_2025"
+        MYSQL_PASSWORD = "change-this-mysql-password"
         SERVER_NAME = $Name
         SERVER_LOCATION = $Location
         IS_SECONDARY = $true

@@ -17,7 +17,7 @@
 #   --mysql-port  MySQLポート（デフォルト: 3306）
 #   --mysql-db    MySQLデータベース名（デフォルト: oiteru）
 #   --mysql-user  MySQLユーザー名（デフォルト: oiteru_user）
-#   --mysql-pass  MySQLパスワード（デフォルト: oiteru_password_2025）
+#   --mysql-pass  MySQLパスワード（未指定時は .env の MYSQL_PASSWORD を使用）
 #   --help        ヘルプを表示
 #
 
@@ -60,7 +60,7 @@ SERVER_PORT=5000
 MYSQL_PORT=3306
 MYSQL_DATABASE="oiteru"
 MYSQL_USER="oiteru_user"
-MYSQL_PASSWORD="oiteru_password_2025"
+MYSQL_PASSWORD=""
 
 # ========================================
 # ヘルプ表示
@@ -165,9 +165,17 @@ fi
 # スクリプトのディレクトリを取得
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+ENV_FILE="$PROJECT_DIR/.env"
+ENV_EXAMPLE_FILE="$PROJECT_DIR/.env.example"
 
 log_status "プロジェクトディレクトリ: $PROJECT_DIR"
 cd "$PROJECT_DIR"
+
+if [ ! -f "$ENV_FILE" ]; then
+    log_error ".env が見つかりません: $ENV_FILE"
+    echo "$ENV_EXAMPLE_FILE をコピーし、必須値を設定してください。"
+    exit 1
+fi
 
 # ========================================
 # ステップ 1: 仮想環境のセットアップ
@@ -287,7 +295,9 @@ export MYSQL_HOST="$MYSQL_HOST"
 export MYSQL_PORT="$MYSQL_PORT"
 export MYSQL_DATABASE="$MYSQL_DATABASE"
 export MYSQL_USER="$MYSQL_USER"
-export MYSQL_PASSWORD="$MYSQL_PASSWORD"
+if [ -n "$MYSQL_PASSWORD" ]; then
+    export MYSQL_PASSWORD="$MYSQL_PASSWORD"
+fi
 export SERVER_NAME="$SERVER_NAME"
 export SERVER_LOCATION="$SERVER_LOCATION"
 
