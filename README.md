@@ -82,6 +82,9 @@ docker compose -f docker-compose.mysql.yml up -d
 
 # または直接起動（MySQL接続）
 python db_server.py
+
+# venv経由でも MySQL が既定
+./venv-start.sh parent-mysql
 ```
 
 ### ステップ4: 子機を起動（Raspberry Pi）
@@ -103,6 +106,7 @@ sudo python unit.py --no-gui
 - `server.py + SQLite` は既存データ確認や互換検証向けです
 - 新規セットアップ、運用手順、障害切り分けは `db_server.py + MySQL` を前提にしてください
 - `config.json`、`*.sqlite3`、`*.log` はローカル生成物として Git 管理しません
+- `venv-start.sh` / `venv-start.ps1` は引数なしなら MySQL 親機を起動します
 
 ---
 

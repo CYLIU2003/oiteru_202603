@@ -329,6 +329,7 @@ def ensure_admin_password():
     if configured_password and configured_password.lower() in INSECURE_ADMIN_PASSWORDS:
         raise RuntimeError("既定値または弱い管理者パスワードは使用できません。")
     generated_password = None
+    updated_password = False
     warning_message = None
 
     with get_connection() as conn:
@@ -340,12 +341,16 @@ def ensure_admin_password():
                 "INSERT INTO info (id, pass) VALUES (?, ?)",
                 (1, hash_secret(generated_password)),
             )
-        elif configured_password and is_default_admin_secret(info["pass"]):
-            db.execute(
-                conn,
-                "UPDATE info SET pass = ? WHERE id = 1",
-                (hash_secret(configured_password),),
-            )
+        elif configured_password:
+            current_hash = info["pass"]
+            new_hash = hash_secret(configured_password)
+            if current_hash != new_hash:
+                db.execute(
+                    conn,
+                    "UPDATE info SET pass = ? WHERE id = 1",
+                    (new_hash,),
+                )
+                updated_password = True
         elif is_default_admin_secret(info["pass"]):
             warning_message = (
                 "管理者パスワードが既定値のままです。"
@@ -357,6 +362,8 @@ def ensure_admin_password():
         print(f"管理者パスワード: {generated_password}")
         if not configured_password:
             print("OITERU_ADMIN_PASSWORD を設定して恒久値へ更新してください。")
+    if updated_password:
+        print("管理者パスワードを環境変数の値へ同期しました。")
     if warning_message:
         print(f"警告: {warning_message}")
 
@@ -1043,10 +1050,11 @@ def register():
         # カードIDが空の場合、NFCリーダーから読み取る
         if not card_id:
             try:
-                import nfc
                 import time
 
-                clf = nfc.ContactlessFrontend("usb")
+                import nfc
+
+                clf = open_local_nfc_frontend()
                 if clf:
                     # カードを検出（最大3秒待機）
                     start_time = time.time()
@@ -1091,16 +1099,7 @@ def register():
         return redirect(url_for("register"))
 
     # NFCリーダー接続確認
-    reader_connected = False
-    try:
-        import nfc
-
-        clf = nfc.ContactlessFrontend("usb")
-        if clf:
-            reader_connected = True
-            clf.close()
-    except:
-        pass
+    reader_connected, _ = detect_local_nfc_reader()
 
     return render_template("register.html", reader_connected=reader_connected)
 
@@ -1115,6 +1114,8 @@ def usage():
                 user = db.fetchone(
                     conn, "SELECT * FROM users WHERE card_id = ?", (card_id,)
                 )
+                if not user and server_settings["auto_register_mode"]:
+                    user = auto_register_user(conn, card_id)
                 if user:
                     return render_template("usage_result.html", **dict(user))
                 else:
@@ -1122,16 +1123,7 @@ def usage():
         return redirect(url_for("usage"))
 
     # NFCリーダー接続確認
-    reader_connected = False
-    try:
-        import nfc
-
-        clf = nfc.ContactlessFrontend("usb")
-        if clf:
-            reader_connected = True
-            clf.close()
-    except:
-        pass
+    reader_connected, _ = detect_local_nfc_reader()
 
     return render_template("usage.html", reader_connected=reader_connected)
 
@@ -1595,12 +1587,8 @@ def api_local_nfc_reader():
     親機PCに接続されたNFCリーダーを検出
     """
     try:
-        import nfc
-
-        clf = nfc.ContactlessFrontend("usb")
-        if clf:
-            device_info = str(clf)
-            clf.close()
+        connected, device_info = detect_local_nfc_reader()
+        if connected:
             return jsonify(
                 {
                     "connected": True,
@@ -1608,12 +1596,9 @@ def api_local_nfc_reader():
                     "message": "NFCリーダーが接続されています",
                 }
             )
-        else:
-            return jsonify(
-                {"connected": False, "error": "NFCリーダーが見つかりません"}
-            ), 404
+        return jsonify({"connected": False, "error": device_info})
     except Exception as e:
-        return jsonify({"connected": False, "error": str(e)}), 404
+        return jsonify({"connected": False, "error": str(e)})
 
 
 @app.route("/api/read_card", methods=["GET"])
@@ -1623,9 +1608,7 @@ def api_read_card():
     タイムアウト: 10秒
     """
     try:
-        import nfc
-
-        clf = nfc.ContactlessFrontend("usb")
+        clf = open_local_nfc_frontend()
         if not clf:
             return jsonify(
                 {"success": False, "error": "NFCリーダーが見つかりません"}
@@ -1910,25 +1893,8 @@ def api_record_usage():
                 )
 
                 # 自動登録モードの場合は新規登録
-                if server_settings["auto_register_mode"]:
-                    now = datetime.now().strftime("%Y-%m-%d %H:%M")
-                    today = datetime.now().strftime("%Y-%m-%d")
-                    initial_stock = server_settings["auto_register_stock"]
-                    print(
-                        f"[DEBUG] 自動登録実行: card_id={card_id}, initial_stock={initial_stock}"
-                    )
-                    db.execute(
-                        conn,
-                        "INSERT INTO users (card_id, entry, stock, allow, last_reset_date) VALUES (?, ?, ?, 1, ?)",
-                        (card_id, now, initial_stock, today),
-                    )
-                    message = f"[{unit_name}] 自動登録 (カードID: {card_id}, 初期残数: {initial_stock})"
-                    add_history(message, "system")
-                    # 新しく登録したユーザーを取得
-                    user = db.fetchone(
-                        conn, "SELECT * FROM users WHERE card_id = ?", (card_id,)
-                    )
-                else:
+                user = auto_register_user(conn, card_id, unit_name=unit_name)
+                if not user:
                     message = f"[{unit_name}] 未登録カード (カードID: {card_id})"
                     add_history(message, "usage")
                     update_dispense_event(conn, event_id, "failed", "USER_NOT_FOUND")
@@ -2011,6 +1977,78 @@ def parse_bool(value) -> bool:
     if isinstance(value, str):
         return value.strip().lower() in ("1", "true", "yes", "y", "on")
     return False
+
+
+def auto_register_user(conn, card_id, unit_name=None):
+    """自動登録モードが有効な場合に利用者を新規登録する。"""
+    if not server_settings["auto_register_mode"]:
+        return None
+
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    today = datetime.now().strftime("%Y-%m-%d")
+    initial_stock = server_settings["auto_register_stock"]
+
+    print(
+        f"[DEBUG] 自動登録実行: card_id={card_id}, initial_stock={initial_stock}"
+    )
+    db.execute(
+        conn,
+        "INSERT INTO users (card_id, entry, stock, allow, last_reset_date) VALUES (?, ?, ?, 1, ?)",
+        (card_id, now, initial_stock, today),
+    )
+
+    register_source = f"[{unit_name}]" if unit_name else "[usage]"
+    db.execute(
+        conn,
+        "INSERT INTO history (txt, type, created_at) VALUES (?, ?, ?)",
+        (
+            f"{register_source} 自動登録 (カードID: {card_id}, 初期残数: {initial_stock})",
+            "system",
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        ),
+    )
+    return db.fetchone(conn, "SELECT * FROM users WHERE card_id = ?", (card_id,))
+
+
+def detect_local_nfc_reader() -> tuple[bool, str]:
+    """親機PCに接続されたNFCリーダーの有無を判定する。"""
+    clf = open_local_nfc_frontend()
+    if clf:
+        device_info = str(clf)
+        clf.close()
+        return True, device_info
+
+    try:
+        result = subprocess.run(
+            ["lsusb"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            encoding="utf-8",
+            errors="replace",
+        )
+        for line in result.stdout.splitlines():
+            lower_line = line.lower()
+            if "054c:06c3" in lower_line or "sony corp. rc-s380" in lower_line:
+                return True, line.strip()
+    except Exception:
+        pass
+
+    return False, "NFCリーダーが見つかりません"
+
+
+def open_local_nfc_frontend():
+    """親機PCのNFCリーダーを開く。"""
+    import nfc
+
+    for path in ["usb:054c:06c3", "usb:054c:06c1", "usb:054c:02e1", "usb"]:
+        try:
+            clf = nfc.ContactlessFrontend(path)
+            if clf:
+                return clf
+        except Exception:
+            continue
+    return None
 
 
 @app.route("/api/dispense_result", methods=["POST"])
@@ -2499,7 +2537,7 @@ def api_update_settings():
     data = request.json
 
     if "auto_register_mode" in data:
-        server_settings["auto_register_mode"] = bool(data["auto_register_mode"])
+        server_settings["auto_register_mode"] = parse_bool(data["auto_register_mode"])
     if "auto_register_stock" in data:
         server_settings["auto_register_stock"] = int(data["auto_register_stock"])
     if "usage_limit" in data:

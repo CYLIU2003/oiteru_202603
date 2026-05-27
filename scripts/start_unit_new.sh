@@ -246,6 +246,8 @@ log_status "pipをアップグレード中..."
 REQUIREMENTS_FILE=""
 if [ -f "$PROJECT_DIR/requirements-client.txt" ]; then
     REQUIREMENTS_FILE="requirements-client.txt"
+elif [ -f "$PROJECT_DIR/docker/requirements-client.txt" ]; then
+    REQUIREMENTS_FILE="docker/requirements-client.txt"
 elif [ -f "$PROJECT_DIR/requirements.txt" ]; then
     REQUIREMENTS_FILE="requirements.txt"
 fi

@@ -14,13 +14,13 @@ Dockerを使わずに、ローカルのPython仮想環境(.venv)を使用して
 - unit          : 子機 (unit.py)
 
 .EXAMPLE
-.\venv-start.ps1 parent-sqlite
+# .\venv-start.ps1 parent-mysql
 #>
 
 param(
-    [Parameter(Mandatory=$true)]
+    [Parameter(Mandatory=$false)]
     [ValidateSet("parent-sqlite", "parent-mysql", "sub-parent", "unit")]
-    [string]$Mode
+    [string]$Mode = "parent-mysql"
 )
 
 # スクリプトのあるディレクトリへ移動

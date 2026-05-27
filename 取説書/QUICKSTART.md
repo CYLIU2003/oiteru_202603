@@ -566,9 +566,9 @@ tmux new -s oiteru
 **3️⃣ プロジェクトフォルダに移動**
 ```bash
 # パスは自分の環境に合わせて変更してください
-cd ~/oiteru_250827_restAPI
+cd ~/oiteru_2603
 # または
-cd ~/Desktop/oiteru_250827_restAPI-1
+cd ~/Desktop/oiteru_2603
 ```
 
 **4️⃣ 必要なパッケージをインストール（Bookworm以降では必須）**

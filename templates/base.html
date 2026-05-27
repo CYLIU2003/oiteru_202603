@@ -96,11 +96,11 @@
                     if (data.connected) {
                         localReaderLight.style.backgroundColor = "#4CAF50"; // Green
                         localReaderLight.style.boxShadow = "0 0 0 6px rgba(76, 175, 80, 0.18)";
-                        localReaderText.textContent = "接続中 (RC-S380)";
+                localReaderText.textContent = data.message || data.device || "接続中";
                     } else {
                         localReaderLight.style.backgroundColor = "#9E9E9E"; // Gray
                         localReaderLight.style.boxShadow = "0 0 0 6px rgba(158, 158, 158, 0.18)";
-                        localReaderText.textContent = "未接続";
+                localReaderText.textContent = data.error || data.message || "未接続";
                     }
                 })
                 .catch(error => {

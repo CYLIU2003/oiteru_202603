@@ -8,17 +8,31 @@ echo ""
 
 # PC/SCデーモンの起動
 echo "1. PC/SCデーモンを起動..."
+if command -v modprobe &> /dev/null; then
+    sudo modprobe -r port100 nfc_digital 2>/dev/null || true
+fi
 if command -v pcscd &> /dev/null; then
-    # 既存のプロセスを停止
-    pkill -9 pcscd 2>/dev/null
-    sleep 1
-    
-    # デーモンを起動
-    pcscd --debug --apdu --foreground &
-    PCSCD_PID=$!
-    sleep 2
-    
-    echo "   ✓ PC/SCデーモンを起動しました (PID: $PCSCD_PID)"
+    if command -v systemctl &> /dev/null && systemctl list-unit-files pcscd.socket &> /dev/null; then
+        sudo systemctl enable --now pcscd.socket >/dev/null 2>&1 || true
+        sudo systemctl restart pcscd >/dev/null 2>&1 || true
+        sleep 1
+        if pgrep -x pcscd &> /dev/null || systemctl is-active --quiet pcscd.socket; then
+            echo "   ✓ PC/SCデーモンを systemd 経由で起動しました"
+        else
+            echo "   ⚠ PC/SCデーモンの起動確認ができませんでした"
+        fi
+    else
+        # 既存のプロセスを停止
+        pkill -9 pcscd 2>/dev/null
+        sleep 1
+        
+        # デーモンを起動
+        pcscd --debug --apdu --foreground &
+        PCSCD_PID=$!
+        sleep 2
+        
+        echo "   ✓ PC/SCデーモンを起動しました (PID: $PCSCD_PID)"
+    fi
 else
     echo "   ⚠ pcscdが見つかりません"
 fi
