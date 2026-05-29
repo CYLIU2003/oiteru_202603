@@ -128,7 +128,7 @@ def ensure_root_privileges():
 # --------------------------------------------------------------------------
 CONFIG_FILE = 'config.json'
 DEFAULT_CONFIG = {
-    "SERVER_URL": "http://127.0.0.1:5000", "UNIT_NAME": "test-01",
+    "SERVER_URL": "http://127.0.0.1:5001", "UNIT_NAME": "test-01",
     "UNIT_PASSWORD": "password123", "MOTOR_TYPE": "SERVO",
     "CONTROL_METHOD": "RASPI_DIRECT", "USE_SENSOR": True,
     "GREEN_LED_PIN": 17, "RED_LED_PIN": 27, "SENSOR_PIN": 22,
@@ -383,7 +383,7 @@ def scan_for_servers(timeout=5):
 
         # 各IPの health エンドポイントに接続を試みる
         for ip in peer_ips:
-            url = f"http://{ip}:5000"
+            url = f"http://{ip}:5001"
             try:
                 response = requests.get(f"{url}/api/health", timeout=0.5)
                 if response.status_code == 200 and response.json().get('status') == 'ok':
@@ -412,7 +412,7 @@ def scan_for_servers(timeout=5):
             message = json.loads(data.decode('utf-8'))
             if message.get("type") == "oiteru_server_heartbeat":
                 ip = message.get('server_ip')
-                url = f"http://{ip}:{message.get('port', 5000)}"
+                url = f"http://{ip}:{message.get('port', 5001)}"
                 if ip not in found_servers:
                     print(f"  -> UDP経由で親機を発見: {url}")
                     found_servers[ip] = url
@@ -759,8 +759,8 @@ class SettingsGUI:
         current_url = (self.config.get("SERVER_URL") or "").strip()
         normalized_url = current_url.rstrip('/')
         if normalized_url and normalized_url not in (
-            "http://127.0.0.1:5000",
-            "http://localhost:5000",
+            "http://127.0.0.1:5001",
+            "http://localhost:5001",
             "127.0.0.1",
             "localhost",
         ):
@@ -1719,8 +1719,16 @@ def run_cui_mode():
         else:
             print("✗ 親機が見つかりませんでした。現在の設定で続行します。")
     
+    # ヘッドレス起動や --no-gui 起動では対話メニューを出さず、そのまま起動する
+    interactive_menu_requested = (
+        '--auto' not in sys.argv
+        and '--find-server' not in sys.argv
+        and '--no-gui' not in sys.argv
+        and sys.stdin.isatty()
+    )
+
     # 設定メニューの表示
-    if '--auto' not in sys.argv and '--find-server' not in sys.argv:
+    if interactive_menu_requested:
         print("\nオプションを選択してください:")
         print("  1. そのまま起動")
         print("  2. 設定メニューを開く")
@@ -1757,6 +1765,8 @@ def run_cui_mode():
                     print("\n✗ 親機が見つかりませんでした。現在の設定で続行します。")
         except (EOFError, KeyboardInterrupt):
             print("\n")
+    else:
+        print("\n自動起動モードで続行します（対話メニューは省略）")
     
     # グローバル変数に設定を適用
     SERVER_URL = config['SERVER_URL']

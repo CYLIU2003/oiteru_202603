@@ -90,7 +90,7 @@ fi
 CONFIG_FILE="$PROJECT_ROOT/config.json"
 if [ -f "$CONFIG_FILE" ]; then
     # SERVER_URLを更新
-    sed -i "s|\"SERVER_URL\": \".*\"|\"SERVER_URL\": \"http://$PARENT_HOST:5000\"|" "$CONFIG_FILE"
+    sed -i "s|\"SERVER_URL\": \".*\"|\"SERVER_URL\": \"http://$PARENT_HOST:5001\"|" "$CONFIG_FILE"
     echo -e "${GREEN}✓ config.jsonを更新しました${NC}"
 fi
 
