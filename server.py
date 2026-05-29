@@ -97,6 +97,7 @@ if "FLASK_SECRET_KEY" not in os.environ:
 SERVER_NAME = os.getenv("SERVER_NAME", "OITERU親機")
 SERVER_LOCATION = os.getenv("SERVER_LOCATION", "未設定")
 SERVER_ID = os.getenv("HOSTNAME", socket.gethostname())
+SERVER_PORT = int(os.getenv("SERVER_PORT", "5000"))
 
 # ========================================
 # グローバル設定（DBから読み込み・同期される）
@@ -1022,7 +1023,7 @@ def broadcast_server_info():
 
     while True:
         message = json.dumps(
-            {"type": "oiteru_server_heartbeat", "server_ip": server_ip, "port": 5000}
+            {"type": "oiteru_server_heartbeat", "server_ip": server_ip, "port": SERVER_PORT}
         ).encode("utf-8")
 
         try:
@@ -2642,7 +2643,7 @@ if __name__ == "__main__":
 
     print("\n" + "=" * 60)
     print("OITELU 親機/従親機の起動が完了しました！")
-    print("Webブラウザで http://localhost:5000 にアクセスしてください")
+    print(f"Webブラウザで http://localhost:{SERVER_PORT} にアクセスしてください")
     print("=" * 60 + "\n")
 
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    app.run(host="0.0.0.0", port=SERVER_PORT, debug=False)

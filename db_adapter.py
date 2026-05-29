@@ -27,24 +27,24 @@ class DatabaseConnection:
     
     def __init__(self):
         self.db_type = DB_TYPE
-        
-        if self.db_type == 'mysql':
-            self.config = {
-                'host': os.getenv('MYSQL_HOST', 'localhost'),
-                'port': int(os.getenv('MYSQL_PORT', 3306)),
-                'user': os.getenv('MYSQL_USER', 'oiteru_user'),
-                'password': os.getenv('MYSQL_PASSWORD', ''),
-                'database': os.getenv('MYSQL_DATABASE', 'oiteru'),
-                'charset': 'utf8mb4',
-                'cursorclass': DictCursor,
-                'autocommit': False
-            }
-        else:
+        if self.db_type != 'mysql':
             # SQLite
             self.db_path = os.path.join(
                 os.path.dirname(os.path.abspath(__file__)), 
                 'oiteru.sqlite3'
             )
+
+    def _mysql_config(self):
+        return {
+            'host': os.getenv('MYSQL_HOST', 'localhost'),
+            'port': int(os.getenv('MYSQL_PORT', 3306)),
+            'user': os.getenv('MYSQL_USER', 'oiteru_user'),
+            'password': os.getenv('MYSQL_PASSWORD', ''),
+            'database': os.getenv('MYSQL_DATABASE', 'oiteru'),
+            'charset': 'utf8mb4',
+            'cursorclass': DictCursor,
+            'autocommit': False
+        }
     
     @contextmanager
     def get_connection(self):
@@ -56,7 +56,7 @@ class DatabaseConnection:
         for attempt in range(max_retries):
             try:
                 if self.db_type == 'mysql':
-                    conn = MySQLdb.connect(**self.config)
+                    conn = MySQLdb.connect(**self._mysql_config())
                 else:
                     conn = sqlite3.connect(self.db_path)
                     conn.row_factory = sqlite3.Row

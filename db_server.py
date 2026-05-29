@@ -22,6 +22,7 @@ MySQLデータベースを含めた環境をDockerで起動することを前提
 # Docker環境でMySQLを使う場合のエントリーポイント
 
 import os
+SERVER_PORT = int(os.getenv("SERVER_PORT", "5000"))
 
 # MySQLモードを強制
 os.environ['DB_TYPE'] = 'mysql'
@@ -71,7 +72,7 @@ if __name__ == '__main__':
     
     print("\n" + "="*60)
     print("OITELU 親機DB版の起動が完了しました！")
-    print("Webブラウザで http://localhost:5000 にアクセスしてください")
+    print(f"Webブラウザで http://localhost:{SERVER_PORT} にアクセスしてください")
     print("="*60 + "\n")
     
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    app.run(host='0.0.0.0', port=SERVER_PORT, debug=False)
