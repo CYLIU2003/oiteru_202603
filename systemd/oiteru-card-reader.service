@@ -1,0 +1,14 @@
+[Unit]
+Description=OITERU Card Reader Boot Initialization
+DefaultDependencies=no
+After=local-fs.target systemd-modules-load.service
+Before=pcscd.service oiteru-parent.service
+Wants=pcscd.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /home/hirameki-3/デスクトップ/oiteru_202603/scripts/init_card_reader.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
