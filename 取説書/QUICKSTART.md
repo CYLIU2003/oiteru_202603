@@ -566,9 +566,9 @@ tmux new -s oiteru
 **3️⃣ プロジェクトフォルダに移動**
 ```bash
 # パスは自分の環境に合わせて変更してください
-cd ~/oiteru_2603
+cd ~/oiteru_202603
 # または
-cd ~/Desktop/oiteru_2603
+cd ~/Desktop/oiteru_202603
 ```
 
 **4️⃣ 必要なパッケージをインストール（Bookworm以降では必須）**
