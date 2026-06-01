@@ -102,9 +102,12 @@ case $SETUP_TYPE in
     read -p "MySQLユーザー名 [oiteru_user]: " MYSQL_USER
     MYSQL_USER=${MYSQL_USER:-oiteru_user}
     
-    read -sp "MySQLパスワード [oiteru_password_2025]: " MYSQL_PASSWORD
+    read -sp "MySQLパスワード: " MYSQL_PASSWORD
     echo ""
-    MYSQL_PASSWORD=${MYSQL_PASSWORD:-oiteru_password_2025}
+    if [ -z "$MYSQL_PASSWORD" ]; then
+      echo -e "${RED}エラー: MySQLパスワードが入力されていません${NC}"
+      exit 1
+    fi
     
     read -p "この親機の名前 [親機3号機(外部)]: " SERVER_NAME
     SERVER_NAME=${SERVER_NAME:-親機3号機(外部)}
@@ -181,7 +184,7 @@ case $SETUP_TYPE in
       # データベース作成SQLを生成
       cat > /tmp/create_oiteru_db.sql <<EOF
 CREATE DATABASE IF NOT EXISTS oiteru CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER IF NOT EXISTS 'oiteru_user'@'%' IDENTIFIED BY 'oiteru_password_2025';
+CREATE USER IF NOT EXISTS 'oiteru_user'@'%' IDENTIFIED BY '$MYSQL_PASSWORD';
 GRANT ALL PRIVILEGES ON oiteru.* TO 'oiteru_user'@'%';
 FLUSH PRIVILEGES;
 EOF
@@ -190,7 +193,7 @@ EOF
       
       if [ -f "init_mysql.sql" ]; then
         echo "テーブルを初期化しています..."
-        mysql -h "$MYSQL_HOST" -P "$MYSQL_PORT" -u oiteru_user -poiteru_password_2025 oiteru < init_mysql.sql
+        mysql -h "$MYSQL_HOST" -P "$MYSQL_PORT" -u oiteru_user -p"$MYSQL_PASSWORD" oiteru < init_mysql.sql
         echo -e "${GREEN}✓ データベース初期化完了${NC}"
       else
         echo -e "${YELLOW}⚠ init_mysql.sql が見つかりません。手動でテーブルを作成してください。${NC}"
@@ -210,7 +213,7 @@ MYSQL_HOST=$MYSQL_HOST
 MYSQL_PORT=$MYSQL_PORT
 MYSQL_DATABASE=oiteru
 MYSQL_USER=oiteru_user
-MYSQL_PASSWORD=oiteru_password_2025
+MYSQL_PASSWORD=$MYSQL_PASSWORD
 
 # サーバー識別情報
 SERVER_NAME=$SERVER_NAME

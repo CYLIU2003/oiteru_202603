@@ -9,8 +9,8 @@
     "UNIT_LOCATION": "★ここを編集★ 例: 7号館1階",
     
     "IS_SECONDARY": false,
-    "MOTOR_TYPE": "SERVO",
-    "CONTROL_METHOD": "RASPI_DIRECT",
+    "MOTOR_TYPE": "STEPPER",
+    "CONTROL_METHOD": "ARDUINO_SERIAL",
     "USE_SENSOR": true,
     "GREEN_LED_PIN": 17,
     "RED_LED_PIN": 27,

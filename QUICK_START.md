@@ -1,8 +1,44 @@
 # 🚀 OITERUシステム クイック起動ガイド
 
-## 📌 1分で起動する方法
+## 📌 最短起動手順
 
-### 親機（データベース持ち）
+### 標準構成
+
+- 親機: `db_server.py`
+- DB: `MySQL 8 (InnoDB)`
+- `server.py` は legacy 互換用です
+
+このガイドの標準経路は `MySQL + .env + db_server.py` です。
+`server.py + SQLite` は既存検証用としてのみ扱ってください。
+
+### 事前準備
+
+```bash
+cp .env.example .env
+```
+
+以下は必ず変更してください。
+
+- `FLASK_SECRET_KEY`
+- `OITERU_ADMIN_PASSWORD`
+- `MYSQL_PASSWORD`
+- `MYSQL_ROOT_PASSWORD`
+
+`OITERU_STRICT_SECURITY=true` の場合、既定値のままでは起動時に停止します。
+
+### 子機設定を作成
+
+```bash
+cp config.example.json config.json
+```
+
+以下を子機ごとに変更してください。
+
+- `SERVER_URL`
+- `UNIT_NAME`
+- `UNIT_PASSWORD`
+
+### 親機（MySQL標準構成）
 
 **Windows:**
 ```powershell
@@ -13,6 +49,8 @@
 ```bash
 ./scripts/quick_start_parent.sh
 ```
+
+> `quick_start_parent.*` は `.env` を読み込み、親機は `db_server.py` で起動します。
 
 ### 従親機（親機のDBに接続）
 
@@ -70,7 +108,12 @@ cd /home/pi/oiteru_250827_restAPI
 
 - **トップページ:** http://localhost:5000
 - **管理画面:** http://localhost:5000/admin
-  - パスワード: `admin`
+  - パスワード: `.env` の `OITERU_ADMIN_PASSWORD`
+
+## 互換/既存検証用
+
+- `server.py + SQLite` は legacy 経路です
+- 新規環境のセットアップ、運用確認、レビュー時の前提は `db_server.py + MySQL` に統一してください
 
 ---
 
@@ -97,4 +140,4 @@ cd /home/pi/oiteru_250827_restAPI
 
 ---
 
-**最終更新: 2026年1月12日**
+**最終更新: 2026年3月13日**

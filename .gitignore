@@ -1,13 +1,24 @@
 oiteru.sqlite3
 oiteru.sqlite3.backup_*
+*.db
+*.sqlite
+*.sqlite3
 *.xlsx
 users_*.xlsx
 stats_*.xlsx
+*.log
 __pycache__/
 *.pyc
+
+# 実運用設定
+config.json
 
 # 仮想環境
 .venv/
 venv/
 env/
 .env
+
+# エディタ設定
+.idea/
+.vscode/

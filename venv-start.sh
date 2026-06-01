@@ -5,6 +5,8 @@
 cd "$(dirname "$0")"
 
 PYTHON_PATH="./.venv/bin/python"
+ENV_FILE="./.env"
+ENV_EXAMPLE_FILE="./.env.example"
 
 if [ ! -f "$PYTHON_PATH" ]; then
     echo "エラー: 仮想環境が見つかりません: $PYTHON_PATH"
@@ -12,32 +14,38 @@ if [ ! -f "$PYTHON_PATH" ]; then
     exit 1
 fi
 
-case "$1" in
+MODE="${1:-parent-mysql}"
+
+case "$MODE" in
+    parent-mysql)
+        echo "親機 (MySQL) を起動します..."
+        echo "※ 事前にMySQLが localhost:3306 で起動している必要があります。"
+
+        if [ ! -f "$ENV_FILE" ]; then
+            echo "エラー: .env が見つかりません: $ENV_FILE"
+            echo "$ENV_EXAMPLE_FILE をコピーし、必須値を設定してください。"
+            exit 1
+        fi
+
+        $PYTHON_PATH db_server.py
+        ;;
     parent-sqlite)
         echo "親機 (SQLite) を起動します..."
         export DB_TYPE="sqlite"
         $PYTHON_PATH server.py
         ;;
-    parent-mysql)
-        echo "親機 (MySQL) を起動します..."
-        echo "※ 事前にMySQLが localhost:3306 で起動している必要があります。"
-        export DB_TYPE="mysql"
-        export MYSQL_HOST="localhost"
-        export MYSQL_PORT="3306"
-        export MYSQL_DATABASE="oiteru"
-        export MYSQL_USER="oiteru_user"
-        export MYSQL_PASSWORD="oiteru_password_2025"
-        $PYTHON_PATH server.py
-        ;;
     sub-parent)
         echo "従親機 (MySQL接続) を起動します..."
+
+        if [ ! -f "$ENV_FILE" ]; then
+            echo "エラー: .env が見つかりません: $ENV_FILE"
+            echo "$ENV_EXAMPLE_FILE をコピーし、必須値を設定してください。"
+            exit 1
+        fi
+
         export DB_TYPE="mysql"
-        export MYSQL_HOST="localhost"
-        export MYSQL_PORT="3306"
-        export MYSQL_DATABASE="oiteru"
-        export MYSQL_USER="oiteru_user"
-        export MYSQL_PASSWORD="oiteru_password_2025"
-        export SERVER_NAME="OITERU従親機"
+        export MYSQL_HOST="${MYSQL_HOST:-localhost}"
+        export SERVER_NAME="${SERVER_NAME:-OITERU従親機}"
         $PYTHON_PATH server.py
         ;;
     unit)
@@ -50,14 +58,28 @@ case "$1" in
         echo "  - リモート設定変更が自動反映されます"
         echo "========================================="
         echo ""
+        if ! "$PYTHON_PATH" - <<'PY' >/dev/null 2>&1
+import importlib
+for module_name in ("RPi.GPIO", "Adafruit_PCA9685", "serial"):
+    importlib.import_module(module_name)
+PY
+        then
+            if [ -f "./requirements-client.txt" ]; then
+                echo "子機用依存関係をインストール中..."
+                $PYTHON_PATH -m pip install -r ./requirements-client.txt
+            elif [ -f "./docker/requirements-client.txt" ]; then
+                echo "子機用依存関係をインストール中..."
+                $PYTHON_PATH -m pip install -r ./docker/requirements-client.txt
+            fi
+        fi
         shift
         $PYTHON_PATH unit.py "$@"
         ;;
     *)
-        echo "使い方: $0 {parent-sqlite|parent-mysql|sub-parent|unit}"
+        echo "使い方: $0 {parent-mysql|parent-sqlite|sub-parent|unit}"
         echo ""
-        echo "  parent-sqlite - 親機 (SQLite版) を起動"
-        echo "  parent-mysql  - 親機 (MySQL版) を起動"
+        echo "  parent-mysql  - 親機 (MySQL版, 既定) を起動"
+        echo "  parent-sqlite - 親機 (SQLite版, legacy) を起動"
         echo "  sub-parent    - 従親機 (MySQL版) を起動"
         echo "  unit          - 子機を起動"
         exit 1

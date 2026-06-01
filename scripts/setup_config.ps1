@@ -71,8 +71,8 @@ if ($Type -eq "unit") {
         UNIT_PASSWORD = $Password
         UNIT_LOCATION = $Location
         IS_SECONDARY = $false
-        MOTOR_TYPE = "SERVO"
-        CONTROL_METHOD = "RASPI_DIRECT"
+        MOTOR_TYPE = "STEPPER"
+        CONTROL_METHOD = "ARDUINO_SERIAL"
         USE_SENSOR = $true
         GREEN_LED_PIN = 17
         RED_LED_PIN = 27
@@ -89,7 +89,7 @@ if ($Type -eq "unit") {
         MYSQL_PORT = 3306
         MYSQL_DATABASE = "oiteru"
         MYSQL_USER = "oiteru_user"
-        MYSQL_PASSWORD = "oiteru_password_2025"
+        MYSQL_PASSWORD = "change-this-mysql-password"
         SERVER_NAME = $Name
         SERVER_LOCATION = $Location
         IS_SECONDARY = $true

@@ -14,17 +14,19 @@ Dockerを使わずに、ローカルのPython仮想環境(.venv)を使用して
 - unit          : 子機 (unit.py)
 
 .EXAMPLE
-.\venv-start.ps1 parent-sqlite
+# .\venv-start.ps1 parent-mysql
 #>
 
 param(
-    [Parameter(Mandatory=$true)]
+    [Parameter(Mandatory=$false)]
     [ValidateSet("parent-sqlite", "parent-mysql", "sub-parent", "unit")]
-    [string]$Mode
+    [string]$Mode = "parent-mysql"
 )
 
 # スクリプトのあるディレクトリへ移動
 Set-Location $PSScriptRoot
+$EnvFile = Join-Path $PSScriptRoot ".env"
+$EnvExampleFile = Join-Path $PSScriptRoot ".env.example"
 
 # 仮想環境のPythonパス
 $PythonPath = ".\.venv\Scripts\python.exe"
@@ -46,27 +48,28 @@ switch ($Mode) {
     "parent-mysql" {
         Write-Host "親機 (MySQL) を起動します..."
         Write-Host "※ 事前にMySQLが localhost:3306 で起動している必要があります。"
-        
-        $env:DB_TYPE = "mysql"
-        $env:MYSQL_HOST = "localhost"
-        $env:MYSQL_PORT = "3306"
-        $env:MYSQL_DATABASE = "oiteru"
-        $env:MYSQL_USER = "oiteru_user"
-        $env:MYSQL_PASSWORD = "oiteru_password_2025"
-        
-        & $PythonPath server.py
+
+        if (-not (Test-Path $EnvFile)) {
+            Write-Error ".env が見つかりません: $EnvFile"
+            Write-Host "$EnvExampleFile をコピーし、必須値を設定してください。"
+            exit 1
+        }
+
+        & $PythonPath db_server.py
     }
     "sub-parent" {
         Write-Host "従親機 (MySQL接続) を起動します..."
         Write-Host "※ 接続先は localhost:3306 (デフォルト) です。"
-        
+
+        if (-not (Test-Path $EnvFile)) {
+            Write-Error ".env が見つかりません: $EnvFile"
+            Write-Host "$EnvExampleFile をコピーし、必須値を設定してください。"
+            exit 1
+        }
+
         $env:DB_TYPE = "mysql"
-        $env:MYSQL_HOST = "localhost"
-        $env:MYSQL_PORT = "3306"
-        $env:MYSQL_DATABASE = "oiteru"
-        $env:MYSQL_USER = "oiteru_user"
-        $env:MYSQL_PASSWORD = "oiteru_password_2025"
-        $env:SERVER_NAME = "OITERU従親機"
+        if (-not $env:MYSQL_HOST) { $env:MYSQL_HOST = "localhost" }
+        if (-not $env:SERVER_NAME) { $env:SERVER_NAME = "OITERU従親機" }
         
         & $PythonPath server.py
     }

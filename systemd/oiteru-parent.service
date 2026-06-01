@@ -1,0 +1,23 @@
+[Unit]
+Description=OITERU Parent Server (MySQL)
+After=network-online.target mysql.service oiteru-card-reader.service
+Wants=network-online.target
+Requires=mysql.service
+Requires=oiteru-card-reader.service
+
+[Service]
+Type=simple
+User=hirameki-3
+WorkingDirectory=/home/hirameki-3/デスクトップ/oiteru_202603
+Environment=SERVER_PORT=5001
+PermissionsStartOnly=true
+ExecStartPre=/bin/bash /home/hirameki-3/デスクトップ/oiteru_202603/scripts/init_card_reader.sh
+ExecStart=/bin/bash /home/hirameki-3/デスクトップ/oiteru_202603/venv-start.sh parent-mysql
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=oiteru-parent
+
+[Install]
+WantedBy=multi-user.target

@@ -3,6 +3,7 @@ import sys
 import threading
 import json
 import os
+import hmac
 import socket
 import subprocess # Tailscale対応のため追加
 import queue
@@ -128,8 +129,8 @@ def ensure_root_privileges():
 CONFIG_FILE = 'config.json'
 DEFAULT_CONFIG = {
     "SERVER_URL": "http://127.0.0.1:5000", "UNIT_NAME": "test-01",
-    "UNIT_PASSWORD": "password123", "MOTOR_TYPE": "SERVO",
-    "CONTROL_METHOD": "RASPI_DIRECT", "USE_SENSOR": True,
+    "UNIT_PASSWORD": "password123", "MOTOR_TYPE": "STEPPER",
+    "CONTROL_METHOD": "ARDUINO_SERIAL", "USE_SENSOR": True,
     "GREEN_LED_PIN": 17, "RED_LED_PIN": 27, "SENSOR_PIN": 22,
     "ARDUINO_PORT": "/dev/ttyACM0",
     "MOTOR_SPEED": 100, "MOTOR_DURATION": 2.0, "MOTOR_REVERSE": False,
@@ -141,8 +142,12 @@ DEFAULT_CONFIG = {
 
 def save_config(config):
     try:
+        persisted_config = {
+            key: value for key, value in config.items()
+            if not key.startswith('_')
+        }
         with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
-            json.dump(config, f, indent=4, ensure_ascii=False)
+            json.dump(persisted_config, f, indent=4, ensure_ascii=False)
         return True
     except IOError:
         return False
@@ -222,10 +227,20 @@ def start_flask_api_server(config, port=5001):
     
     app = Flask(__name__)
     app.config['config_ref'] = config  # 設定への参照を保持
+
+    def is_authorized_request():
+        expected_secret = str(app.config['config_ref'].get('_unit_api_token') or '')
+        provided_secret = request.headers.get('X-Oiteru-Unit-Auth', '')
+        return bool(expected_secret and provided_secret) and hmac.compare_digest(
+            expected_secret,
+            provided_secret,
+        )
     
     @app.route('/api/config/update', methods=['POST'])
     def update_config():
         """親機から設定変更を受信"""
+        if not is_authorized_request():
+            return jsonify({'error': 'Unauthorized'}), 401
         try:
             data = request.json
             if not data or 'config' not in data:
@@ -253,6 +268,8 @@ def start_flask_api_server(config, port=5001):
     @app.route('/api/command', methods=['POST'])
     def execute_command():
         """親機からのデバッグコマンドを実行"""
+        if not is_authorized_request():
+            return jsonify({'error': 'Unauthorized'}), 401
         try:
             data = request.json
             command = data.get('command')
@@ -366,7 +383,7 @@ def scan_for_servers(timeout=5):
 
         # 各IPの health エンドポイントに接続を試みる
         for ip in peer_ips:
-            url = f"http://{ip}:5000"
+            url = f"http://{ip}:5001"
             try:
                 response = requests.get(f"{url}/api/health", timeout=0.5)
                 if response.status_code == 200 and response.json().get('status') == 'ok':
@@ -395,7 +412,7 @@ def scan_for_servers(timeout=5):
             message = json.loads(data.decode('utf-8'))
             if message.get("type") == "oiteru_server_heartbeat":
                 ip = message.get('server_ip')
-                url = f"http://{ip}:{message.get('port', 5000)}"
+                url = f"http://{ip}:{message.get('port', 5001)}"
                 if ip not in found_servers:
                     print(f"  -> UDP経由で親機を発見: {url}")
                     found_servers[ip] = url
@@ -742,8 +759,8 @@ class SettingsGUI:
         current_url = (self.config.get("SERVER_URL") or "").strip()
         normalized_url = current_url.rstrip('/')
         if normalized_url and normalized_url not in (
-            "http://127.0.0.1:5000",
-            "http://localhost:5000",
+            "http://127.0.0.1:5001",
+            "http://localhost:5001",
             "127.0.0.1",
             "localhost",
         ):
@@ -1017,6 +1034,8 @@ def run_client(config, stop_event, gui_queue):
                 response = requests.post(f"{SERVER_URL}/api/unit/heartbeat", json=payload, timeout=5)
                 if response.status_code == 200:
                     data = response.json()
+                    if data.get('unit_api_token'):
+                        config['_unit_api_token'] = data['unit_api_token']
                     if 'stock' in data:
                         # サーバーからの在庫数で同期（GUI更新）
                         gui_queue.put({'stock': data['stock']})
@@ -1044,6 +1063,9 @@ def run_client(config, stop_event, gui_queue):
     def send_log_to_server(message):
         try:
             payload = {"unit_name": UNIT_NAME, "message": message}
+            payload["unit_password"] = UNIT_PASSWORD
+            if config.get('_unit_api_token'):
+                payload["unit_token"] = config['_unit_api_token']
             requests.post(f"{SERVER_URL}/api/log", json=payload, timeout=3)
         except requests.exceptions.RequestException: pass
 
@@ -1100,7 +1122,7 @@ def run_client(config, stop_event, gui_queue):
         if PLATFORM_RUNTIME != 'RASPI':
             print("INFO: PCモードのためモーターは動作しません。")
             send_log_to_server("排出完了 (PCモード)")
-            return
+            return True
         
         if current_motor_type == 'SERVO' and current_control_method == 'RASPI_DIRECT':
             try:
@@ -1177,8 +1199,7 @@ def run_client(config, stop_event, gui_queue):
                             else:
                                 print("✗ 排出失敗: 物体が詰まっています")
                                 send_log_to_server("エラー: 排出失敗 (詰まり)")
-                                indicate('failure')
-                                return
+                                return False
                     else:
                         # SENSOR_CHECK_POSTが無効の場合は成功とみなす
                         print("✓ 排出完了 (回転後チェック無効)")
@@ -1191,12 +1212,13 @@ def run_client(config, stop_event, gui_queue):
                     pwm.set_pwm(15, 0, 0)
                     print("排出動作が完了しました。")
                     send_log_to_server("排出完了 (センサーなし)")
+                return True
 
             except Exception as e:
                 msg = f"モーター/センサー制御エラー: {e}"
                 print(f"!! {msg}")
                 send_log_to_server(msg)
-                indicate('failure')
+                return False
 
         elif current_control_method == 'ARDUINO_SERIAL':
             try:
@@ -1208,16 +1230,17 @@ def run_client(config, stop_event, gui_queue):
                 print(f"Arduinoにコマンド送信: {command.strip()}")
                 send_log_to_server(f"Arduinoに排出指令: {command.strip()}")
                 ser.close()
+                return True
             except Exception as e:
                 msg = f"Arduino通信エラー: {e}"
                 print(f"!! {msg}")
                 send_log_to_server(msg)
-                indicate('failure')
+                return False
         else:
             error_message = f"未サポートのモーター設定です: {current_motor_type}, {current_control_method}"
             print(f"!! {error_message}")
             send_log_to_server(error_message)
-            indicate('failure')
+            return False
 
     def handle_card_touch(tag):
         """NFCカードタッチ時の処理（改良版）"""
@@ -1245,12 +1268,72 @@ def run_client(config, stop_event, gui_queue):
         
         try:
             payload = {"card_id": card_id, "unit_name": UNIT_NAME}
+            payload["unit_password"] = UNIT_PASSWORD
+            if config.get('_unit_api_token'):
+                payload["unit_token"] = config['_unit_api_token']
             response = requests.post(f"{SERVER_URL}/api/record_usage", json=payload, timeout=10)
             
             if response.status_code == 200:
-                send_log_to_server(f"利用を記録 ({card_id})")
-                indicate("success")
-                dispense_item()
+                response_data = response.json()
+                event_id = response_data.get('event_id')
+                if not event_id:
+                    send_log_to_server(f"利用認可レスポンス不正 (event_idなし) ({card_id})")
+                    indicate("failure")
+                    return True
+
+                send_log_to_server(f"利用認可 ({card_id}) event={event_id[:8]}")
+                dispense_ok = dispense_item()
+                result_payload = {
+                    "event_id": event_id,
+                    "unit_name": UNIT_NAME,
+                    "success": dispense_ok,
+                    "error_code": None if dispense_ok else "DISPENSE_FAILED_CLIENT",
+                    "unit_password": UNIT_PASSWORD,
+                }
+                if config.get('_unit_api_token'):
+                    result_payload["unit_token"] = config['_unit_api_token']
+
+                result_response = None
+                last_result_error = None
+                for _ in range(3):
+                    try:
+                        result_response = requests.post(
+                            f"{SERVER_URL}/api/dispense_result",
+                            json=result_payload,
+                            timeout=10
+                        )
+                        break
+                    except requests.exceptions.RequestException as req_error:
+                        last_result_error = req_error
+                        time.sleep(1)
+
+                if result_response is None:
+                    send_log_to_server(
+                        f"排出結果確定APIへの送信失敗 ({card_id}) event={event_id[:8]} err={last_result_error}"
+                    )
+                    indicate("failure")
+                    return True
+
+                if result_response.status_code == 200:
+                    result_data = result_response.json()
+                    if result_data.get('success'):
+                        send_log_to_server(f"排出結果を確定 ({card_id}) event={event_id[:8]}")
+                        indicate("success")
+                    else:
+                        fail_code = result_data.get('error_code', 'UNKNOWN')
+                        send_log_to_server(
+                            f"排出結果は失敗として確定 ({card_id}) event={event_id[:8]} code={fail_code}"
+                        )
+                        indicate("failure")
+                else:
+                    try:
+                        result_error = result_response.json().get('error', '不明なエラー')
+                    except Exception:
+                        result_error = f"HTTP {result_response.status_code}"
+                    send_log_to_server(
+                        f"排出結果確定APIエラー ({result_error}) ({card_id}) event={event_id[:8]}"
+                    )
+                    indicate("failure")
             else:
                 # JSONパースエラーを安全に処理
                 try:
@@ -1636,8 +1719,16 @@ def run_cui_mode():
         else:
             print("✗ 親機が見つかりませんでした。現在の設定で続行します。")
     
+    # ヘッドレス起動や --no-gui 起動では対話メニューを出さず、そのまま起動する
+    interactive_menu_requested = (
+        '--auto' not in sys.argv
+        and '--find-server' not in sys.argv
+        and '--no-gui' not in sys.argv
+        and sys.stdin.isatty()
+    )
+
     # 設定メニューの表示
-    if '--auto' not in sys.argv and '--find-server' not in sys.argv:
+    if interactive_menu_requested:
         print("\nオプションを選択してください:")
         print("  1. そのまま起動")
         print("  2. 設定メニューを開く")
@@ -1674,6 +1765,8 @@ def run_cui_mode():
                     print("\n✗ 親機が見つかりませんでした。現在の設定で続行します。")
         except (EOFError, KeyboardInterrupt):
             print("\n")
+    else:
+        print("\n自動起動モードで続行します（対話メニューは省略）")
     
     # グローバル変数に設定を適用
     SERVER_URL = config['SERVER_URL']

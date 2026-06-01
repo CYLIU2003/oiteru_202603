@@ -27,7 +27,7 @@ NC='\033[0m' # No Color
 
 echo ""
 echo -e "${CYAN}========================================"
-echo "   🍬 OITERU 設定ウィザード"
+echo "   OITERU 設定ウィザード"
 echo -e "========================================${NC}"
 echo ""
 
@@ -40,7 +40,7 @@ if [ -n "$1" ]; then
 else
     # 対話モード
     echo -e "${YELLOW}何を設定しますか？${NC}"
-    echo "  1. 子機（お菓子を出す端末）"
+    echo "  1. 子機（生理用品を排出する端末）"
     echo "  2. 従親機（サブサーバー）"
     echo ""
     read -p "選択 [1/2]: " choice
@@ -93,8 +93,8 @@ if [ "$TYPE" = "unit" ]; then
     "UNIT_PASSWORD": "$PASSWORD",
     "UNIT_LOCATION": "$LOCATION",
     "IS_SECONDARY": false,
-    "MOTOR_TYPE": "SERVO",
-    "CONTROL_METHOD": "RASPI_DIRECT",
+    "MOTOR_TYPE": "STEPPER",
+    "CONTROL_METHOD": "ARDUINO_SERIAL",
     "USE_SENSOR": true,
     "GREEN_LED_PIN": 17,
     "RED_LED_PIN": 27,
@@ -113,7 +113,7 @@ else
     "MYSQL_PORT": 3306,
     "MYSQL_DATABASE": "oiteru",
     "MYSQL_USER": "oiteru_user",
-    "MYSQL_PASSWORD": "oiteru_password_2025",
+    "MYSQL_PASSWORD": "change-this-mysql-password",
     "SERVER_NAME": "$NAME",
     "SERVER_LOCATION": "$LOCATION",
     "IS_SECONDARY": true

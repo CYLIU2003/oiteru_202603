@@ -39,7 +39,7 @@ if command -v pcscd >/dev/null 2>&1; then\n\
 fi\n\
 echo ""\n\
 echo "Starting Flask application..."\n\
-python server.py' > /app/start.sh && chmod +x /app/start.sh
+python db_server.py' > /app/start.sh && chmod +x /app/start.sh
 
 # Expose Flask port
 EXPOSE 5000

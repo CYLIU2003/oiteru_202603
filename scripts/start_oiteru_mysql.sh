@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# OITELU 親機起動スクリプト（MySQL版・診断機能付き）
+# OITERU 親機起動スクリプト（MySQL版・診断機能付き）
 
 echo "========================================"
-echo "  OITELU 親機起動スクリプト (MySQL版)"
+echo "  OITERU 親機起動スクリプト (MySQL版)"
 echo "========================================"
 echo ""
 
@@ -16,7 +16,11 @@ NC='\033[0m' # No Color
 
 # 1. カードリーダー自動アタッチ（WSL環境の場合）
 echo -e "${YELLOW}[1/5] カードリーダーを確認中...${NC}"
-if [ -f "./auto_attach_card_reader.sh" ]; then
+if [ -f "./init_card_reader.sh" ]; then
+    chmod +x ./init_card_reader.sh 2>/dev/null || true
+    bash ./init_card_reader.sh
+    echo ""
+elif [ -f "./auto_attach_card_reader.sh" ]; then
     source ./auto_attach_card_reader.sh
     echo ""
 else

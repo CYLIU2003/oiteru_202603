@@ -16,8 +16,8 @@
 
 | ファイル名 | 説明 | 対象環境 |
 |----------|------|---------|
-| `quick_start_parent.sh` | 親機(SQLite)のクイックスタート | Linux |
-| `quick_start_parent.ps1` | 親機(SQLite)のクイックスタート | Windows |
+| `quick_start_parent.sh` | 親機(MySQL標準構成)のクイックスタート | Linux |
+| `quick_start_parent.ps1` | 親機(MySQL標準構成)のクイックスタート | Windows |
 | `quick_start_sub.sh` | 従親機のクイックスタート | Linux |
 | `quick_start_sub.ps1` | 従親機のクイックスタート | Windows |
 | `setup_config.sh` | 設定ファイルの対話的作成 | Linux |

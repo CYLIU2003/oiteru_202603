@@ -139,8 +139,8 @@ nano config.json
   "SERVER_URL": "http://100.114.99.67:5000",  // 親機のURL
   "UNIT_NAME": "2号機",                        // この子機の名前
   "UNIT_PASSWORD": "password123",              // この子機のパスワード
-  "MOTOR_TYPE": "SERVO",                       // SERVO or STEPPER
-  "CONTROL_METHOD": "RASPI_DIRECT"             // RASPI_DIRECT or ARDUINO_SERIAL
+  "MOTOR_TYPE": "STEPPER",                     // SERVO or STEPPER
+  "CONTROL_METHOD": "ARDUINO_SERIAL"           // RASPI_DIRECT or ARDUINO_SERIAL
 }
 ```
 

@@ -12,7 +12,7 @@
 # パラメータ:
 #   --host        親機のIPアドレス（必須または--auto）
 #   --unit-id     子機ID（デフォルト: 自動取得）
-#   --port        親機のポート番号（デフォルト: 5000）
+#   --port        親機のポート番号（デフォルト: 5001）
 #   --auto        自動起動モード（設定ファイルから読み込み）
 #   --find-server 親機を自動探知
 #   --gui         GUIモードで起動（デフォルト: CUIモード）
@@ -52,7 +52,7 @@ log_error() {
 # デフォルト値
 # ========================================
 SERVER_HOST=""
-SERVER_PORT=5000
+SERVER_PORT=5001
 UNIT_ID=""
 AUTO_MODE=false
 FIND_SERVER=false
@@ -80,7 +80,7 @@ show_help() {
     echo ""
     echo "オプション:"
     echo "  --unit-id       子機ID（省略時は自動取得）"
-    echo "  --port          親機のポート番号（デフォルト: 5000）"
+    echo "  --port          親機のポート番号（デフォルト: 5001）"
     echo "  --gui           GUIモードで起動"
     echo "  --help          このヘルプを表示"
     echo ""
@@ -246,6 +246,8 @@ log_status "pipをアップグレード中..."
 REQUIREMENTS_FILE=""
 if [ -f "$PROJECT_DIR/requirements-client.txt" ]; then
     REQUIREMENTS_FILE="requirements-client.txt"
+elif [ -f "$PROJECT_DIR/docker/requirements-client.txt" ]; then
+    REQUIREMENTS_FILE="docker/requirements-client.txt"
 elif [ -f "$PROJECT_DIR/requirements.txt" ]; then
     REQUIREMENTS_FILE="requirements.txt"
 fi

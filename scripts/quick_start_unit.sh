@@ -75,8 +75,14 @@ if [ -z "$VENV_PATH" ]; then
     echo -e "${GREEN}✓ 仮想環境を作成: $VENV_PATH${NC}"
     
     # パッケージインストール
-    "$VENV_PATH/bin/pip" install -r "$PROJECT_ROOT/requirements.txt" -q
-    "$VENV_PATH/bin/pip" install nfcpy requests -q
+    if [ -f "$PROJECT_ROOT/requirements-client.txt" ]; then
+        "$VENV_PATH/bin/pip" install -r "$PROJECT_ROOT/requirements-client.txt" -q
+    elif [ -f "$PROJECT_ROOT/docker/requirements-client.txt" ]; then
+        "$VENV_PATH/bin/pip" install -r "$PROJECT_ROOT/docker/requirements-client.txt" -q
+    else
+        "$VENV_PATH/bin/pip" install -r "$PROJECT_ROOT/requirements.txt" -q
+        "$VENV_PATH/bin/pip" install nfcpy requests -q
+    fi
     echo -e "${GREEN}✓ パッケージをインストールしました${NC}"
 fi
 
@@ -84,7 +90,7 @@ fi
 CONFIG_FILE="$PROJECT_ROOT/config.json"
 if [ -f "$CONFIG_FILE" ]; then
     # SERVER_URLを更新
-    sed -i "s|\"SERVER_URL\": \".*\"|\"SERVER_URL\": \"http://$PARENT_HOST:5000\"|" "$CONFIG_FILE"
+    sed -i "s|\"SERVER_URL\": \".*\"|\"SERVER_URL\": \"http://$PARENT_HOST:5001\"|" "$CONFIG_FILE"
     echo -e "${GREEN}✓ config.jsonを更新しました${NC}"
 fi
 

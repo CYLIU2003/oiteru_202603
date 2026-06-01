@@ -11,19 +11,21 @@ Raspberry PiにNFCリーダーとモーターを接続して使用します。
 起動方法:
     python unit.py
 
-設定:
-    config.json で以下を設定してください:
-    - SERVER_URL: 親機のURL (例: http://100.114.99.67:5000)
+	設定:
+	    config.json で以下を設定してください:
+	    - SERVER_URL: 親機のURL (例: http://100.114.99.67:5000)
     - UNIT_NAME: 子機の名前
     - UNIT_PASSWORD: 子機のパスワード
     - MOTOR_TYPE: SERVO または STEPPER
     - CONTROL_METHOD: RASPI_DIRECT または ARDUINO_SERIAL
     - USE_SENSOR: true/false
 
-========================================
+	========================================
 
-詳細な実装は archive/unit_client.py を参照してください。
-"""
+	`config.example.json` を `config.json` にコピーしてから編集してください。
+
+	詳細な実装は archive/unit_client.py を参照してください。
+	"""
 
 import sys
 import os

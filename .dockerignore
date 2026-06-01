@@ -13,6 +13,11 @@ build/
 .vscode/
 .idea/
 *.log
+*.sqlite
+*.sqlite3
+*.db
+config.json
+.env
 desktop.ini
 tempCodeRunnerFile.py
 unit_client.py.new
