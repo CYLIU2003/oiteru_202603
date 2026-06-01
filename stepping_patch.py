@@ -1,11 +1,39 @@
 # -*- coding: utf-8 -*-
 """Runtime patch for main_stepping_branch.
 
-This branch is dedicated to ULN2003AN + 28BYJ-48 stepper operation.
-The original implementation lives in archive/unit_client.py.  This module keeps
-branch-specific CUI and Raspberry Pi direct stepper behavior outside the archived
-common file so the servo branch is not polluted.
+This branch is dedicated to Raspberry Pi GPIO direct control of
+ULN2003AN + 28BYJ-48.  Branch-specific behavior is kept here so the archived
+common unit_client.py and the servo branch are not polluted.
 """
+
+
+HARDWARE_IMPORT_OLD = '''# --- ハードウェアライブラリのインポート (エラーを許容) ---
+PLATFORM = "RASPI"
+try:
+    import RPi.GPIO as GPIO
+    import Adafruit_PCA9685
+    GPIO.setmode(GPIO.BCM)
+except (ImportError, RuntimeError):
+    PLATFORM = "PC"
+    print("!! 警告: Raspberry Piライブラリが見つかりません。PCモードで起動します。")'''
+
+HARDWARE_IMPORT_NEW = '''# --- ハードウェアライブラリのインポート (エラーを許容) ---
+# main_stepping_branch は ULN2003AN + 28BYJ-48 をGPIO直結で使うため、
+# PCA9685 が無いだけで PCモードに落としてはいけない。
+PLATFORM = "RASPI"
+Adafruit_PCA9685 = None
+try:
+    import RPi.GPIO as GPIO
+    GPIO.setwarnings(False)
+    GPIO.setmode(GPIO.BCM)
+except (ImportError, RuntimeError) as exc:
+    PLATFORM = "PC"
+    print(f"!! 警告: RPi.GPIO が利用できません。PCモードで起動します: {exc}")
+
+try:
+    import Adafruit_PCA9685
+except Exception:
+    Adafruit_PCA9685 = None'''
 
 
 STEPPER_DIRECT_BRANCH = r'''
@@ -19,6 +47,7 @@ STEPPER_DIRECT_BRANCH = r'''
                 if len(stepper_pins) != 4:
                     raise ValueError(f"STEPPER_PINS は IN1-IN4 の4本で指定してください: {raw_pins}")
 
+                steps_per_rev = int(config.get('STEPPER_STEPS_PER_REV', 4096))
                 half_step_sequence = [
                     (1, 0, 0, 0),
                     (1, 1, 0, 0),
@@ -43,10 +72,12 @@ STEPPER_DIRECT_BRANCH = r'''
                         delay = float(configured_delay)
                     else:
                         speed = max(1, min(100, int(current_motor_speed)))
-                        delay = 0.012 - (speed - 1) * (0.0095 / 99.0)
-                    return max(0.0025, delay)
+                        # 28BYJ-48は高速にしすぎると脱調しやすい。
+                        # speed=100 でも約5msを下限にする。
+                        delay = 0.015 - (speed - 1) * (0.010 / 99.0)
+                    return max(0.005, delay)
 
-                def _rotate_stepper(duration_sec, reverse=False, fixed_steps=None):
+                def _rotate_stepper(duration_sec=None, reverse=False, fixed_steps=None):
                     step_delay = _resolve_step_delay()
                     if fixed_steps is None:
                         fixed_steps = int(float(duration_sec) / step_delay)
@@ -55,7 +86,8 @@ STEPPER_DIRECT_BRANCH = r'''
 
                     print(
                         f"INFO: ステッピングモーター駆動開始 "
-                        f"pins={stepper_pins}, steps={fixed_steps}, delay={step_delay:.4f}s, reverse={reverse}"
+                        f"pins={stepper_pins}, steps={fixed_steps}, delay={step_delay:.4f}s, reverse={reverse}, "
+                        f"steps_per_rev={steps_per_rev}"
                     )
                     try:
                         for step_index in range(fixed_steps):
@@ -87,7 +119,7 @@ STEPPER_DIRECT_BRANCH = r'''
                             send_log_to_server("警告: 排出前に残留物検知")
                             for attempt in range(JAM_CLEAR_ATTEMPTS):
                                 print(f"詰まり解消試行 {attempt + 1}/{JAM_CLEAR_ATTEMPTS}")
-                                _rotate_stepper(min(0.5, float(current_motor_duration)), reverse=not current_motor_reverse)
+                                _rotate_stepper(fixed_steps=max(64, steps_per_rev // 16), reverse=not current_motor_reverse)
                                 time.sleep(0.3)
                                 if check_sensor("(解消確認)"):
                                     print("✓ 詰まり解消成功")
@@ -99,7 +131,7 @@ STEPPER_DIRECT_BRANCH = r'''
                             print("✓ 回転前チェック: 排出口クリア")
 
                     print(f"\n--- ステップ2: ステッピングモーター回転 ({current_motor_duration}秒) ---")
-                    _rotate_stepper(current_motor_duration, reverse=current_motor_reverse, fixed_steps=main_steps)
+                    _rotate_stepper(duration_sec=current_motor_duration, reverse=current_motor_reverse, fixed_steps=main_steps)
 
                     if SENSOR_CHECK_POST:
                         print("\n--- ステップ3: 回転後のセンサーチェック ---")
@@ -112,7 +144,7 @@ STEPPER_DIRECT_BRANCH = r'''
                             send_log_to_server("警告: 排出後に物体残留")
                             for attempt in range(JAM_CLEAR_ATTEMPTS):
                                 print(f"追加排出 {attempt + 1}/{JAM_CLEAR_ATTEMPTS}")
-                                _rotate_stepper(min(0.7, float(current_motor_duration)), reverse=current_motor_reverse)
+                                _rotate_stepper(fixed_steps=max(128, steps_per_rev // 8), reverse=current_motor_reverse)
                                 time.sleep(0.3)
                                 if check_sensor("(追加確認)"):
                                     print("✓ 追加排出成功")
@@ -130,7 +162,7 @@ STEPPER_DIRECT_BRANCH = r'''
                         f"INFO: センサーなしでステッピング排出 "
                         f"(速度:{current_motor_speed}, 時間:{current_motor_duration}秒)"
                     )
-                    _rotate_stepper(current_motor_duration, reverse=current_motor_reverse, fixed_steps=main_steps)
+                    _rotate_stepper(duration_sec=current_motor_duration, reverse=current_motor_reverse, fixed_steps=main_steps)
                     send_log_to_server("排出完了 (STEPPER/RASPI_DIRECT センサーなし)")
 
                 return True
@@ -156,8 +188,10 @@ def show_cui_menu(config):
         config['MOTOR_TYPE'] = 'STEPPER'
         config['CONTROL_METHOD'] = 'RASPI_DIRECT'
         config.setdefault('STEPPER_PINS', [5, 6, 13, 19])
-        config.setdefault('STEPPER_STEP_DELAY', 0.0025)
+        config.setdefault('STEPPER_STEP_DELAY', 0.005)
         config.setdefault('STEPPER_STEPS', 0)
+        config.setdefault('STEPPER_STEPS_PER_REV', 4096)
+        config.setdefault('STEPPER_TEST_STEPS', 512)
 
     def _format_pins():
         pins = config.get('STEPPER_PINS', [5, 6, 13, 19])
@@ -180,20 +214,33 @@ def show_cui_menu(config):
             raise ValueError(f"STEPPER_PINS は4本必要です: {raw_pins}")
         return pins
 
-    def _run_stepper_test(steps=512):
-        """CUIメニューから即時にモーター単体テストを行う。"""
+    def _coils_off(pins):
+        for pin in pins:
+            GPIO.output(pin, GPIO.LOW)
+
+    def _run_stepper_now(steps=None, seconds=None, reverse=None, label='manual'):
+        """CUIメニューから即時にモーターを回す。"""
         if PLATFORM == 'PC':
             print("\n✗ PCモードのためGPIOテストは実行できません。Raspberry Pi上で実行してください。")
-            return
+            print("  RPi.GPIO が使えない状態です。PCA9685 の有無はこのブランチでは不要です。")
+            return False
 
         try:
             pins = _get_pins()
-            delay = float(config.get('STEPPER_STEP_DELAY', 0.0025))
-            delay = max(0.0025, delay)
-            reverse = bool(config.get('MOTOR_REVERSE', False))
+            delay = float(config.get('STEPPER_STEP_DELAY', 0.005))
+            delay = max(0.005, delay)
+            if reverse is None:
+                reverse = bool(config.get('MOTOR_REVERSE', False))
+            if steps is None:
+                if seconds is None:
+                    steps = int(config.get('STEPPER_TEST_STEPS', 512))
+                else:
+                    steps = int(float(seconds) / delay)
+            steps = max(1, int(steps))
+            steps_per_rev = max(1, int(config.get('STEPPER_STEPS_PER_REV', 4096)))
         except Exception as e:
             print(f"\n✗ ステッピング設定エラー: {e}")
-            return
+            return False
 
         sequence = [
             (1, 0, 0, 0),
@@ -208,36 +255,42 @@ def show_cui_menu(config):
         if reverse:
             sequence = list(reversed(sequence))
 
-        try:
-            print("\n" + "=" * 60)
-            print("  13. ステッピングモーター単体テスト")
-            print("=" * 60)
-            print(f"  pins   : {pins}  (ULN2003AN IN1,IN2,IN3,IN4)")
-            print(f"  steps  : {steps} half-steps")
-            print(f"  delay  : {delay:.4f} sec")
-            print(f"  reverse: {reverse}")
-            print("=" * 60)
-            confirm = input("この設定で今すぐ回しますか？ [y/N]: ").strip().lower()
-            if confirm != 'y':
-                print("キャンセルしました")
-                return
+        print("\n" + "=" * 68)
+        print(f"  ステッピングモーター実行: {label}")
+        print("=" * 68)
+        print(f"  pins          : {pins}  (ULN2003AN IN1,IN2,IN3,IN4 / BCM)")
+        print(f"  steps         : {steps} half-steps")
+        print(f"  step_delay    : {delay:.4f} sec")
+        print(f"  approx time   : {steps * delay:.2f} sec")
+        print(f"  reverse       : {reverse}")
+        print(f"  steps_per_rev : {steps_per_rev}")
+        print("=" * 68)
+        confirm = input("この設定で今すぐ回しますか？ [y/N]: ").strip().lower()
+        if confirm != 'y':
+            print("キャンセルしました")
+            return False
 
+        try:
             for pin in pins:
                 GPIO.setup(pin, GPIO.OUT, initial=GPIO.LOW)
 
-            print("[STEPPER] テスト回転開始")
-            for idx in range(int(steps)):
+            print("[STEPPER] 回転開始")
+            for idx in range(steps):
                 phase = sequence[idx % len(sequence)]
                 for pin, value in zip(pins, phase):
                     GPIO.output(pin, GPIO.HIGH if value else GPIO.LOW)
                 time.sleep(delay)
-            print("[STEPPER] テスト回転完了")
+            print("[STEPPER] 回転完了")
+            return True
+        except KeyboardInterrupt:
+            print("\n[STEPPER] キーボード割り込みで停止")
+            return False
         except Exception as e:
-            print(f"[STEPPER] テスト回転エラー: {e}")
+            print(f"[STEPPER] 回転エラー: {e}")
+            return False
         finally:
             try:
-                for pin in pins:
-                    GPIO.output(pin, GPIO.LOW)
+                _coils_off(pins)
                 print("[STEPPER] コイルOFF")
             except Exception:
                 pass
@@ -246,9 +299,9 @@ def show_cui_menu(config):
 
     while True:
         _force_stepper_mode()
-        print("\n" + "=" * 68)
+        print("\n" + "=" * 76)
         print("  OITERU子機 設定メニュー - STEPPER / ULN2003AN / 28BYJ-48 専用")
-        print("=" * 68)
+        print("=" * 76)
         print(f"  1. サーバーURL             : {config['SERVER_URL']}")
         print(f"  2. 子機名                  : {config['UNIT_NAME']}")
         print(f"  3. パスワード              : {'*' * len(config.get('UNIT_PASSWORD', ''))}")
@@ -257,23 +310,29 @@ def show_cui_menu(config):
         print(f"  6. 赤LED PIN (BCM)         : {config['RED_LED_PIN']}")
         print(f"  7. センサーPIN (BCM)       : {config['SENSOR_PIN']}")
         print(f"  8. STEPPER_PINS (IN1-IN4)  : {_format_pins()}")
-        print(f"  9. STEP_DELAY 秒           : {config.get('STEPPER_STEP_DELAY', 0.0025)}")
+        print(f"  9. STEP_DELAY 秒           : {config.get('STEPPER_STEP_DELAY', 0.005)}")
         print(f" 10. 固定ステップ数          : {config.get('STEPPER_STEPS', 0)}  (0=時間指定)")
         print(f" 11. 排出動作時間            : {config['MOTOR_DURATION']}秒")
         print(f" 12. 回転方向反転            : {config['MOTOR_REVERSE']}")
-        print(f" 13. モーター単体テスト      : 現在設定で512 half-steps回す")
-        print(f" 14. 速度補助値              : {config['MOTOR_SPEED']}  (STEP_DELAY未指定時のみ使用)")
-        print(f" 15. 回転前センサーチェック  : {config.get('SENSOR_CHECK_PRE', True)}")
-        print(f" 16. 回転後センサーチェック  : {config.get('SENSOR_CHECK_POST', True)}")
-        print(f" 17. 詰まり解消試行回数      : {config.get('JAM_CLEAR_ATTEMPTS', 3)}")
-        print("=" * 68)
+        print(f" 13. 正方向に1回転テスト     : {config.get('STEPPER_STEPS_PER_REV', 4096)} half-steps")
+        print(f" 14. 逆方向に1回転テスト     : {config.get('STEPPER_STEPS_PER_REV', 4096)} half-steps")
+        print(f" 15. 任意ステップ数で回す    : 手入力")
+        print(f" 16. 任意秒数で回す          : 手入力")
+        print(f" 17. テスト用ステップ数      : {config.get('STEPPER_TEST_STEPS', 512)}")
+        print(f" 18. 1回転ステップ数         : {config.get('STEPPER_STEPS_PER_REV', 4096)}")
+        print(f" 19. 速度補助値              : {config['MOTOR_SPEED']}  (STEP_DELAY未指定時のみ使用)")
+        print(f" 20. 回転前センサーチェック  : {config.get('SENSOR_CHECK_PRE', True)}")
+        print(f" 21. 回転後センサーチェック  : {config.get('SENSOR_CHECK_POST', True)}")
+        print(f" 22. 詰まり解消試行回数      : {config.get('JAM_CLEAR_ATTEMPTS', 3)}")
+        print("=" * 76)
         print("  a. 親機自動探知")
         print("  d. ハードウェア診断 / GPIO短時間テスト")
+        print("  off. コイルOFF")
         print("  s. 設定を保存して起動")
         print("  q. 保存せずに起動")
-        print("=" * 68)
+        print("=" * 76)
 
-        choice = input("\n選択 [1-17/a/d/s/q]: ").strip().lower()
+        choice = input("\n選択 [1-22/a/d/off/s/q]: ").strip().lower()
 
         if choice == '1':
             new_val = input(f"サーバーURL [{config['SERVER_URL']}]: ").strip()
@@ -316,13 +375,13 @@ def show_cui_menu(config):
                 except ValueError as e:
                     print(f"\n✗ {e}")
         elif choice == '9':
-            new_val = input(f"STEP_DELAY 秒 [{config.get('STEPPER_STEP_DELAY', 0.0025)}]: ").strip()
+            new_val = input(f"STEP_DELAY 秒 [{config.get('STEPPER_STEP_DELAY', 0.005)}]: ").strip()
             if new_val:
                 try:
                     delay = float(new_val)
-                    if delay < 0.0025:
-                        print("\n⚠ 28BYJ-48 は速すぎると脱調しやすいため 0.0025 秒に丸めます")
-                        delay = 0.0025
+                    if delay < 0.005:
+                        print("\n⚠ 28BYJ-48 は速すぎると脱調しやすいため 0.005 秒に丸めます")
+                        delay = 0.005
                     config['STEPPER_STEP_DELAY'] = delay
                 except ValueError:
                     print("\n✗ 数値を入力してください")
@@ -350,13 +409,54 @@ def show_cui_menu(config):
             elif reverse_choice == '2':
                 config['MOTOR_REVERSE'] = True
         elif choice == '13':
-            _run_stepper_test(steps=512)
+            _run_stepper_now(
+                steps=int(config.get('STEPPER_STEPS_PER_REV', 4096)),
+                reverse=False,
+                label='正方向 1回転テスト'
+            )
             input("\nEnterキーで戻る...")
         elif choice == '14':
+            _run_stepper_now(
+                steps=int(config.get('STEPPER_STEPS_PER_REV', 4096)),
+                reverse=True,
+                label='逆方向 1回転テスト'
+            )
+            input("\nEnterキーで戻る...")
+        elif choice == '15':
+            try:
+                steps = int(input("回す half-step 数: ").strip())
+                rev = input("逆方向に回しますか？ [y/N]: ").strip().lower() == 'y'
+                _run_stepper_now(steps=steps, reverse=rev, label=f'任意ステップ {steps}')
+            except ValueError:
+                print("\n✗ 整数を入力してください")
+            input("\nEnterキーで戻る...")
+        elif choice == '16':
+            try:
+                seconds = float(input("回す秒数: ").strip())
+                rev = input("逆方向に回しますか？ [y/N]: ").strip().lower() == 'y'
+                _run_stepper_now(seconds=seconds, reverse=rev, label=f'任意秒数 {seconds}秒')
+            except ValueError:
+                print("\n✗ 数値を入力してください")
+            input("\nEnterキーで戻る...")
+        elif choice == '17':
+            new_val = input(f"テスト用ステップ数 [{config.get('STEPPER_TEST_STEPS', 512)}]: ").strip()
+            if new_val:
+                try:
+                    config['STEPPER_TEST_STEPS'] = max(1, int(new_val))
+                except ValueError:
+                    print("\n✗ 整数を入力してください")
+        elif choice == '18':
+            new_val = input(f"1回転ステップ数 [{config.get('STEPPER_STEPS_PER_REV', 4096)}]: ").strip()
+            if new_val:
+                try:
+                    config['STEPPER_STEPS_PER_REV'] = max(1, int(new_val))
+                except ValueError:
+                    print("\n✗ 整数を入力してください")
+        elif choice == '19':
             new_val = input(f"速度補助値 (1-100) [{config['MOTOR_SPEED']}]: ").strip()
             if new_val.isdigit():
                 config['MOTOR_SPEED'] = max(1, min(100, int(new_val)))
-        elif choice == '15':
+        elif choice == '20':
             print("\n回転前センサーチェック:")
             print("  1. 有効")
             print("  2. 無効")
@@ -365,7 +465,7 @@ def show_cui_menu(config):
                 config['SENSOR_CHECK_PRE'] = True
             elif pre_choice == '2':
                 config['SENSOR_CHECK_PRE'] = False
-        elif choice == '16':
+        elif choice == '21':
             print("\n回転後センサーチェック:")
             print("  1. 有効")
             print("  2. 無効")
@@ -374,10 +474,20 @@ def show_cui_menu(config):
                 config['SENSOR_CHECK_POST'] = True
             elif post_choice == '2':
                 config['SENSOR_CHECK_POST'] = False
-        elif choice == '17':
+        elif choice == '22':
             new_val = input(f"詰まり解消試行回数 [{config.get('JAM_CLEAR_ATTEMPTS', 3)}]: ").strip()
             if new_val.isdigit():
                 config['JAM_CLEAR_ATTEMPTS'] = max(0, int(new_val))
+        elif choice == 'off':
+            try:
+                pins = _get_pins()
+                for pin in pins:
+                    GPIO.setup(pin, GPIO.OUT, initial=GPIO.LOW)
+                _coils_off(pins)
+                print("\n✓ コイルをOFFにしました")
+            except Exception as e:
+                print(f"\n✗ コイルOFF失敗: {e}")
+            input("\nEnterキーで戻る...")
         elif choice == 'a':
             print("\n" + "=" * 60)
             print("  親機自動探知を開始します...")
@@ -428,10 +538,12 @@ def run_cui_diagnostics(config):
     """CUIモードでステッピング構成のハードウェア診断を実行する。"""
     config['MOTOR_TYPE'] = 'STEPPER'
     config['CONTROL_METHOD'] = 'RASPI_DIRECT'
+    config.setdefault('STEPPER_STEP_DELAY', 0.005)
+    config.setdefault('STEPPER_STEPS_PER_REV', 4096)
 
     if PLATFORM == "PC":
         print("\n[GPIO] PCモードのため診断不可")
-        print("[STEPPER] Raspberry Pi上で実行してください")
+        print("[STEPPER] RPi.GPIO が使える Raspberry Pi 上で実行してください")
         return
 
     def _parse_pins(raw_pins):
@@ -467,7 +579,7 @@ def run_cui_diagnostics(config):
     print("[PCA9685] このブランチでは使用しません。STEPPER/RASPI_DIRECT はGPIO直結です。")
     print("[Arduino] このブランチでは使用しません。")
 
-    test_choice = input("\nステッピングモーターを512 half-stepsだけテスト回転しますか？ [y/N]: ").strip().lower()
+    test_choice = input("\n512 half-stepsだけ短くテスト回転しますか？ [y/N]: ").strip().lower()
     if test_choice == 'y':
         sequence = [
             (1, 0, 0, 0),
@@ -482,10 +594,10 @@ def run_cui_diagnostics(config):
         if config.get('MOTOR_REVERSE', False):
             sequence = list(reversed(sequence))
         try:
-            delay = float(config.get('STEPPER_STEP_DELAY', 0.0025))
+            delay = float(config.get('STEPPER_STEP_DELAY', 0.005))
         except (TypeError, ValueError):
-            delay = 0.0025
-        delay = max(0.0025, delay)
+            delay = 0.005
+        delay = max(0.005, delay)
 
         try:
             print(f"[STEPPER] テスト開始: steps=512, delay={delay:.4f}s")
@@ -522,10 +634,13 @@ def replace_top_level_function(source: str, function_name: str, replacement: str
 
 def patch_unit_client_source(source: str) -> str:
     """Convert archive/unit_client.py into the stepping-branch variant at runtime."""
+    source = source.replace(HARDWARE_IMPORT_OLD, HARDWARE_IMPORT_NEW)
+
     source = source.replace(
         '"CONTROL_METHOD": "ARDUINO_SERIAL", "USE_SENSOR": True,',
         '"CONTROL_METHOD": "RASPI_DIRECT", "USE_SENSOR": True,\n'
-        '    "STEPPER_PINS": [5, 6, 13, 19], "STEPPER_STEP_DELAY": 0.0025, "STEPPER_STEPS": 0,'
+        '    "STEPPER_PINS": [5, 6, 13, 19], "STEPPER_STEP_DELAY": 0.005, '
+        '"STEPPER_STEPS": 0, "STEPPER_STEPS_PER_REV": 4096, "STEPPER_TEST_STEPS": 512,'
     )
     source = source.replace(
         "        'JAM_CLEAR_ATTEMPTS': 'JAM_CLEAR_ATTEMPTS',\n    }",
@@ -533,15 +648,51 @@ def patch_unit_client_source(source: str) -> str:
         "        'STEPPER_PINS': 'STEPPER_PINS',\n"
         "        'STEPPER_STEP_DELAY': 'STEPPER_STEP_DELAY',\n"
         "        'STEPPER_STEPS': 'STEPPER_STEPS',\n"
+        "        'STEPPER_STEPS_PER_REV': 'STEPPER_STEPS_PER_REV',\n"
+        "        'STEPPER_TEST_STEPS': 'STEPPER_TEST_STEPS',\n"
         "    }"
     )
     source = source.replace(
         '"PCA9685_CHANNEL": config.get("PCA9685_CHANNEL", 15)\n                }',
         '"PCA9685_CHANNEL": config.get("PCA9685_CHANNEL", 15),\n'
         '                    "STEPPER_PINS": config.get("STEPPER_PINS", [5, 6, 13, 19]),\n'
-        '                    "STEPPER_STEP_DELAY": config.get("STEPPER_STEP_DELAY", 0.0025),\n'
-        '                    "STEPPER_STEPS": config.get("STEPPER_STEPS", 0)\n'
+        '                    "STEPPER_STEP_DELAY": config.get("STEPPER_STEP_DELAY", 0.005),\n'
+        '                    "STEPPER_STEPS": config.get("STEPPER_STEPS", 0),\n'
+        '                    "STEPPER_STEPS_PER_REV": config.get("STEPPER_STEPS_PER_REV", 4096),\n'
+        '                    "STEPPER_TEST_STEPS": config.get("STEPPER_TEST_STEPS", 512)\n'
         '                }'
+    )
+
+    # Do not import PCA9685 for stepper GPIO direct mode.
+    source = source.replace(
+        "            if CONTROL_METHOD == 'RASPI_DIRECT':\n                import Adafruit_PCA9685 as Adafruit_PCA9685_runtime\n            elif CONTROL_METHOD == 'ARDUINO_SERIAL':",
+        "            if CONTROL_METHOD == 'RASPI_DIRECT' and MOTOR_TYPE == 'SERVO':\n"
+        "                import Adafruit_PCA9685 as Adafruit_PCA9685_runtime\n"
+        "            elif CONTROL_METHOD == 'RASPI_DIRECT' and MOTOR_TYPE == 'STEPPER':\n"
+        "                Adafruit_PCA9685_runtime = None\n"
+        "            elif CONTROL_METHOD == 'ARDUINO_SERIAL':"
+    )
+
+    # Startup diagnostics should not require PCA9685 in stepper mode.
+    source = source.replace(
+        "        # I2Cチェック\n        if config.get('CONTROL_METHOD') == 'RASPI_DIRECT':\n            try:\n                import Adafruit_PCA9685\n                # I2Cバスを明示的に指定 (通常はbus=1)\n                pwm = Adafruit_PCA9685.PCA9685(busnum=1)\n                pwm.set_pwm_freq(50)\n                print(\"  ✓ I2C/PCA9685: 利用可能\")\n                diagnostics.append((\"I2C/PCA9685\", \"OK\", \"0x40\"))\n            except Exception as e:\n                print(f\"  ⚠ I2C/PCA9685: エラー ({str(e)[:40]})\")\n                diagnostics.append((\"I2C/PCA9685\", \"エラー\", str(e)[:30]))\n        else:\n            print(\"  - I2C: スキップ (Arduino制御モード)\")\n            diagnostics.append((\"I2C\", \"スキップ\", \"Arduino制御\"))",
+        "        # ステッピング直結ではI2C/PCA9685は不要\n"
+        "        if config.get('CONTROL_METHOD') == 'RASPI_DIRECT' and config.get('MOTOR_TYPE') == 'STEPPER':\n"
+        "            print(\"  - I2C/PCA9685: スキップ (STEPPER/RASPI_DIRECT GPIO直結)\")\n"
+        "            diagnostics.append((\"GPIO Stepper\", \"OK\", \"ULN2003AN/28BYJ-48\"))\n"
+        "        elif config.get('CONTROL_METHOD') == 'RASPI_DIRECT':\n"
+        "            try:\n"
+        "                import Adafruit_PCA9685\n"
+        "                pwm = Adafruit_PCA9685.PCA9685(busnum=1)\n"
+        "                pwm.set_pwm_freq(50)\n"
+        "                print(\"  ✓ I2C/PCA9685: 利用可能\")\n"
+        "                diagnostics.append((\"I2C/PCA9685\", \"OK\", \"0x40\"))\n"
+        "            except Exception as e:\n"
+        "                print(f\"  ⚠ I2C/PCA9685: エラー ({str(e)[:40]})\")\n"
+        "                diagnostics.append((\"I2C/PCA9685\", \"エラー\", str(e)[:30]))\n"
+        "        else:\n"
+        "            print(\"  - I2C: スキップ (Arduino制御モード)\")\n"
+        "            diagnostics.append((\"I2C\", \"スキップ\", \"Arduino制御\"))"
     )
 
     if "STEPPER/RASPI_DIRECT" not in source:
