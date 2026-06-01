@@ -96,7 +96,7 @@ STEPPER_DIRECT_BRANCH = r'''
                         speed = max(1, min(100, int(current_motor_speed)))
                         # 28BYJ-48は速すぎると脱調する。100でも約10msを標準にする。
                         delay = 0.030 - (speed - 1) * (0.020 / 99.0)
-                    return max(0.006, delay)
+                    return max(0.01, delay)
 
                 def _rotate_stepper(duration_sec=None, reverse=False, fixed_steps=None):
                     step_delay = _resolve_step_delay()
@@ -249,7 +249,7 @@ def show_cui_menu(config):
             actual = _actual_pins()
             order = phase_order_override if phase_order_override is not None else _phase_order()
             drive_pins = [actual[i] for i in order]
-            delay = max(0.006, float(config.get('STEPPER_STEP_DELAY', 0.01)))
+            delay = max(0.01, float(config.get('STEPPER_STEP_DELAY', 0.01)))
             if reverse is None:
                 reverse = bool(config.get('MOTOR_REVERSE', False))
             if steps is None:
@@ -387,7 +387,7 @@ def show_cui_menu(config):
                 else: print("✗ 0,1,2,3の並べ替えで指定してください")
         elif choice == '10':
             v = input(f"STEP_DELAY秒 [{config.get('STEPPER_STEP_DELAY',0.01)}]: ").strip()
-            if v: config['STEPPER_STEP_DELAY'] = max(0.006, float(v))
+            if v: config['STEPPER_STEP_DELAY'] = max(0.01, float(v))
         elif choice == '11':
             v = input("DRIVE_MODE [full/half]: ").strip().lower()
             if v in ('full','half'):
