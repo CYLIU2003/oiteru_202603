@@ -97,6 +97,76 @@ python db_server.py
 sudo python unit.py --no-gui
 ```
 
+#### 4-A. ステッピングモーター (28BYJ-48 + ULN2003AN) を使う場合
+
+`main_stepping_branch` では `RpiMotorLib` を標準バックエンドとして使い、
+GPIO 直結はフォールバックとして残しています。子機初回セットアップ時に
+`archive/unit_client.py` の自動 venv セットアップが
+`RpiMotorLib` も `pip install` するように更新されています。
+
+```bash
+# 既定の requirements-client.txt を使う場合
+pip install -r requirements-client.txt
+# あるいは手動で
+pip install RpiMotorLib
+```
+
+| ULN2003AN 入力 | Raspberry Pi BCM GPIO | 設定キー `STEPPER_PINS` 順 |
+|---|---|---:|
+| IN1 |  GPIO5 | 0 |
+| IN2 |  GPIO6 | 1 |
+| IN3 | GPIO13 | 2 |
+| IN4 | GPIO19 | 3 |
+
+設定の既定値 (`config.example.json`):
+
+```json
+"STEPPER_PINS": [5, 6, 13, 19],
+"STEPPER_PHASE_ORDER": [0, 2, 1, 3],
+"STEPPER_DRIVE_MODE": "full",
+"STEPPER_STEP_DELAY": 0.01,
+"STEPPER_TEST_STEPS": 256,
+"STEPPER_BACKEND": "auto"
+```
+
+| キー | 意味 |
+|---|---|
+| `STEPPER_BACKEND` | `auto` (既定) / `library` / `gpio` のいずれか。`auto` は `RpiMotorLib` 優先・失敗時 GPIO フォールバック。 |
+| `STEPPER_DRIVE_MODE` | `full` (2相励磁, 2048 step/rev) / `half` (8 ビート, 4096 step/rev) / `wave` (1相励磁, 2048 step/rev) |
+| `STEPPER_PHASE_ORDER` | IN1..IN4 をどの順で励磁するか。CUI の "15. 配線順スキャン" で探索可。 |
+| `STEPPER_STEP_DELAY` | 1 ステップ間の待ち秒。28BYJ-48 は 0.01s 以下でも脱調しやすい。 |
+
+##### バックエンド切替ログ
+
+NFC 排出時と CUI テスト時は必ず以下のようにバックエンドをログに出します。
+
+```text
+[STEPPER] backend=RpiMotorLib pins(IN1-4)=[5, 6, 13, 19] phase_order=[0, 2, 1, 3] mode=full steps=512 wait=0.0100s reverse=False
+[STEPPER] start (nfc-dispense)
+[STEPPER] done (nfc-dispense)
+[STEPPER] coils off
+```
+
+GPIO フォールバック時は:
+
+```text
+[STEPPER] backend=GPIO pins(IN1-4)=[5, 6, 13, 19] ...
+```
+
+##### 単体テスト
+
+ライブラリ導入後、`unit.py` を起動する前に最小確認ができます。
+
+```python
+from stepper_driver import run_stepper
+# 任意のGPIOモックを渡して dry-run
+result = run_stepper(None, {"STEPPER_BACKEND": "gpio", "STEPPER_PINS": [5, 6, 13, 19]},
+                     steps=256, label="smoke")
+print(result)
+```
+
+実機では CUI メニューの **22. ライブラリ正方向テスト** で確認できます。
+
 ### ステップ5: 管理画面にアクセス
 
 ブラウザで http://localhost:5000/admin を開き、`.env` の `OITERU_ADMIN_PASSWORD` でログインします。
