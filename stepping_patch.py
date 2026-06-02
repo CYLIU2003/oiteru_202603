@@ -5,8 +5,9 @@ This branch is dedicated to Raspberry Pi GPIO direct control of
 ULN2003AN + 28BYJ-48.  The archived common implementation remains untouched.
 
 The stepper motor is driven by ``stepper_driver`` which prefers
-``RpiMotorLib.BYJMotor`` and falls back to direct GPIO if the library is
-not importable.  See ``stepper_driver.py`` for the dispatch logic.
+``gpiozero`` + ``pigpio`` (the proven ``stepping_movement.py`` path), then
+``RpiMotorLib.BYJMotor``, then direct GPIO fallback.  See
+``stepper_driver.py`` for the dispatch logic.
 """
 
 HARDWARE_IMPORT_OLD = '''# --- ハードウェアライブラリのインポート (エラーを許容) ---
@@ -37,8 +38,8 @@ try:
 except Exception:
     Adafruit_PCA9685 = None
 
-# ステッピングモーター制御ライブラリ (RpiMotorLib / BYJMotor) を最優先で使う。
-# インポートできなくても PC モードにせず、stepper_driver 側で GPIO フォールバックする。
+# ステッピングモーター制御は stepper_driver 側で PigpioZero > RpiMotorLib > GPIO の順に選ぶ。
+# インポートできなくても PC モードにせず、stepper_driver 側でフォールバックする。
 try:
     import stepper_driver as _stepper_driver_import
 except Exception as _stepper_driver_exc:
@@ -151,7 +152,7 @@ STEPPER_DIRECT_BRANCH = r'''
                 print(f"!! {msg}")
                 send_log_to_server(msg)
                 try:
-                    for pin in config.get('STEPPER_PINS', [5, 6, 13, 19]):
+                    for pin in config.get('STEPPER_PINS', [21, 17, 27, 22]):
                         GPIO_runtime.output(int(pin), GPIO_runtime.LOW)
                 except Exception:
                     pass
@@ -171,13 +172,13 @@ def show_cui_menu(config):
     def _force_stepper_mode():
         config['MOTOR_TYPE'] = 'STEPPER'
         config['CONTROL_METHOD'] = 'RASPI_DIRECT'
-        config.setdefault('STEPPER_PINS', [5, 6, 13, 19])
-        config.setdefault('STEPPER_PHASE_ORDER', [0, 2, 1, 3])
+        config.setdefault('STEPPER_PINS', [21, 17, 27, 22])
+        config.setdefault('STEPPER_PHASE_ORDER', [0, 1, 2, 3])
         config.setdefault('STEPPER_STEP_DELAY', 0.01)
-        config.setdefault('STEPPER_DRIVE_MODE', 'full')
+        config.setdefault('STEPPER_DRIVE_MODE', 'half')
         config.setdefault('STEPPER_STEPS', 0)
         config.setdefault('STEPPER_STEPS_PER_REV', 2048)
-        config.setdefault('STEPPER_TEST_STEPS', 256)
+        config.setdefault('STEPPER_TEST_STEPS', 2048)
         config.setdefault('STEPPER_BACKEND', 'auto')
 
     def _parse_int_list(value):
@@ -192,19 +193,19 @@ def show_cui_menu(config):
         return ','.join(str(x) for x in value)
 
     def _actual_pins():
-        pins = _parse_int_list(config.get('STEPPER_PINS', [5, 6, 13, 19]))
+        pins = _parse_int_list(config.get('STEPPER_PINS', [21, 17, 27, 22]))
         if len(pins) != 4:
             raise ValueError(f"STEPPER_PINS は IN1,IN2,IN3,IN4 の4本です: {pins}")
         return pins
 
     def _phase_order():
-        order = _parse_int_list(config.get('STEPPER_PHASE_ORDER', [0, 2, 1, 3]))
+        order = _parse_int_list(config.get('STEPPER_PHASE_ORDER', [0, 1, 2, 3]))
         if sorted(order) != [0, 1, 2, 3]:
             raise ValueError(f"STEPPER_PHASE_ORDER は 0,1,2,3 の並べ替えです: {order}")
         return order
 
     def _sequences():
-        mode = str(config.get('STEPPER_DRIVE_MODE', 'full')).lower()
+        mode = str(config.get('STEPPER_DRIVE_MODE', 'half')).lower()
         if mode == 'half':
             return [
                 (1, 0, 0, 0), (1, 1, 0, 0), (0, 1, 0, 0), (0, 1, 1, 0),
@@ -228,9 +229,9 @@ def show_cui_menu(config):
             if reverse is None:
                 reverse = bool(config.get('MOTOR_REVERSE', False))
             if steps is None:
-                steps = int(float(seconds) / base_delay) if seconds is not None else int(config.get('STEPPER_TEST_STEPS', 256))
+                steps = int(float(seconds) / base_delay) if seconds is not None else int(config.get('STEPPER_TEST_STEPS', 2048))
             steps = max(1, int(steps))
-            drive_mode = str(config.get('STEPPER_DRIVE_MODE', 'full')).lower()
+            drive_mode = str(config.get('STEPPER_DRIVE_MODE', 'half')).lower()
             if drive_mode == 'half':
                 wait = max(0.0015, base_delay)
             elif drive_mode == 'wave':
@@ -243,18 +244,21 @@ def show_cui_menu(config):
 
         backend_setting = (force_backend if force_backend is not None
                            else str(config.get('STEPPER_BACKEND', 'auto')).lower())
+        pigpio_ok = _stepper_driver is not None and _stepper_driver.gpiozero_available()
         library_ok = _stepper_driver is not None and _stepper_driver.library_available()
-        if backend_setting == 'library':
-            effective_backend = 'RpiMotorLib' if library_ok else 'GPIO'
+        if backend_setting == 'pigpio':
+            effective_backend = 'PigpioZero' if pigpio_ok else 'PigpioZero (NG)'
+        elif backend_setting == 'library':
+            effective_backend = 'RpiMotorLib' if library_ok else 'RpiMotorLib (NG)'
         elif backend_setting == 'gpio':
             effective_backend = 'GPIO'
         else:
-            effective_backend = 'RpiMotorLib' if library_ok else 'GPIO'
+            effective_backend = 'PigpioZero' if pigpio_ok else ('RpiMotorLib' if library_ok else 'GPIO')
 
         print("\n" + "=" * 76)
         print(f"  ステッピングモーター実行: {label}")
         print("=" * 76)
-        print(f"  backend           : {effective_backend}   (config STEPPER_BACKEND={backend_setting}, library_available={library_ok})")
+        print(f"  backend           : {effective_backend}   (config STEPPER_BACKEND={backend_setting}, PigpioZero={pigpio_ok}, RpiMotorLib={library_ok})")
         print(f"  actual pins IN1-4 : {actual}")
         print(f"  phase order       : {order}  -> drive pins {drive_pins}")
         print(f"  drive mode        : {drive_mode}")
@@ -267,15 +271,18 @@ def show_cui_menu(config):
             print("キャンセルしました")
             return False
         try:
-            if effective_backend == 'RpiMotorLib' and _stepper_driver is not None:
+            if _stepper_driver is not None:
+                run_config = dict(config)
+                run_config['STEPPER_PHASE_ORDER'] = order
+                run_backend = force_backend if force_backend is not None else ('gpio' if phase_order_override is not None else None)
                 result = _stepper_driver.run_stepper(
                     GPIO,
-                    config,
+                    run_config,
                     steps=steps,
                     seconds=None,
                     reverse=reverse,
                     motor_speed=int(config.get('MOTOR_SPEED', 100)),
-                    backend='library',
+                    backend=run_backend,
                     label=label,
                 )
                 return bool(result.get('ok', False))
@@ -308,8 +315,8 @@ def show_cui_menu(config):
 
     def _scan_phase_orders():
         candidates = [
-            [0, 2, 1, 3],  # 28BYJ-48推奨: IN1,IN3,IN2,IN4
-            [0, 1, 2, 3],
+            [0, 1, 2, 3],  # stepping_movement.py と同じ IN1,IN2,IN3,IN4
+            [0, 2, 1, 3],
             [3, 1, 2, 0],
             [3, 2, 1, 0],
             [0, 2, 3, 1],
@@ -318,7 +325,7 @@ def show_cui_menu(config):
         print("\n各候補を短く回します。最も滑らかに回った番号を選んでください。")
         for idx, order in enumerate(candidates, 1):
             input(f"\n候補 {idx}: order={order} を回します。Enterで開始...")
-            _run_stepper_now(steps=int(config.get('STEPPER_TEST_STEPS', 256)), reverse=False,
+            _run_stepper_now(steps=int(config.get('STEPPER_TEST_STEPS', 2048)), reverse=False,
                              label=f'配線順候補 {idx}', phase_order_override=order, confirm=False)
         choice = input(f"\n採用する候補番号 [1-{len(candidates)}] または Enterでキャンセル: ").strip()
         if choice.isdigit() and 1 <= int(choice) <= len(candidates):
@@ -340,29 +347,36 @@ def show_cui_menu(config):
         print(f"  5. 緑LED PIN (BCM)         : {config['GREEN_LED_PIN']}")
         print(f"  6. 赤LED PIN (BCM)         : {config['RED_LED_PIN']}")
         print(f"  7. センサーPIN (BCM)       : {config['SENSOR_PIN']}")
-        print(f"  8. STEPPER_PINS IN1-4      : {_format_list('STEPPER_PINS', [5,6,13,19])}")
-        print(f"  9. PHASE_ORDER             : {_format_list('STEPPER_PHASE_ORDER', [0,2,1,3])}  (標準=0,2,1,3)")
+        print(f"  8. STEPPER_PINS IN1-4      : {_format_list('STEPPER_PINS', [21,17,27,22])}  (標準=21,17,27,22)")
+        print(f"  9. PHASE_ORDER             : {_format_list('STEPPER_PHASE_ORDER', [0,1,2,3])}  (標準=0,1,2,3)")
         print(f" 10. STEP_DELAY 秒           : {config.get('STEPPER_STEP_DELAY', 0.01)}")
-        print(f" 11. DRIVE_MODE              : {config.get('STEPPER_DRIVE_MODE', 'full')}  (full/half)")
+        print(f" 11. DRIVE_MODE              : {config.get('STEPPER_DRIVE_MODE', 'half')}  (full/half/wave)")
         print(f" 12. 排出動作時間            : {config['MOTOR_DURATION']}秒")
-        print(f" 13. 正方向テスト            : {config.get('STEPPER_TEST_STEPS', 256)} steps")
-        print(f" 14. 逆方向テスト            : {config.get('STEPPER_TEST_STEPS', 256)} steps")
+        print(f" 13. 正方向テスト            : {config.get('STEPPER_TEST_STEPS', 2048)} steps")
+        print(f" 14. 逆方向テスト            : {config.get('STEPPER_TEST_STEPS', 2048)} steps")
         print(f" 15. 配線順スキャン          : 複数phase_orderを順番に試す")
         print(f" 16. 任意ステップ数で回す    : 手入力")
         print(f" 17. 任意秒数で回す          : 手入力")
-        print(f" 18. テスト用ステップ数      : {config.get('STEPPER_TEST_STEPS', 256)}")
+        print(f" 18. テスト用ステップ数      : {config.get('STEPPER_TEST_STEPS', 2048)}")
         print(f" 19. 固定排出ステップ数      : {config.get('STEPPER_STEPS', 0)}  (0=秒数指定)")
         print(f" 20. 回転方向反転            : {config['MOTOR_REVERSE']}")
         _pg_ok = (_stepper_driver is not None and _stepper_driver.gpiozero_available())
         _rml_ok = (_stepper_driver is not None and _stepper_driver.library_available())
         _avail = f"PigpioZero={'OK' if _pg_ok else 'NG'} RpiMotorLib={'OK' if _rml_ok else 'NG'}"
         print(f" 21. STEPPER_BACKEND         : {config.get('STEPPER_BACKEND', 'auto')}  (auto/pigpio/library/gpio)  {_avail}")
-        print(f" 22. 自動選択正方向テスト    : {config.get('STEPPER_TEST_STEPS', 256)} steps (auto 経由)")
-        print(f" 23. 自動選択逆方向テスト    : {config.get('STEPPER_TEST_STEPS', 256)} steps (auto 経由)")
+        print(f" 22. 自動選択正方向テスト    : {config.get('STEPPER_TEST_STEPS', 2048)} steps (auto 経由)")
+        print(f" 23. 自動選択逆方向テスト    : {config.get('STEPPER_TEST_STEPS', 2048)} steps (auto 経由)")
         print(f" 24. 任意ステップ数          : 手入力 (現在のSTEPPER_BACKEND設定に従う)")
         print(f" 25. 任意秒数               : 手入力 (現在のSTEPPER_BACKEND設定に従う)")
         print(f" 26. GPIOフォールバック強制  : STEPPER_BACKEND=gpio でテスト")
         print("=" * 82)
+        try:
+            _used = {int(config.get('GREEN_LED_PIN')), int(config.get('RED_LED_PIN')), int(config.get('SENSOR_PIN'))}
+            _conflicts = sorted(set(_actual_pins()) & _used)
+            if _conflicts:
+                print(f"  警告: ステッパーとLED/センサーで同じGPIOを使用しています: {_conflicts}")
+        except Exception:
+            pass
         print("  a. 親機自動探知   d. 診断   off. コイルOFF   s. 保存して起動   q. 起動")
         print("=" * 82)
         choice = input("\n選択 [1-26/a/d/off/s/q]: ").strip().lower()
@@ -388,13 +402,13 @@ def show_cui_menu(config):
             v = input(f"センサーPIN [{config['SENSOR_PIN']}]: ").strip()
             if v.isdigit(): config['SENSOR_PIN'] = int(v)
         elif choice == '8':
-            v = input(f"STEPPER_PINS IN1,IN2,IN3,IN4 (BCM) [{_format_list('STEPPER_PINS',[5,6,13,19])}]: ").strip()
+            v = input(f"STEPPER_PINS IN1,IN2,IN3,IN4 (BCM) [{_format_list('STEPPER_PINS',[21,17,27,22])}]: ").strip()
             if v:
                 pins = _parse_int_list(v)
                 if len(pins) == 4: config['STEPPER_PINS'] = pins
                 else: print("✗ 4本指定してください")
         elif choice == '9':
-            v = input(f"PHASE_ORDER [{_format_list('STEPPER_PHASE_ORDER',[0,2,1,3])}]: ").strip()
+            v = input(f"PHASE_ORDER [{_format_list('STEPPER_PHASE_ORDER',[0,1,2,3])}]: ").strip()
             if v:
                 order = _parse_int_list(v)
                 if sorted(order) == [0,1,2,3]: config['STEPPER_PHASE_ORDER'] = order
@@ -403,18 +417,18 @@ def show_cui_menu(config):
             v = input(f"STEP_DELAY秒 [{config.get('STEPPER_STEP_DELAY',0.01)}]: ").strip()
             if v: config['STEPPER_STEP_DELAY'] = max(0.01, float(v))
         elif choice == '11':
-            v = input("DRIVE_MODE [full/half]: ").strip().lower()
-            if v in ('full','half'):
+            v = input("DRIVE_MODE [full/half/wave]: ").strip().lower()
+            if v in ('full','half','wave'):
                 config['STEPPER_DRIVE_MODE'] = v
-                config['STEPPER_STEPS_PER_REV'] = 2048 if v == 'full' else 4096
+                config['STEPPER_STEPS_PER_REV'] = 2048
         elif choice == '12':
             v = input(f"排出動作時間秒 [{config['MOTOR_DURATION']}]: ").strip()
             if v: config['MOTOR_DURATION'] = float(v)
         elif choice == '13':
-            _run_stepper_now(steps=int(config.get('STEPPER_TEST_STEPS',256)), reverse=False, label='正方向テスト')
+            _run_stepper_now(steps=int(config.get('STEPPER_TEST_STEPS',2048)), reverse=False, label='正方向テスト')
             input("\nEnterキーで戻る...")
         elif choice == '14':
-            _run_stepper_now(steps=int(config.get('STEPPER_TEST_STEPS',256)), reverse=True, label='逆方向テスト')
+            _run_stepper_now(steps=int(config.get('STEPPER_TEST_STEPS',2048)), reverse=True, label='逆方向テスト')
             input("\nEnterキーで戻る...")
         elif choice == '15':
             _scan_phase_orders()
@@ -430,7 +444,7 @@ def show_cui_menu(config):
             _run_stepper_now(seconds=sec, reverse=rev, label=f'任意seconds={sec}')
             input("\nEnterキーで戻る...")
         elif choice == '18':
-            v = input(f"テスト用ステップ数 [{config.get('STEPPER_TEST_STEPS',256)}]: ").strip()
+            v = input(f"テスト用ステップ数 [{config.get('STEPPER_TEST_STEPS',2048)}]: ").strip()
             if v: config['STEPPER_TEST_STEPS'] = max(1, int(v))
         elif choice == '19':
             v = input(f"固定排出ステップ数 [{config.get('STEPPER_STEPS',0)}] (0=秒数指定): ").strip()
@@ -446,11 +460,11 @@ def show_cui_menu(config):
             else:
                 print("✗ auto / pigpio / library / gpio のいずれかを指定してください")
         elif choice == '22':
-            _run_stepper_now(steps=int(config.get('STEPPER_TEST_STEPS',256)), reverse=False,
+            _run_stepper_now(steps=int(config.get('STEPPER_TEST_STEPS',2048)), reverse=False,
                              label='自動選択正方向テスト', force_backend=None)
             input("\nEnterキーで戻る...")
         elif choice == '23':
-            _run_stepper_now(steps=int(config.get('STEPPER_TEST_STEPS',256)), reverse=True,
+            _run_stepper_now(steps=int(config.get('STEPPER_TEST_STEPS',2048)), reverse=True,
                              label='自動選択逆方向テスト', force_backend=None)
             input("\nEnterキーで戻る...")
         elif choice == '24':
@@ -472,7 +486,7 @@ def show_cui_menu(config):
                 _run_stepper_now(seconds=sec, reverse=rev, label=f'任意seconds={sec}')
             input("\nEnterキーで戻る...")
         elif choice == '26':
-            _run_stepper_now(steps=int(config.get('STEPPER_TEST_STEPS',256)), reverse=False,
+            _run_stepper_now(steps=int(config.get('STEPPER_TEST_STEPS',2048)), reverse=False,
                              label='GPIOフォールバック強制テスト', force_backend='gpio')
             input("\nEnterキーで戻る...")
         elif choice == 'off':
@@ -514,9 +528,9 @@ def run_cui_diagnostics(config):
     """CUIモードでステッピング構成のハードウェア診断を実行する。"""
     config['MOTOR_TYPE'] = 'STEPPER'
     config['CONTROL_METHOD'] = 'RASPI_DIRECT'
-    config.setdefault('STEPPER_PHASE_ORDER', [0, 2, 1, 3])
+    config.setdefault('STEPPER_PHASE_ORDER', [0, 1, 2, 3])
     config.setdefault('STEPPER_STEP_DELAY', 0.01)
-    config.setdefault('STEPPER_DRIVE_MODE', 'full')
+    config.setdefault('STEPPER_DRIVE_MODE', 'half')
     config.setdefault('STEPPER_BACKEND', 'auto')
 
     try:
@@ -537,8 +551,8 @@ def run_cui_diagnostics(config):
         if isinstance(raw, str): return [int(x.strip()) for x in raw.split(',') if x.strip()]
         return [int(x) for x in raw]
 
-    pins = _parse(config.get('STEPPER_PINS'), [5,6,13,19])
-    order = _parse(config.get('STEPPER_PHASE_ORDER'), [0,2,1,3])
+    pins = _parse(config.get('STEPPER_PINS'), [21,17,27,22])
+    order = _parse(config.get('STEPPER_PHASE_ORDER'), [0,1,2,3])
     backend = str(config.get('STEPPER_BACKEND', 'auto')).lower()
     lib_ok = (_stepper_driver_diag is not None and _stepper_driver_diag.library_available())
     print(f"\n[STEPPER] actual pins IN1-4: {pins}")
@@ -546,6 +560,13 @@ def run_cui_diagnostics(config):
     print(f"[STEPPER] drive mode: {config.get('STEPPER_DRIVE_MODE')}")
     print(f"[STEPPER] step delay: {config.get('STEPPER_STEP_DELAY')}")
     print(f"[STEPPER] backend config: STEPPER_BACKEND={backend}")
+    try:
+        used = {int(config.get('GREEN_LED_PIN')), int(config.get('RED_LED_PIN')), int(config.get('SENSOR_PIN'))}
+        conflicts = sorted(set(pins) & used)
+        if conflicts:
+            print(f"[STEPPER] 警告: LED/センサーとGPIOが衝突しています: {conflicts}")
+    except Exception:
+        pass
     if _stepper_driver_diag is not None:
         print(f"[STEPPER] library_available={lib_ok}, import_error={_stepper_driver_diag.library_import_error()}")
     for pin in pins:
@@ -593,9 +614,9 @@ def patch_unit_client_source(source: str) -> str:
     source = source.replace(
         '"CONTROL_METHOD": "ARDUINO_SERIAL", "USE_SENSOR": True,',
         '"CONTROL_METHOD": "RASPI_DIRECT", "USE_SENSOR": True,\n'
-        '    "STEPPER_PINS": [5, 6, 13, 19], "STEPPER_PHASE_ORDER": [0, 2, 1, 3], '
-        '"STEPPER_STEP_DELAY": 0.01, "STEPPER_DRIVE_MODE": "full", '
-        '"STEPPER_STEPS": 0, "STEPPER_STEPS_PER_REV": 2048, "STEPPER_TEST_STEPS": 256, '
+        '    "STEPPER_PINS": [21, 17, 27, 22], "STEPPER_PHASE_ORDER": [0, 1, 2, 3], '
+        '"STEPPER_STEP_DELAY": 0.01, "STEPPER_DRIVE_MODE": "half", '
+        '"STEPPER_STEPS": 0, "STEPPER_STEPS_PER_REV": 2048, "STEPPER_TEST_STEPS": 2048, '
         '"STEPPER_BACKEND": "auto",'
     )
     source = source.replace(
@@ -614,13 +635,13 @@ def patch_unit_client_source(source: str) -> str:
     source = source.replace(
         '"PCA9685_CHANNEL": config.get("PCA9685_CHANNEL", 15)\n                }',
         '"PCA9685_CHANNEL": config.get("PCA9685_CHANNEL", 15),\n'
-        '                    "STEPPER_PINS": config.get("STEPPER_PINS", [5, 6, 13, 19]),\n'
-        '                    "STEPPER_PHASE_ORDER": config.get("STEPPER_PHASE_ORDER", [0, 2, 1, 3]),\n'
+        '                    "STEPPER_PINS": config.get("STEPPER_PINS", [21, 17, 27, 22]),\n'
+        '                    "STEPPER_PHASE_ORDER": config.get("STEPPER_PHASE_ORDER", [0, 1, 2, 3]),\n'
         '                    "STEPPER_STEP_DELAY": config.get("STEPPER_STEP_DELAY", 0.01),\n'
-        '                    "STEPPER_DRIVE_MODE": config.get("STEPPER_DRIVE_MODE", "full"),\n'
+        '                    "STEPPER_DRIVE_MODE": config.get("STEPPER_DRIVE_MODE", "half"),\n'
         '                    "STEPPER_STEPS": config.get("STEPPER_STEPS", 0),\n'
         '                    "STEPPER_STEPS_PER_REV": config.get("STEPPER_STEPS_PER_REV", 2048),\n'
-        '                    "STEPPER_TEST_STEPS": config.get("STEPPER_TEST_STEPS", 256),\n'
+        '                    "STEPPER_TEST_STEPS": config.get("STEPPER_TEST_STEPS", 2048),\n'
         '                    "STEPPER_BACKEND": config.get("STEPPER_BACKEND", "auto")\n'
         '                }'
     )

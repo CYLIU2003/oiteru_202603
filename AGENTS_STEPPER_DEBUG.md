@@ -109,27 +109,27 @@ If `marker_present=False`, fix branch injection before touching motor timing.
 Default logical mapping:
 
 ```json
-"STEPPER_PINS": [5, 6, 13, 19]
+"STEPPER_PINS": [21, 17, 27, 22]
 ```
 
 Interpretation:
 
 | ULN2003AN input | Raspberry Pi BCM GPIO |
 |---|---:|
-| IN1 | GPIO5 |
-| IN2 | GPIO6 |
-| IN3 | GPIO13 |
-| IN4 | GPIO19 |
+| IN1 | GPIO21 |
+| IN2 | GPIO17 |
+| IN3 | GPIO27 |
+| IN4 | GPIO22 |
 
 Important: These are BCM GPIO numbers, not physical board pin numbers.
 
 Recommended logical phase order to test first:
 
 ```json
-"STEPPER_PHASE_ORDER": [0, 2, 1, 3]
+"STEPPER_PHASE_ORDER": [0, 1, 2, 3]
 ```
 
-This means the code receives pins as `IN1, IN2, IN3, IN4`, then drives them as `IN1, IN3, IN2, IN4`. This is a common practical correction for 28BYJ-48 examples where naive `IN1,IN2,IN3,IN4` ordering only vibrates.
+This means the code receives and drives pins as `IN1, IN2, IN3, IN4`, matching the proven `stepping_movement.py` gpiozero + pigpio script. If the GPIO fallback path only vibrates, use the phase-order scan.
 
 ## Power Check
 
@@ -144,8 +144,8 @@ Recommended slow settings:
 
 ```json
 "STEPPER_STEP_DELAY": 0.01,
-"STEPPER_DRIVE_MODE": "full",
-"STEPPER_TEST_STEPS": 256,
+"STEPPER_DRIVE_MODE": "half",
+"STEPPER_TEST_STEPS": 2048,
 "STEPPER_STEPS_PER_REV": 2048
 ```
 
@@ -154,7 +154,7 @@ Recommended slow settings:
 When NFC triggers dispensing, the log should include a line similar to:
 
 ```text
-INFO: STEPPER/RASPI_DIRECT start actual_pins(IN1-4)=[5, 6, 13, 19], phase_order=[0, 2, 1, 3], drive_pins=[5, 13, 6, 19], mode=full, steps=..., delay=0.0100s, reverse=False
+INFO: STEPPER/RASPI_DIRECT config actual_pins(IN1-4)=[21, 17, 27, 22], phase_order=[0, 1, 2, 3], drive_mode=half, main_steps=..., wait=0.0100s, reverse=False
 ```
 
 If the log still shows:
@@ -178,7 +178,7 @@ Open the settings menu. Use the stepper-specific items:
 1. Confirm `STEPPER_PINS`.
 2. Confirm `STEPPER_PHASE_ORDER`.
 3. Set `STEP_DELAY` to `0.01` or slower.
-4. Set `DRIVE_MODE` to `full` first.
+4. Set `DRIVE_MODE` to `half` first.
 5. Run positive direction test.
 6. Run reverse direction test.
 7. If vibration/no movement, run phase-order scan.
@@ -192,8 +192,8 @@ Implement or verify a scan command that tries candidates like:
 
 ```python
 candidate_orders = [
-    [0, 2, 1, 3],
     [0, 1, 2, 3],
+    [0, 2, 1, 3],
     [3, 1, 2, 0],
     [3, 2, 1, 0],
     [0, 2, 3, 1],
@@ -219,16 +219,20 @@ Suggested local test script:
 import time
 import RPi.GPIO as GPIO
 
-pins_in1_to_in4 = [5, 6, 13, 19]
-phase_order = [0, 2, 1, 3]
+pins_in1_to_in4 = [21, 17, 27, 22]
+phase_order = [0, 1, 2, 3]
 drive_pins = [pins_in1_to_in4[i] for i in phase_order]
 step_delay = 0.01
-steps = 512
+steps = 2048
 
 sequence = [
+    (1, 0, 0, 0),
     (1, 1, 0, 0),
+    (0, 1, 0, 0),
     (0, 1, 1, 0),
+    (0, 0, 1, 0),
     (0, 0, 1, 1),
+    (0, 0, 0, 1),
     (1, 0, 0, 1),
 ]
 

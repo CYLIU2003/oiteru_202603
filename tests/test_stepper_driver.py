@@ -53,7 +53,7 @@ class _MockGPIO:
 
 class ResolvePinsTests(unittest.TestCase):
     def test_default_pins(self):
-        self.assertEqual(sd.resolve_pins({}), [5, 6, 13, 19])
+        self.assertEqual(sd.resolve_pins({}), [21, 17, 27, 22])
 
     def test_explicit_pins(self):
         self.assertEqual(sd.resolve_pins({"STEPPER_PINS": [4, 17, 27, 22]}), [4, 17, 27, 22])
@@ -68,7 +68,7 @@ class ResolvePinsTests(unittest.TestCase):
 
 class ResolvePhaseOrderTests(unittest.TestCase):
     def test_default(self):
-        self.assertEqual(sd.resolve_phase_order({}), [0, 2, 1, 3])
+        self.assertEqual(sd.resolve_phase_order({}), [0, 1, 2, 3])
 
     def test_custom(self):
         self.assertEqual(sd.resolve_phase_order({"STEPPER_PHASE_ORDER": [3, 2, 1, 0]}),
@@ -82,8 +82,8 @@ class ResolvePhaseOrderTests(unittest.TestCase):
 
 
 class ResolveDriveModeTests(unittest.TestCase):
-    def test_default_is_full(self):
-        self.assertEqual(sd.resolve_drive_mode({}), "full")
+    def test_default_is_half(self):
+        self.assertEqual(sd.resolve_drive_mode({}), "half")
 
     def test_half(self):
         self.assertEqual(sd.resolve_drive_mode({"STEPPER_DRIVE_MODE": "half"}), "half")
@@ -125,7 +125,7 @@ class ResolveStepsTests(unittest.TestCase):
                                           fixed_steps=None), 123)
 
     def test_default_test_steps(self):
-        self.assertEqual(sd.resolve_steps({}, 0.01, seconds=None, fixed_steps=None), 256)
+        self.assertEqual(sd.resolve_steps({}, 0.01, seconds=None, fixed_steps=None), 2048)
 
 
 class GetPhaseSequenceTests(unittest.TestCase):
@@ -153,18 +153,18 @@ class GetPhaseSequenceTests(unittest.TestCase):
 
 class DrivePinsTests(unittest.TestCase):
     def test_phase_order_reorders(self):
-        pins = [5, 6, 13, 19]
+        pins = [21, 17, 27, 22]
         order = [0, 2, 1, 3]
-        self.assertEqual(sd.build_drive_pins(pins, order), [5, 13, 6, 19])
+        self.assertEqual(sd.build_drive_pins(pins, order), [21, 27, 17, 22])
 
     def test_identity(self):
-        pins = [5, 6, 13, 19]
+        pins = [21, 17, 27, 22]
         self.assertEqual(sd.build_drive_pins(pins, [0, 1, 2, 3]), pins)
 
 
 class StepsPerRevTests(unittest.TestCase):
     def test_half(self):
-        self.assertEqual(sd.resolve_steps_per_rev("half"), 4096)
+        self.assertEqual(sd.resolve_steps_per_rev("half"), 2048)
 
     def test_full(self):
         self.assertEqual(sd.resolve_steps_per_rev("full"), 2048)
@@ -299,8 +299,8 @@ class RunStepperDispatchTests(unittest.TestCase):
 
 class SummariseTests(unittest.TestCase):
     def test_returns_resolved_config(self):
-        summary = sd.summarise({"STEPPER_PINS": [5, 6, 13, 19]})
-        self.assertEqual(summary["pins"], [5, 6, 13, 19])
+        summary = sd.summarise({"STEPPER_PINS": [21, 17, 27, 22]})
+        self.assertEqual(summary["pins"], [21, 17, 27, 22])
         self.assertEqual(summary["backend"], "auto")
         self.assertIn("available_backends", summary)
         self.assertIn("PigpioZero", summary["available_backends"])

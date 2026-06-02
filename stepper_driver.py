@@ -28,18 +28,18 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 # Pure helpers (no GPIO, no library import).  Safe to import on any platform.
 # ---------------------------------------------------------------------------
 
-DEFAULT_PINS: List[int] = [5, 6, 13, 19]
-DEFAULT_PHASE_ORDER: List[int] = [0, 2, 1, 3]
-DEFAULT_DRIVE_MODE: str = "full"
+DEFAULT_PINS: List[int] = [21, 17, 27, 22]
+DEFAULT_PHASE_ORDER: List[int] = [0, 1, 2, 3]
+DEFAULT_DRIVE_MODE: str = "half"
 DEFAULT_STEP_DELAY: float = 0.01
-DEFAULT_TEST_STEPS: int = 256
+DEFAULT_TEST_STEPS: int = 2048
 DEFAULT_STEPS_PER_REV: int = 2048
 
 VALID_DRIVE_MODES: Tuple[str, ...] = ("full", "half", "wave")
 
 
 def _to_int_list(value: Any, default: Sequence[int]) -> List[int]:
-    """Accept either ``[5,6,13,19]`` or the string ``"5,6,13,19"``."""
+    """Accept either ``[21,17,27,22]`` or the string ``"21,17,27,22"``."""
     if value in (None, ""):
         value = default
     if isinstance(value, str):
@@ -93,11 +93,12 @@ def resolve_step_delay(config: Dict[str, Any], motor_speed: int = 100) -> float:
 def resolve_steps_per_rev(drive_mode: str) -> int:
     """Return the 28BYJ-48 steps-per-revolution for the given drive mode.
 
-    28BYJ-48 with 1:64 gear:
-    - half step: 4096
-    - full step / wave drive: 2048
+    ``stepping_movement.py`` uses 2048 logical motor steps even in half-step
+    mode; its ``Stepper.step()`` method doubles the issued coil transitions for
+    half-step internally.  Keep the same convention here so the PigpioZero path
+    matches the proven hardware script.
     """
-    return 4096 if drive_mode == "half" else 2048
+    return DEFAULT_STEPS_PER_REV
 
 
 def resolve_steps(
@@ -568,6 +569,7 @@ class PigpioZeroBackend(StepperBackend):
 
     def __init__(self) -> None:
         self._motor: Optional[_StepperGpioZero] = None
+        self._pins: Optional[List[int]] = None
 
     def is_available(self) -> bool:
         return _GPIOZERO_AVAILABLE
@@ -583,12 +585,14 @@ class PigpioZeroBackend(StepperBackend):
             self._motor is None
             or self._motor.number_of_steps != steps_per_rev
             or self._motor._method_step != drive_mode
+            or self._pins != list(pins)
         ):
             self._motor = _StepperGpioZero(
                 number_of_steps=steps_per_rev,
                 mpins=list(pins),
                 method_step=drive_mode,
             )
+            self._pins = list(pins)
         rpm = rpm_for_wait(steps_per_rev, wait)
         self._motor.set_speed(rpm)
 
@@ -603,17 +607,14 @@ class PigpioZeroBackend(StepperBackend):
     ) -> Dict[str, Any]:
         if not self.is_available():
             raise RuntimeError(f"PigpioZero バックエンド利用不可: {self.init_error()}")
+        if stop_check is not None and stop_check():
+            return {"ok": True, "completed": 0, "aborted": True}
 
         steps_per_rev = resolve_steps_per_rev(drive_mode)
         self._ensure_motor(pins, steps_per_rev, drive_mode, wait)
 
         signed_steps = -steps if reverse else steps
         self._motor.step(signed_steps, auto_stop=True)
-
-        # PigpioZeroBackend does not support fine-grained stop_check due to
-        # pigpio's daemon-driven step buffer.  We check once before starting.
-        if stop_check is not None and stop_check():
-            return {"ok": True, "completed": 0, "aborted": True}
 
         return {"ok": True, "completed": steps, "aborted": False}
 

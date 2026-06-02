@@ -132,10 +132,12 @@ tmux attach -t oiteru-unit
 
 | ULN2003AN | Raspberry Pi BCM |
 |---|---:|
-| IN1 | GPIO5 |
-| IN2 | GPIO6 |
-| IN3 | GPIO13 |
-| IN4 | GPIO19 |
+| IN1 | GPIO21 |
+| IN2 | GPIO17 |
+| IN3 | GPIO27 |
+| IN4 | GPIO22 |
+
+この既定値は、実機動作済みの `stepping_movement.py` と同じです。LED やセンサーを使う場合は、同じ GPIO を兼用しないでください。`config.example.json` では LED/センサーを GPIO5/6/13 に逃がしています。
 
 CUI から確認する順番:
 
@@ -150,7 +152,7 @@ s. 保存して起動
 正常時のログ例:
 
 ```text
-[STEPPER] backend=PigpioZero pins(IN1-4)=[5, 6, 13, 19] ...
+[STEPPER] backend=PigpioZero pins(IN1-4)=[21, 17, 27, 22] ...
 [STEPPER] start (nfc-dispense)
 [STEPPER] done (nfc-dispense)
 [STEPPER] coils off

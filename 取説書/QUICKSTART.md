@@ -188,8 +188,8 @@ nano config.json
 | `MOTOR_TYPE` | `STEPPER` | ステッピングモーター |
 | `CONTROL_METHOD` | `RASPI_DIRECT` | Raspberry Pi GPIO 直結 |
 | `STEPPER_BACKEND` | `auto` | PigpioZero → RpiMotorLib → GPIO の順で自動選択 |
-| `STEPPER_PINS` | `[5, 6, 13, 19]` | BCM 番号。物理ピン番号ではない |
-| `STEPPER_DRIVE_MODE` | `full` | 最初はトルクが出やすい full 推奨 |
+| `STEPPER_PINS` | `[21, 17, 27, 22]` | `stepping_movement.py` と同じ BCM 番号。物理ピン番号ではない |
+| `STEPPER_DRIVE_MODE` | `half` | `stepping_movement.py` と同じ半ステップ駆動 |
 | `STEPPER_STEP_DELAY` | `0.01` | 速すぎると脱調する |
 
 保存方法:
@@ -214,10 +214,10 @@ systemctl status pigpiod
 
 | ULN2003AN | Raspberry Pi BCM |
 |---|---:|
-| IN1 | GPIO5 |
-| IN2 | GPIO6 |
-| IN3 | GPIO13 |
-| IN4 | GPIO19 |
+| IN1 | GPIO21 |
+| IN2 | GPIO17 |
+| IN3 | GPIO27 |
+| IN4 | GPIO22 |
 
 重要:
 
@@ -227,6 +227,7 @@ systemctl status pigpiod
 | GND | Raspberry Pi と外部電源の GND を共通にする |
 | 番号 | `STEPPER_PINS` は BCM 番号 |
 | pigpio | `systemctl status pigpiod` が active |
+| 兼用禁止 | LED やセンサーとステッパーで同じ GPIO を使わない |
 
 ## 7. 子機を tmux で起動する
 
@@ -257,7 +258,7 @@ CUI メニューが出たら、まずモーターだけ確認します。
 期待ログ:
 
 ```text
-[STEPPER] backend=PigpioZero pins(IN1-4)=[5, 6, 13, 19] ...
+[STEPPER] backend=PigpioZero pins(IN1-4)=[21, 17, 27, 22] ...
 [STEPPER] start (...)
 [STEPPER] done (...)
 [STEPPER] coils off
