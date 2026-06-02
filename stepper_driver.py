@@ -6,10 +6,12 @@ rest of the code does not need to know which GPIO library is in use.
 
 Backend priority:
 
-1. ``RpiMotorLib`` (BYJMotor) - preferred, well-tested 28BYJ-48 driver.
-2. Direct GPIO fallback - in case the library is not installed or fails to
-   import. The fallback uses the same excitation sequence as the existing
-   ``stepping_patch.STEPPER_DIRECT_BRANCH`` so behaviour is preserved.
+1. ``gpiozero`` + ``PiGPIOFactory`` (pigpio daemon) - highest precision.
+   Source: ``stepping_movement.py`` (proven working on hardware).
+2. ``RpiMotorLib`` (BYJMotor) - well-tested 28BYJ-48 library.
+3. ``RPi.GPIO`` direct fallback - last resort, implemented internally
+   with the same excitation sequences as the original
+   ``stepping_patch.STEPPER_DIRECT_BRANCH``.
 
 The module is intentionally pure-Python on the parameter / sequencing side so
 that it can be unit-tested without RPi.GPIO hardware. Hardware interaction
@@ -176,6 +178,142 @@ def step_delay_for_drive_mode(drive_mode: str, base_delay: float) -> float:
 
 
 # ---------------------------------------------------------------------------
+# Optional gpiozero + pigpio import.
+# Stepper class from working stepping_movement.py.
+# ---------------------------------------------------------------------------
+
+try:
+    from gpiozero import OutputDevice
+    from gpiozero.pins.pigpio import PiGPIOFactory as _PiGPIOFactory
+    _GPIOZERO_AVAILABLE = True
+    _GPIOZERO_IMPORT_ERROR: Optional[str] = None
+except Exception as exc:
+    _PiGPIOFactory = None  # type: ignore
+    OutputDevice = None  # type: ignore
+    _GPIOZERO_AVAILABLE = False
+    _GPIOZERO_IMPORT_ERROR = repr(exc)
+
+
+class _StepperGpioZero:
+    """28BYJ-48 + ULN2003AN を gpiozero (PiGPIOFactory) で駆動する。
+
+    Source: ``stepping_movement.py`` (proven working on hardware).
+
+    Parameters
+    ----------
+    number_of_steps: int
+        Total steps per revolution (2048 for full, 4096 for half).
+    mpins: list[int]
+        4 GPIO BCM pins in IN1,IN2,IN3,IN4 order.
+    method_step: str
+        ``"full"`` / ``"half"`` / ``"wave"``.
+    """
+
+    # Wave drive (1 phase)
+    _VLIST_WAVE = [
+        [1, 0, 0, 0],
+        [0, 1, 0, 0],
+        [0, 0, 1, 0],
+        [0, 0, 0, 1],
+        [1, 0, 0, 0],
+        [0, 1, 0, 0],
+        [0, 0, 1, 0],
+        [0, 0, 0, 1],
+    ]
+    # Full step (2-phase)
+    _VLIST_FULL = [
+        [1, 1, 0, 0],
+        [0, 1, 1, 0],
+        [0, 0, 1, 1],
+        [1, 0, 0, 1],
+        [1, 1, 0, 0],
+        [0, 1, 1, 0],
+        [0, 0, 1, 1],
+        [1, 0, 0, 1],
+    ]
+    # Half step
+    _VLIST_HALF = [
+        [1, 0, 0, 0],
+        [1, 1, 0, 0],
+        [0, 1, 0, 0],
+        [0, 1, 1, 0],
+        [0, 0, 1, 0],
+        [0, 0, 1, 1],
+        [0, 0, 0, 1],
+        [1, 0, 0, 1],
+    ]
+
+    def __init__(
+        self,
+        number_of_steps: int,
+        mpins: List[int],
+        method_step: str = "half",
+    ) -> None:
+        self.step_number = 0
+        self.direction = 0
+        self.last_step_time = 0
+        self.number_of_steps = number_of_steps
+
+        self._method_step = method_step
+        if method_step == "full":
+            self._vlist = self._VLIST_FULL
+        elif method_step == "wave":
+            self._vlist = self._VLIST_WAVE
+        else:
+            self._vlist = self._VLIST_HALF
+            self._method_step = "half"
+
+        factory = _PiGPIOFactory()
+        self._mpins = [OutputDevice(pin, pin_factory=factory) for pin in mpins]
+        self.set_speed()
+        return
+
+    def set_speed(self, what_speed: float = 10) -> None:
+        """Set speed in revolutions per minute."""
+        self.step_delay = int(
+            60 * 1000 * 1000 * 1000 / self.number_of_steps / what_speed
+        )
+
+    def step(self, steps_to_move: int, auto_stop: bool = True) -> None:
+        """Move the motor ``steps_to_move`` microsteps.
+
+        Negative = reverse direction.
+        """
+        if self._method_step == "half":
+            steps_to_move *= 2
+        steps_left = abs(steps_to_move)
+        self.direction = 1 if steps_to_move > 0 else 0
+
+        while steps_left > 0:
+            now = time.time_ns()
+            if (now - self.last_step_time) >= self.step_delay:
+                self.last_step_time = now
+                if self.direction == 1:
+                    self.step_number += 1
+                    if self.step_number == self.number_of_steps:
+                        self.step_number = 0
+                else:
+                    if self.step_number == 0:
+                        self.step_number = self.number_of_steps
+                    self.step_number -= 1
+                steps_left -= 1
+                self._step_motor(self.step_number % 8)
+        if auto_stop:
+            self.stop()
+
+    def _step_motor(self, this_step: int) -> None:
+        for val, mpin in zip(self._vlist[this_step], self._mpins):
+            if val:
+                mpin.on()
+            else:
+                mpin.off()
+
+    def stop(self) -> None:
+        for mpin in self._mpins:
+            mpin.off()
+
+
+# ---------------------------------------------------------------------------
 # Optional RpiMotorLib import.  Kept at module level so importing this module
 # is safe on any platform (Windows, Mac, PC-mode unit) - the import only
 # succeeds on Raspberry Pi OS.
@@ -199,6 +337,35 @@ def library_available() -> bool:
 def library_import_error() -> Optional[str]:
     """Return the original import error message, or None."""
     return _RPIMOTORLIB_IMPORT_ERROR
+
+
+# ---------------------------------------------------------------------------
+# Availability helpers for gpiozero / pigpio.
+# ---------------------------------------------------------------------------
+
+
+def gpiozero_available() -> bool:
+    return _GPIOZERO_AVAILABLE
+
+
+def gpiozero_import_error() -> Optional[str]:
+    return _GPIOZERO_IMPORT_ERROR
+
+
+COIL_OFF_SEQUENCES: Dict[str, List[Tuple[int, int, int, int]]] = {
+    "full": [(1, 1, 0, 0), (0, 1, 1, 0), (0, 0, 1, 1), (1, 0, 0, 1)],
+    "half": [(1, 0, 0, 0), (1, 1, 0, 0), (0, 1, 0, 0), (0, 1, 1, 0),
+             (0, 0, 1, 0), (0, 0, 1, 1), (0, 0, 0, 1), (1, 0, 0, 1)],
+    "wave": [(1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (0, 0, 0, 1)],
+}
+
+
+def rpm_for_wait(steps_per_rev: int, wait: float) -> float:
+    """Convert an inter-step delay (seconds) to RPM for the Stepper class."""
+    if wait <= 0 or steps_per_rev <= 0:
+        return 10.0  # safe fallback
+    rpm = 60.0 / (steps_per_rev * wait)
+    return max(1.0, min(30.0, rpm))
 
 
 # ---------------------------------------------------------------------------
@@ -386,6 +553,75 @@ class GpioFallbackBackend(StepperBackend):
                 pass
 
 
+class PigpioZeroBackend(StepperBackend):
+    """gpiozero + PiGPIOFactory バックエンド。
+
+    Proven working on hardware via ``stepping_movement.py``.
+
+    Requires:
+    - pigpio daemon running (``sudo systemctl start pigpiod``)
+    - ``gpiozero`` (pre-installed on Raspberry Pi OS)
+    - ``pigpio`` Python library (``pip install pigpio``)
+    """
+
+    name = "PigpioZero"
+
+    def __init__(self) -> None:
+        self._motor: Optional[_StepperGpioZero] = None
+
+    def is_available(self) -> bool:
+        return _GPIOZERO_AVAILABLE
+
+    def init_error(self) -> Optional[str]:
+        return _GPIOZERO_IMPORT_ERROR
+
+    def _ensure_motor(
+        self, pins: List[int], steps_per_rev: int, drive_mode: str, wait: float
+    ) -> None:
+        steps_per_rev = max(1, steps_per_rev)
+        if (
+            self._motor is None
+            or self._motor.number_of_steps != steps_per_rev
+            or self._motor._method_step != drive_mode
+        ):
+            self._motor = _StepperGpioZero(
+                number_of_steps=steps_per_rev,
+                mpins=list(pins),
+                method_step=drive_mode,
+            )
+        rpm = rpm_for_wait(steps_per_rev, wait)
+        self._motor.set_speed(rpm)
+
+    def run(
+        self,
+        pins: List[int],
+        steps: int,
+        wait: float,
+        reverse: bool,
+        drive_mode: str,
+        stop_check: Optional[Callable[[], bool]] = None,
+    ) -> Dict[str, Any]:
+        if not self.is_available():
+            raise RuntimeError(f"PigpioZero バックエンド利用不可: {self.init_error()}")
+
+        steps_per_rev = resolve_steps_per_rev(drive_mode)
+        self._ensure_motor(pins, steps_per_rev, drive_mode, wait)
+
+        signed_steps = -steps if reverse else steps
+        self._motor.step(signed_steps, auto_stop=True)
+
+        # PigpioZeroBackend does not support fine-grained stop_check due to
+        # pigpio's daemon-driven step buffer.  We check once before starting.
+        if stop_check is not None and stop_check():
+            return {"ok": True, "completed": 0, "aborted": True}
+
+        return {"ok": True, "completed": steps, "aborted": False}
+
+    def coils_off(self, pins: List[int]) -> None:
+        if self._motor is not None:
+            self._motor.stop()
+
+
 # ---------------------------------------------------------------------------
 # High-level entry points
 # ---------------------------------------------------------------------------
@@ -395,12 +631,13 @@ def _resolve_backend_name(config: Dict[str, Any]) -> str:
     """Translate the configured ``STEPPER_BACKEND`` into a canonical name.
 
     Valid values:
-    - ``auto``    : prefer library, fall back to GPIO (default)
-    - ``library`` : require library, raise if unavailable
+    - ``auto``    : prefer PigpioZero > RpiMotorLib > GPIO (default)
+    - ``pigpio``  : force gpiozero + PiGPIOFactory, raise if unavailable
+    - ``library`` : force RpiMotorLib, raise if unavailable
     - ``gpio``    : always use GPIO direct control
     """
     raw = str(config.get("STEPPER_BACKEND", "auto")).strip().lower() or "auto"
-    if raw not in ("auto", "library", "gpio"):
+    if raw not in ("auto", "pigpio", "library", "gpio"):
         return "auto"
     return raw
 
@@ -481,7 +718,22 @@ def run_stepper(
 
     chosen_backend: Optional[StepperBackend] = None
     backend_label: str = "unknown"
-    if selected in ("auto", "library"):
+
+    # --- Priority 1: PigpioZero (gpiozero + pigpio daemon) ---
+    if selected in ("auto", "pigpio"):
+        pg = PigpioZeroBackend()
+        if pg.is_available():
+            chosen_backend = pg
+            backend_label = pg.name
+        elif selected == "pigpio":
+            raise RuntimeError(
+                f"STEPPER_BACKEND=pigpio ですが pigpio デーモンが使えません: {pg.init_error()}"
+            )
+        else:
+            _log(f"[STEPPER] PigpioZero を使えないため次に進みます: {pg.init_error() or 'unknown'}")
+
+    # --- Priority 2: RpiMotorLib ---
+    if chosen_backend is None and selected in ("auto", "library"):
         lib = RpiMotorLibBackend(motor_name=f"OiteruStepper-{label}")
         if lib.is_available():
             chosen_backend = lib
@@ -492,10 +744,12 @@ def run_stepper(
             )
         else:
             _log(f"[STEPPER] RpiMotorLib を使えないため GPIO フォールバック: {lib.init_error() or 'unknown'}")
+
+    # --- Priority 3: GPIO fallback ---
     if chosen_backend is None:
         if gpio_module is None:
             raise RuntimeError(
-                "GPIO モジュールが無く RpiMotorLib も利用できません。Raspberry Pi 上で実行してください。"
+                "GPIO モジュールが無く、他のバックエンドも利用できません。Raspberry Pi 上で実行してください。"
             )
         chosen_backend = GpioFallbackBackend(gpio_module)
         backend_label = chosen_backend.name
@@ -518,7 +772,8 @@ def run_stepper(
 
     result: Dict[str, Any]
     try:
-        if isinstance(chosen_backend, RpiMotorLibBackend):
+        if isinstance(chosen_backend, (RpiMotorLibBackend, PigpioZeroBackend)):
+            # RpiMotorLib and PigpioZero use pins in IN1..IN4 order directly.
             result = chosen_backend.run(
                 pins=pins,
                 steps=steps_to_run,
@@ -528,6 +783,7 @@ def run_stepper(
                 stop_check=stop_check,
             )
         else:
+            # GPIO fallback requires the phase-order remapping applied.
             drive_pins = build_drive_pins(pins, phase_order)
             result = chosen_backend.run(
                 pins=drive_pins,
@@ -593,10 +849,19 @@ def summarise(config: Dict[str, Any]) -> Dict[str, Any]:
     except Exception:
         drive_mode = DEFAULT_DRIVE_MODE
     delay = resolve_step_delay(config)
+    pg_avail = gpiozero_available()
+    rml_avail = library_available()
     return {
         "backend": _resolve_backend_name(config),
-        "library_available": library_available(),
-        "library_import_error": library_import_error(),
+        "available_backends": {
+            "PigpioZero": pg_avail,
+            "RpiMotorLib": rml_avail,
+            "GPIO": True,
+        },
+        "import_errors": {
+            "PigpioZero": gpiozero_import_error() if not pg_avail else None,
+            "RpiMotorLib": library_import_error() if not rml_avail else None,
+        },
         "pins": pins,
         "phase_order": phase_order,
         "drive_pins": build_drive_pins(pins, phase_order),

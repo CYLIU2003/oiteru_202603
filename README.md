@@ -1,211 +1,217 @@
-# OITERU (オイテル) システム
+# OITERU システム
 
-**NFCカードで「生理用品(ナプキン)」を管理するスマートIoTシステム**
+OITERU は、NFC カードをかざすと生理用品を排出し、利用履歴・在庫・子機状態を管理する IoT システムです。
 
-社員証や学生証などのICカードをかざすだけで、自動で生理用品(ナプキン)を排出し、利用履歴を記録します。
+このリポジトリでは、親機と子機を **Linux 系 OS 上で tmux 経由で起動する運用**を標準にします。Windows 用スクリプトや legacy 経路は残っていますが、初めて触る人はこの README と `取説書/QUICKSTART.md` の Linux/tmux 手順を優先してください。
 
----
+## まず読む順番
 
-## 📁 ファイル構成（これだけ覚えればOK！）
-
-```
-oiteru_202603/
-│
-├── 🗄️  db_server.py     ← 標準の親機エントリポイント（MySQL）
-├── 🖥️  server.py        ← legacy 親機エントリポイント（SQLite/互換用）
-├── 📡  unit.py          ← 子機を起動するファイル（Raspberry Pi用）
-│
-├── 📄  db_adapter.py    ← (内部用) データベース処理
-├── ⚙️  config.example.json ← 子機設定テンプレート
-├── ⚙️  .env.example     ← サーバー設定のテンプレート
-│
-├── 📁  docker/          ← Docker関連ファイル
-├── 📁  docs/            ← 運用資料・引き継ぎ資料
-├── 📁  scripts/         ← 便利スクリプト集
-├── 📁  tools/           ← テスト・診断ツール
-├── 📁  templates/       ← Web画面のHTML
-├── 📁  static/          ← CSS・画像
-│
-└── 📚  取説書/          ← ドキュメント
-    ├── QUICKSTART.md    ← 🔰 初心者はここから！
-    └── REFERENCE.md     ← 📖 全機能の詳細説明
-```
-
----
+| 順番 | ファイル | 目的 |
+|---:|---|---|
+| 1 | `README.md` | 全体像と最短起動だけ確認する |
+| 2 | `取説書/QUICKSTART.md` | 初心者向けに親機・子機を実際に起動する |
+| 3 | `取説書/README.md` | 取説書フォルダの目次を見る |
+| 4 | `docs/operations.md` | 日常運用・障害対応・引き継ぎを見る |
 
 ## 標準構成
 
-- 親機: `db_server.py`
-- DB: `MySQL 8 (InnoDB)`
-- Docker: `docker-compose.mysql.yml`
-- `server.py` は legacy 互換経路で、新規開発対象外です
+| 項目 | 標準 |
+|---|---|
+| 親機 OS | Linux 系 OS |
+| 子機 OS | Raspberry Pi OS / Linux 系 OS |
+| 起動方法 | `tmux` 経由 |
+| 親機エントリポイント | `db_server.py` |
+| 子機エントリポイント | `unit.py` |
+| DB | MySQL 8 (InnoDB) |
+| 親機 DB 起動 | `docker compose -f docker-compose.mysql.yml up -d` |
+| 子機モーター | 28BYJ-48 + ULN2003AN |
+| 子機モーターバックエンド | PigpioZero → RpiMotorLib → GPIO fallback |
 
-## 標準起動手順
+`server.py + SQLite` は legacy 互換経路です。新規セットアップ、実証運用、レビューでは使わないでください。
 
-この README の標準経路は `MySQL + .env + db_server.py` の 1 本です。
-`server.py + SQLite` は既存検証用の legacy 経路として扱います。
+## システムの役割
 
-## ⚡ 5ステップで始める
+| 名前 | 役割 | 起動するもの |
+|---|---|---|
+| 親機 | 管理画面、DB、利用履歴、子機状態管理 | MySQL + `db_server.py` |
+| 子機 | NFC 読み取り、排出制御、heartbeat 送信 | `unit.py` |
+| 従親機 | 必要な場合だけ使うサブサーバー | 親機 DB に接続するサーバー |
 
-### ステップ1: `.env` を作成
+## 最短起動: 親機 Linux/tmux
 
 ```bash
+cd ~/Desktop/oiteru_202603
+git pull
+
+# 初回だけ
 cp .env.example .env
-```
+nano .env
 
-最低限、以下を必ず変更してください。
-
-- `FLASK_SECRET_KEY`
-- `OITERU_ADMIN_PASSWORD`
-- `MYSQL_PASSWORD`
-- `MYSQL_ROOT_PASSWORD`
-
-`OITERU_STRICT_SECURITY=true` の場合、既定値のままでは起動時に停止します。
-
-### ステップ2: 子機設定を作成
-
-```bash
-cp config.example.json config.json
-```
-
-最低限、以下を子機ごとに変更してください。
-
-- `SERVER_URL`
-- `UNIT_NAME`
-- `UNIT_PASSWORD`
-
-### ステップ3: 親機を起動
-
-```bash
-# Dockerで起動（推奨・標準）
+# MySQL を Docker で起動
 docker compose -f docker-compose.mysql.yml up -d
 
-# または直接起動（MySQL接続）
-python db_server.py
-
-# venv経由でも MySQL が既定
+# tmux で親機を起動
+tmux new -s oiteru-parent
 ./venv-start.sh parent-mysql
 ```
 
-### ステップ4: 子機を起動（Raspberry Pi）
+`.env` では最低限、次を変更してください。
 
-```bash
-# 仮想環境で起動（推奨）
-./venv-start.sh unit
-
-# または直接起動（CUIモード）
-sudo python unit.py --no-gui
-```
-
-#### 4-A. ステッピングモーター (28BYJ-48 + ULN2003AN) を使う場合
-
-`main_stepping_branch` では `RpiMotorLib` を標準バックエンドとして使い、
-GPIO 直結はフォールバックとして残しています。子機初回セットアップ時に
-`archive/unit_client.py` の自動 venv セットアップが
-`RpiMotorLib` も `pip install` するように更新されています。
-
-```bash
-# 既定の requirements-client.txt を使う場合
-pip install -r requirements-client.txt
-# あるいは手動で
-pip install RpiMotorLib
-```
-
-| ULN2003AN 入力 | Raspberry Pi BCM GPIO | 設定キー `STEPPER_PINS` 順 |
-|---|---|---:|
-| IN1 |  GPIO5 | 0 |
-| IN2 |  GPIO6 | 1 |
-| IN3 | GPIO13 | 2 |
-| IN4 | GPIO19 | 3 |
-
-設定の既定値 (`config.example.json`):
-
-```json
-"STEPPER_PINS": [5, 6, 13, 19],
-"STEPPER_PHASE_ORDER": [0, 2, 1, 3],
-"STEPPER_DRIVE_MODE": "full",
-"STEPPER_STEP_DELAY": 0.01,
-"STEPPER_TEST_STEPS": 256,
-"STEPPER_BACKEND": "auto"
-```
-
-| キー | 意味 |
+| 変数 | 内容 |
 |---|---|
-| `STEPPER_BACKEND` | `auto` (既定) / `library` / `gpio` のいずれか。`auto` は `RpiMotorLib` 優先・失敗時 GPIO フォールバック。 |
-| `STEPPER_DRIVE_MODE` | `full` (2相励磁, 2048 step/rev) / `half` (8 ビート, 4096 step/rev) / `wave` (1相励磁, 2048 step/rev) |
-| `STEPPER_PHASE_ORDER` | IN1..IN4 をどの順で励磁するか。CUI の "15. 配線順スキャン" で探索可。 |
-| `STEPPER_STEP_DELAY` | 1 ステップ間の待ち秒。28BYJ-48 は 0.01s 以下でも脱調しやすい。 |
+| `FLASK_SECRET_KEY` | Flask セッション用の長いランダム文字列 |
+| `OITERU_ADMIN_PASSWORD` | 管理画面ログイン用パスワード |
+| `MYSQL_PASSWORD` | MySQL 接続パスワード |
+| `MYSQL_ROOT_PASSWORD` | MySQL root パスワード |
 
-##### バックエンド切替ログ
+tmux から一時退出するには `Ctrl+b` の後に `d` を押します。
 
-NFC 排出時と CUI テスト時は必ず以下のようにバックエンドをログに出します。
+戻るには:
+
+```bash
+tmux attach -t oiteru-parent
+```
+
+## 最短起動: 子機 Raspberry Pi/Linux/tmux
+
+```bash
+cd ~/Desktop/oiteru_202603
+git pull
+
+# 初回だけ
+cp config.example.json config.json
+nano config.json
+
+# PigpioZero バックエンド用。初回だけ enable、毎回 start しても問題ありません。
+sudo apt update
+sudo apt install -y pigpio tmux python3-full python3-venv python3-pip
+sudo systemctl enable pigpiod
+sudo systemctl start pigpiod
+
+# tmux で子機を起動
+tmux new -s oiteru-unit
+./venv-start.sh unit
+```
+
+`config.json` では最低限、次を子機ごとに変更してください。
+
+| キー | 内容 | 例 |
+|---|---|---|
+| `SERVER_URL` | 親機 URL | `http://192.168.1.10:5000` |
+| `UNIT_NAME` | 管理画面に出る子機名 | `unit-01` |
+| `UNIT_PASSWORD` | 親機と合わせる子機パスワード | `change-this` |
+
+戻るには:
+
+```bash
+tmux attach -t oiteru-unit
+```
+
+## tmux の最低限
+
+| やりたいこと | コマンド |
+|---|---|
+| 新しいセッションを作る | `tmux new -s oiteru-parent` |
+| セッションから抜ける | `Ctrl+b` → `d` |
+| セッション一覧を見る | `tmux ls` |
+| セッションに戻る | `tmux attach -t oiteru-parent` |
+| 起動中アプリを止める | セッション内で `Ctrl+c` |
+| セッションを消す | `tmux kill-session -t oiteru-parent` |
+
+## 子機モーター設定
+
+現在のブランチでは、28BYJ-48 + ULN2003AN を次の順で制御します。
+
+| 優先 | バックエンド | 内容 |
+|---:|---|---|
+| 1 | PigpioZero | `gpiozero` + `pigpio`。実機動作済みの `stepping_movement.py` を統合した経路 |
+| 2 | RpiMotorLib | `RpiMotorLib.BYJMotor` による制御 |
+| 3 | GPIO fallback | RPi.GPIO 直制御のフォールバック |
+
+既定の配線は BCM 番号です。物理ピン番号ではありません。
+
+| ULN2003AN | Raspberry Pi BCM |
+|---|---:|
+| IN1 | GPIO5 |
+| IN2 | GPIO6 |
+| IN3 | GPIO13 |
+| IN4 | GPIO19 |
+
+CUI から確認する順番:
 
 ```text
-[STEPPER] backend=RpiMotorLib pins(IN1-4)=[5, 6, 13, 19] phase_order=[0, 2, 1, 3] mode=full steps=512 wait=0.0100s reverse=False
+22. 自動選択正方向テスト
+23. 自動選択逆方向テスト
+26. GPIOフォールバック強制
+off. コイルOFF
+s. 保存して起動
+```
+
+正常時のログ例:
+
+```text
+[STEPPER] backend=PigpioZero pins(IN1-4)=[5, 6, 13, 19] ...
 [STEPPER] start (nfc-dispense)
 [STEPPER] done (nfc-dispense)
 [STEPPER] coils off
 ```
 
-GPIO フォールバック時は:
+## よく使う確認コマンド
+
+```bash
+# ブランチ確認
+git branch --show-current
+
+# tmux確認
+tmux ls
+
+# 親機が開いているか
+curl http://localhost:5000
+
+# MySQLコンテナ確認
+docker compose -f docker-compose.mysql.yml ps
+
+# pigpio確認
+systemctl status pigpiod
+
+# Pythonテスト
+python -m unittest tests.test_stepper_driver
+```
+
+## ディレクトリ概要
 
 ```text
-[STEPPER] backend=GPIO pins(IN1-4)=[5, 6, 13, 19] ...
+oiteru_202603/
+├── db_server.py              # 標準の親機エントリポイント(MySQL)
+├── unit.py                   # 子機エントリポイント
+├── stepper_driver.py         # 28BYJ-48 + ULN2003AN 制御バックエンド
+├── stepping_patch.py         # main_stepping_branch 用 runtime patch
+├── config.example.json       # 子機 config.json のテンプレート
+├── .env.example              # 親機 .env のテンプレート
+├── docker-compose.mysql.yml  # MySQL 標準構成
+├── requirements-client.txt   # 子機依存パッケージ
+├── tests/                    # 単体テスト
+├── docs/                     # 運用資料
+└── 取説書/                   # 初心者向け手順書
 ```
 
-##### 単体テスト
+## Git 管理しないもの
 
-ライブラリ導入後、`unit.py` を起動する前に最小確認ができます。
+次のファイルは秘密情報やローカル状態を含むため、コミットしないでください。
 
-```python
-from stepper_driver import run_stepper
-# 任意のGPIOモックを渡して dry-run
-result = run_stepper(None, {"STEPPER_BACKEND": "gpio", "STEPPER_PINS": [5, 6, 13, 19]},
-                     steps=256, label="smoke")
-print(result)
+| ファイル | 理由 |
+|---|---|
+| `.env` | 管理者パスワード、DB パスワード |
+| `config.json` | 子機パスワード、設置場所、親機 URL |
+| `*.log` | 運用ログ |
+| `*.sqlite3` | legacy DB / ローカルデータ |
+
+## 次に読む
+
+実際の作業手順は `取説書/QUICKSTART.md` に詳しくまとめています。
+
+```bash
+less 取説書/QUICKSTART.md
 ```
 
-実機では CUI メニューの **22. ライブラリ正方向テスト** で確認できます。
-
-### ステップ5: 管理画面にアクセス
-
-ブラウザで http://localhost:5000/admin を開き、`.env` の `OITERU_ADMIN_PASSWORD` でログインします。
-
-## legacy / 互換構成
-
-- `server.py + SQLite` は既存データ確認や互換検証向けです
-- 新規セットアップ、運用手順、障害切り分けは `db_server.py + MySQL` を前提にしてください
-- `config.json`、`*.sqlite3`、`*.log` はローカル生成物として Git 管理しません
-- `venv-start.sh` / `venv-start.ps1` は引数なしなら MySQL 親機を起動します
-
----
-
-## 📚 ドキュメント
-
-| 対象 | ドキュメント | 説明 |
-|:---:|:---|:---|
-| 🔰 | [取説書/QUICKSTART.md](取説書/QUICKSTART.md) | **初心者向け** - まずはここから |
-| 📖 | [取説書/REFERENCE.md](取説書/REFERENCE.md) | **上級者向け** - 全機能の詳細 |
-| 🛠️ | [docs/operations.md](docs/operations.md) | **運用・引き継ぎ向け** - 日常運用と障害対応 |
-
----
-
-## ✨ 主な機能
-
-- **自動登録モード**: 未登録カードも自動でユーザー登録
-- **複数親機対応**: 複数サーバーで同じDBを共有
-- **Web管理画面**: ブラウザから利用状況を確認
-- **Docker対応**: MySQL込みで環境構築
-
----
-
-## 運用上の注意
-
-- 標準DBは `MySQL 8 (InnoDB)` です
-- `config.json`、`*.sqlite3`、`*.log` は Git 管理しません
-- 管理者パスワードと Flask secret は必ず `.env` から設定してください
-- `server.py + SQLite` は legacy 互換経路です。標準構成では使いません
-
----
-
-**最終更新: 2026年3月13日**
+最終更新: 2026-06-02

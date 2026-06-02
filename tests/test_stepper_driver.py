@@ -302,7 +302,10 @@ class SummariseTests(unittest.TestCase):
         summary = sd.summarise({"STEPPER_PINS": [5, 6, 13, 19]})
         self.assertEqual(summary["pins"], [5, 6, 13, 19])
         self.assertEqual(summary["backend"], "auto")
-        self.assertIn("library_available", summary)
+        self.assertIn("available_backends", summary)
+        self.assertIn("PigpioZero", summary["available_backends"])
+        self.assertIn("RpiMotorLib", summary["available_backends"])
+        self.assertIn("GPIO", summary["available_backends"])
 
 
 class CoilsOffTests(unittest.TestCase):
@@ -316,6 +319,56 @@ class CoilsOffTests(unittest.TestCase):
             gpio.output_calls,
             [(5, 0), (6, 0), (13, 0), (19, 0)],
         )
+
+
+class RpmForWaitTests(unittest.TestCase):
+    def test_typical(self):
+        # Full step (2048/rev), wait=0.01 => 60/(2048*0.01) = 2.93 RPM
+        rpm = sd.rpm_for_wait(2048, 0.01)
+        self.assertAlmostEqual(rpm, 2.93, delta=0.1)
+
+    def test_clamp_low(self):
+        rpm = sd.rpm_for_wait(2048, 0.5)
+        self.assertEqual(rpm, 1.0)
+
+    def test_clamp_high(self):
+        # 2048/rev, wait=0.001 => 60 / 2.048 = 29.3, capped at 30
+        rpm = sd.rpm_for_wait(2048, 0.001)
+        self.assertAlmostEqual(rpm, 29.3, delta=0.1)
+        self.assertLessEqual(rpm, 30.0)
+
+    def test_safe_fallback_zero_wait(self):
+        rpm = sd.rpm_for_wait(2048, 0.0)
+        self.assertEqual(rpm, 10.0)
+
+    def test_safe_fallback_zero_rev(self):
+        rpm = sd.rpm_for_wait(0, 0.01)
+        self.assertEqual(rpm, 10.0)
+
+
+class GpiozeroAvailableTests(unittest.TestCase):
+    def test_returns_bool(self):
+        self.assertIsInstance(sd.gpiozero_available(), bool)
+
+
+class PigpioZeroBackendTests(unittest.TestCase):
+    def test_is_not_available_on_pc(self):
+        backend = sd.PigpioZeroBackend()
+        # On a non-Raspberry Pi, gpiozero is not available -> False
+        self.assertFalse(backend.is_available())
+
+    def test_init_error_on_pc(self):
+        backend = sd.PigpioZeroBackend()
+        err = backend.init_error()
+        if sd.gpiozero_available():
+            self.assertIsNone(err)
+        else:
+            self.assertIsNotNone(err)
+
+    def test_coils_off_is_safe_when_no_motor(self):
+        backend = sd.PigpioZeroBackend()
+        # Should not raise
+        backend.coils_off([5, 6, 13, 19])
 
 
 if __name__ == "__main__":

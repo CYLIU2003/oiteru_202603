@@ -1,1279 +1,529 @@
-# 🚀 OITERU かんたんスタートガイド
+# OITERU かんたんスタートガイド
 
-<div align="center">
+このガイドは、OITERU を初めて触る人が **Linux 系 OS + tmux** で親機と子機を起動できるようにまとめた手順書です。
 
-**親機・従親機・子機の立ち上げ方法をステップバイステップで説明！**
+コマンドを上から順に実行すれば、基本的な起動確認まで進められるようにしています。
 
-💻 **プライバシー配慮型ナプキン配布システム**
+## 0. 最初に知っておくこと
 
-📅 最終更新: 2026年3月13日
+### 役割
 
-> 💡 **スマホで見る場合は [QUICKSTART.html](QUICKSTART.html) がおすすめです！**
-
-</div>
-
----
-
-## 📋 目次
-
-| セクション | 内容 |
-|:---|:---|
-| [🎯 はじめに](#-はじめに) | OITERUとは？用語の説明 |
-| [🖥️ 親機の起動方法](#%EF%B8%8F-親機の起動方法) | メインサーバーの起動 |
-| [🔗 従親機の起動方法](#-従親機の起動方法) | サブサーバーの起動 |
-| [📡 子機の起動方法](#-子機の起動方法) | ラズパイ端末の起動 |
-| [🔄 リモート設定同期](#-リモート設定同期) | 親機から子機への設定変更 |
-| [⚙️ 管理画面の使い方](#%EF%B8%8F-管理画面の使い方) | Web管理画面 |
-| [🔧 トラブルシューティング](#-トラブルシューティング) | 困ったときは |
-
----
-
-## 🎯 はじめに
+| 名前 | 何をするか | 主なファイル |
+|---|---|---|
+| 親機 | 管理画面、DB、利用履歴、子機状態を管理する | `db_server.py` |
+| 子機 | NFC カードを読み、モーターで排出する | `unit.py` |
+| 従親機 | 親機 DB を参照する追加サーバー。必要な時だけ使う | `server.py` など |
 
 ### 標準構成
 
-- 親機: `db_server.py`
-- DB: `MySQL 8 (InnoDB)`
-- `server.py` は legacy 互換経路です
+| 項目 | 標準 |
+|---|---|
+| OS | Linux 系 OS |
+| 起動方法 | tmux |
+| DB | MySQL 8 (InnoDB) |
+| 親機 | `db_server.py` |
+| 子機 | `unit.py` |
+| 子機モーター | 28BYJ-48 + ULN2003AN |
 
-この取説の標準起動は `MySQL + .env + db_server.py` です。
+SQLite と `server.py` は legacy 経路です。新しく作業する人は使わないでください。
 
-### OITERUって何？
+## 1. tmux の超基本
 
-ICカードをかざすと、**生理用ナプキンが自動で提供される**プライバシー配慮型の配布システムです！
+tmux は、SSH を切ってもプログラムを動かし続けるための道具です。
 
-### 💡 システムの特長
+| やりたいこと | コマンド |
+|---|---|
+| セッションを作る | `tmux new -s oiteru-parent` |
+| 画面から一時退出する | `Ctrl+b` → `d` |
+| セッション一覧を見る | `tmux ls` |
+| セッションに戻る | `tmux attach -t oiteru-parent` |
+| アプリを止める | セッション内で `Ctrl+c` |
+| セッションを削除する | `tmux kill-session -t oiteru-parent` |
 
-- 🔒 **プライバシー保護**: 誰にも見られずに受け取れる
-- 📱 **簡単操作**: ICカードをかざすだけ
-- 📊 **在庫管理**: 個人ごとの配布数を自動管理
-- 🌐 **複数拠点対応**: 学校や職場の複数箇所に設置可能
+名前は分かりやすくしてください。
 
-```
-   ┌─────────────┐                ┌────────────┐
-   │   ICカード   │  ───ピッ───▶  │   子機     │  ───▶  🩹 ナプキン！
-   │  (社員証等)  │                │ (ラズパイ) │
-   └─────────────┘                └─────┬──────┘
-                                        │
-                                        ▼ 通信
-                                  ┌────────────┐
-                                  │   親機     │  📊 利用履歴を管理
-                                  │ (サーバー) │  🔒 プライバシー保護
-                                  └────────────┘
-```
+| 用途 | 推奨セッション名 |
+|---|---|
+| 親機 | `oiteru-parent` |
+| 子機 | `oiteru-unit` |
+| 従親機 | `oiteru-sub-parent` |
 
-### 用語の説明
+## 2. 共通準備
 
-| 用語 | 説明 | IPアドレス |
-|:---:|:---|:---:|
-| 🖥️ **親機** | データベースを持つメインサーバー | `100.114.99.67` |
-| 🔗 **従親機** | 親機のDBを参照するサブサーバー | 設置場所による |
-| 📡 **子機** | ナプキンを排出するラズパイ端末 | 設置場所による |
-
-> 💡 **Tailscale**を使っているので、親機のアドレスは `100.114.99.67` で固定です！
-
----
-
-## ⚙️ 事前準備
-
-### 1. 親機の `.env` を作成
+親機でも子機でも、まずプロジェクトフォルダへ移動します。
 
 ```bash
-cp .env.example .env
-```
-
-最低限、以下を変更してください。
-
-- `FLASK_SECRET_KEY`
-- `OITERU_ADMIN_PASSWORD`
-- `MYSQL_PASSWORD`
-
-### 2. 子機の `config.json` を作成
-
-```bash
-cp config.example.json config.json
-```
-
-最低限、以下を変更してください。
-
-- `SERVER_URL`
-- `UNIT_NAME`
-- `UNIT_PASSWORD`
-
----
-
-## 📁 プロジェクトフォルダの場所について
-
-### ⚠️ 重要な注意事項
-
-取説書のコマンド例では `~/oiteru_250827_restAPI` を使っていますが、**実際のパスは環境によって異なります**。
-
-**まず、現在のプロジェクトフォルダのパスを確認してください！**
-
-```bash
-# プロジェクトフォルダを探す
-find ~ -name "unit.py" 2>/dev/null | grep oiteru
-```
-
-**よくあるパスの例：**
-
-| 環境 | パス |
-|:---|:---|
-| 通常 | `~/oiteru_250827_restAPI` |
-| Desktop | `~/Desktop/oiteru_250827_restAPI-1` |
-| Documentsフォルダ | `~/Documents/oiteru_250827_restAPI` |
-
-**確認したら、以下の手順で取説書のコマンドを読み替えてください：**
-
-```bash
-# 取説書の例
-cd ~/oiteru_250827_restAPI
-
-# あなたの環境が ~/Desktop/oiteru_250827_restAPI-1 の場合
-cd ~/Desktop/oiteru_250827_restAPI-1
-```
-
-> 💡 **ヒント：** `cd` でフォルダに移動できたら、`pwd` で正しいパスを確認できます
-
----
-
-# 🖥️ 親機の起動方法
-
-親機はデータベース（MySQL）を持つメインサーバーです。
-
----
-
-### 方法1: 🚀 ランチャーで起動（一番簡単！）
-
-1. `scripts` フォルダを開く
-2. `launcher.bat` をダブルクリック
-3. **「1. GUI版」** を選択
-4. 画面で：
-   - 起動モード: **「親機」** を選択
-   - 実行方法: **「Dockerモード」** を選択
-   - **「起動」** ボタンを押す
-
-> ✅ **これだけ！** 🎉
-
----
-
-### 方法2: 🐳 Dockerで起動（推奨）
-
-```powershell
-cd C:\Users\RTDS_admin\source\repos\CYLIU2003\oiteru_250827_restAPI
-docker-compose -f docker-compose.mysql.yml up -d
-```
-
-**確認：**
-```powershell
-docker ps
-```
-→ `oiteru_mysql` と `oiteru_web` が `Up` になっていればOK！
-
-**停止するとき：**
-```powershell
-docker-compose -f docker-compose.mysql.yml down
-```
-
----
-
-### 方法3: 🐍 仮想環境で起動（開発向け）
-
-```powershell
-cd C:\Users\RTDS_admin\source\repos\CYLIU2003\oiteru_250827_restAPI
-.\venv-start.ps1 parent-mysql
-```
-
-> ⚠️ MySQLが別途起動している必要があります
-
----
-
-### 方法4: 🔧 通常モードで起動（非推奨・テスト用）
-
-仮想環境を使わず直接実行します。環境が汚れるので非推奨。
-
-`.env` を設定済みで、MySQL が起動している前提です。
-
-```powershell
-# 起動
-python db_server.py
-```
-
----
-
-# 🔗 従親機の起動方法
-
-従親機は、親機のデータベースを参照するサブサーバーです。複数拠点で運用するときに使います。
-
----
-
-### ステップ0: 前準備 - config.json を設定
-
-#### 🚀 方法A: ウィザードで設定（おすすめ！）
-
-```powershell
-# Windows
-.\scripts\setup_config.ps1
-
-# Linux
-./scripts/setup_config.sh
-```
-
-> 画面の質問に答えるだけで設定完了！
-
-#### ⚡ 方法B: ワンライナーで設定
-
-```bash
-# 例: 従親機Bを設定
-./scripts/setup_config.sh sub-parent "従親機B" "別館2階"
-```
-
-#### 📝 方法C: テンプレートをコピー
-
-```bash
-cp config_templates/config_sub_parent.template.json config.json
-nano config.json  # ★マークの項目を編集
-```
-
----
-
-### 方法1: 🚀 ランチャーで起動
-
-1. `scripts/launcher.bat` をダブルクリック
-2. GUI版を選択
-3. 起動モード: **「従親機」** を選択
-4. 設定で **MySQLホスト** を `100.114.99.67` に変更
-5. 「起動」ボタンを押す
-
----
-
-### 方法2: 🐳 Dockerで起動
-
-```bash
-./docker-start.sh external
-```
-
-または：
-
-```bash
-cd docker
-docker-compose -f docker-compose.external-db.yml up -d
-```
-
----
-
-### 方法3: 🐍 仮想環境で起動
-
-**Windows (PowerShell)：**
-
-```powershell
-# 親機のMySQLに接続する場合
-$env:MYSQL_HOST = '100.114.99.67'
-.\venv-start.ps1 sub-parent
-```
-
-**Linux / Mac：**
-
-```bash
-export MYSQL_HOST=100.114.99.67
-./venv-start.sh sub-parent
-```
-
----
-
-### 方法4: 🔧 通常モードで起動（非推奨）
-
-`.env` を設定済みで、必要な MySQL 接続情報が入っている前提です。
-
-```powershell
-$env:DB_TYPE = 'mysql'
-$env:MYSQL_HOST = '100.114.99.67'
-$env:SERVER_NAME = '従親機A'
-
-python server.py
-```
-
----
-
-# 📡 子機の起動方法
-
-子機はRaspberry Piで動き、NFCカードの読み取りとナプキンの排出を行います。
-
----
-
-### ステップ0: 前準備 - config.json を設定
-
-#### 🚀 方法A: ウィザードで設定（おすすめ！）
-
-対話形式で簡単に設定できます：
-
-```bash
-cd /home/pi/oiteru_250827_restAPI/scripts
-./setup_config.sh
-```
-
-> 画面の質問に答えるだけで設定完了！
-
-#### ⚡ 方法B: ワンライナーで設定（上級者向け）
-
-```bash
-# 例: 3号機を設定
-./scripts/setup_config.sh unit "3号機" "7号館1階" "password123"
-```
-
-#### 📝 方法C: テンプレートをコピー
-
-```bash
-# テンプレートをコピー
-cp config_templates/config_unit.template.json config.json
-
-# ★マークの項目を編集
-nano config.json
-```
-
-#### 🔧 方法D: 手動で編集
-
-```bash
-nano /home/pi/oiteru_250827_restAPI/config.json
-```
-
-**以下の3箇所を変更：**
-
-```json
-{
-    "SERVER_URL": "http://100.114.99.67:5000",
-    "UNIT_NAME": "あなたの子機名",
-    "UNIT_PASSWORD": "あなたのパスワード"
-}
-```
-
-| 設定 | 何を入れる？ | 例 |
-|:---|:---|:---|
-| `SERVER_URL` | 親機のアドレス（固定） | `http://100.114.99.67:5000` |
-| `UNIT_NAME` | 子機の名前（管理画面で登録したもの） | `1号機` |
-| `UNIT_PASSWORD` | パスワード（管理画面で設定したもの） | `password123` |
-
-> ⚠️ **注意**
-> - `http://` で始まる（`https://` じゃない！）
-> - 最後にスラッシュ `/` は付けない
-
-**保存:** `Ctrl + O` → `Enter` → `Ctrl + X`
-
----
-
-### 方法1: ⚡ クイック起動スクリプト（おすすめ！）
-
-```bash
-cd /home/pi/oiteru_250827_restAPI/scripts
-sudo ./quick_start_unit.sh 100.114.99.67
-```
-
-> 親機のIPアドレスを引数に渡すだけ！
-
----
-
-### 方法2: 🐍 仮想環境で起動（開発・デバッグ向け）
-
-> ⚠️ **重要: Raspberry Pi OS Bookworm (2023年10月〜) 以降のバージョンについて**
-> 
-> Raspberry Pi OS BookwormではPEP 668が適用され、システムのPython環境に直接パッケージをインストールすることができなくなりました。
-> **仮想環境（venv）の使用が必須**です。
-> 
-> ```bash
-> # ❌ これはエラーになります
-> pip install requests
-> # error: externally-managed-environment
-> 
-> # ✅ 仮想環境内で実行してください
-> source .venv/bin/activate
-> pip install requests
-> ```
-> 
-> 詳細な環境セットアップは `scripts/SETUP_UNIT.md` を参照してください。
-
-#### 📝 手順
-
-1. **必要なパッケージをインストール（Bookworm以降では必須）**
-   ```bash
-   # python3-fullとpython3-venvをインストール
-   sudo apt update
-   sudo apt install -y python3-full python3-venv python3-pip
-   ```
-
-2. **プロジェクトフォルダに移動**
-   ```bash
-   cd /home/pi/oiteru_250827_restAPI
-   ```
-
-3. **仮想環境をセットアップ（初回のみ）**
-   ```bash
-   # 仮想環境を作成
-   python3 -m venv .venv
-   
-   # 依存パッケージをインストール
-   .venv/bin/pip install -r docker/requirements-client.txt
-   ```
-   
-   > ⚠️ **重要: psutilのインストールについて**
-   > 
-   > システム監視機能（CPU/メモリ/ディスク使用率）を利用するには、**psutilのインストールが必須**です：
-   > ```bash
-   > .venv/bin/pip install psutil
-   > ```
-   > 
-   > インストールしない場合、管理画面で以下のように表示されます：
-   > - システム情報: `psutil未インストール (pip install psutil)`
-   > 
-   > **psutilをインストールすると表示される情報：**
-   > - CPU使用率: `15.2%`
-   > - メモリ使用率: `45.8% (使用中: 1.8GB / 全体: 4.0GB)`
-   > - ディスク使用率: `62.3% (使用中: 18.7GB / 全体: 30.0GB)`
-   
-   > 💡 **ヒント**: セットアップを自動化するスクリプトも用意しています（psutilも自動インストール）：
-   > ```bash
-   > # スクリプトに実行権限を付与（初回のみ）
-   > chmod +x scripts/setup_unit_environment.sh
-   > # 実行
-   > sudo ./scripts/setup_unit_environment.sh
-   > ```
-
-4. **実行権限を付与（初回のみ）**
-   ```bash
-   chmod +x venv-start.sh
-   ```
-
-5. **仮想環境スクリプトを実行（CUIモードがデフォルト）**
-   ```bash
-   ./venv-start.sh unit
-   ```
-
-#### ✨ 初回セットアップが完了したら
-
-2回目以降は以下のコマンドだけでOK：
-
-```bash
-cd /home/pi/oiteru_250827_restAPI
-./venv-start.sh unit
-```
-
-> 💡 **GUIモードで起動したい場合：** `./venv-start.sh unit --gui`
-
-#### ⏸️ 一時退出方法（バックグラウンド実行）
-
-起動中のプログラムを停止せず、SSHセッションから一時的に抜けたい場合：
-
-```bash
-# Ctrl + Z を押してプログラムを一時停止
-# その後、バックグラウンドに移動
-bg
-
-# 確認
-jobs
-```
-
-**戻りたいとき：**
-```bash
-# フォアグラウンドに戻す
-fg
-```
-
-> ⚠️ **注意：** この方法では、SSHを切断するとプログラムが終了します。SSH切断後も動かし続けたい場合は、後述の「遠隔起動・SSH切断後も動作させる方法」を使用してください。
-
-#### 🛑 停止方法
-
-`Ctrl + C` を押す
-
----
-
-### 💡 遠隔起動・SSH切断後も動作させる方法
-
-**よくある問題：** PowerShellやSSHクライアントを閉じると、子機も一緒に止まってしまう 😱
-
-**原因：** プロセスがSSHセッションに紐づいているため
-
-**解決策は3つ！** 用途別に選んでね 👇
-
----
-
-####🚀 方法A: `nohup` で起動（一番お手軽！）
-
-**とりあえず動かしたい** ならこれ。SSH切っても動き続けます。
-
-```bash
-# パスは自分の環境に合わせて変更してください
-cd ~/oiteru_250827_restAPI
-# または
-cd ~/Desktop/oiteru_250827_restAPI-1
-
-# 仮想環境をセットアップ（初回のみ）
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-# Raspberry Pi用ハードウェアライブラリをインストール
-.venv/bin/pip install RPi.GPIO Adafruit-PCA9685 pyserial
-
-# 実行権限を確認・付与（初回のみ）
-chmod +x venv-start.sh
-
-# バックグラウンドで起動（CUIモードがデフォルト）
-nohup ./venv-start.sh unit > unit.log 2>&1 &
-```
-
-> 💡 **パスについて：** 上記のセクション「プロジェクトフォルダの場所について」で確認したパスを使用してください  
-> 💡 初回のみ仮想環境のセットアップが必要です（2回目以降は不要）  
-> 💡 CUIモードがデフォルトです（SSH経由でも安全に起動可能）
-
-**確認：**
-```bash
-ps aux | grep unit.py
-```
-
-**ログを見る：**
-```bash
-tail -f unit.log
-```
-
-**停止するとき：**
-```bash
-# プロセスIDを確認
-ps aux | grep unit.py
-# 停止（PIDは上記コマンドで確認した数字）
-sudo kill <PID>
-```
-
-> ✅ **メリット**
-> - コマンド1行で完結
-> - SSH切っても動く
-> 
-> ⚠️ **注意**
-> - ラズパイを再起動したら止まる
-
----
-
-#### 🖥️ 方法B: `tmux` で起動（作業継続したい人向け）
-
-**SSH切っても画面ごと残したい** 場合に便利。あとで再接続してログを確認できます。
-
-**1️⃣ tmuxをインストール（初回のみ）**
-```bash
-sudo apt install tmux -y
-```
-
-**2️⃣ tmuxセッションを開始**
-```bash
-tmux new -s oiteru
-```
-
-**3️⃣ プロジェクトフォルダに移動**
-```bash
-# パスは自分の環境に合わせて変更してください
-cd ~/oiteru_202603
-# または
 cd ~/Desktop/oiteru_202603
 ```
 
-**4️⃣ 必要なパッケージをインストール（Bookworm以降では必須）**
+場所が分からない場合:
+
 ```bash
-# python3-fullとpython3-venvをインストール
+find ~ -name unit.py 2>/dev/null | grep oiteru
+```
+
+現在の場所を確認:
+
+```bash
+pwd
+```
+
+ブランチ確認と最新化:
+
+```bash
+git branch --show-current
+git pull
+git status --short
+```
+
+必要な Linux パッケージ:
+
+```bash
 sudo apt update
-sudo apt install -y python3-full python3-venv python3-pip
+sudo apt install -y git tmux python3-full python3-venv python3-pip curl
 ```
 
-> ⚠️ **Raspberry Pi OS Bookworm (2023年10月〜) 以降の注意**
-> 
-> PEP 668により、仮想環境の使用が必須です。以下のエラーが出る場合は上記コマンドを実行してください：
-> ```
-> error: externally-managed-environment
-> ```
+Docker を親機で使う場合は Docker も必要です。
 
-**5️⃣ 仮想環境をセットアップ（初回のみ）**
 ```bash
-# 仮想環境を作成
-python3 -m venv .venv
-
-# 依存パッケージをインストール
-.venv/bin/pip install -r docker/requirements-client.txt
+docker --version
+docker compose version
 ```
 
-> ⚠️ **重要: psutilのインストールについて**
-> 
-> システム監視機能（CPU/メモリ/ディスク使用率）を利用するには、**psutilのインストールが必須**です：
-> ```bash
-> .venv/bin/pip install psutil
-> ```
-> 
-> インストールしない場合、管理画面で以下のように表示されます：
-> - システム情報: `psutil未インストール (pip install psutil)`
-> 
-> **psutilをインストールすると表示される情報：**
-> - CPU使用率: `15.2%`
-> - メモリ使用率: `45.8% (使用中: 1.8GB / 全体: 4.0GB)`
-> - ディスク使用率: `62.3% (使用中: 18.7GB / 全体: 30.0GB)`
+Docker が無い場合は、先に Docker を入れてから親機を起動してください。
 
-> 💡 **ヒント**: 自動セットアップスクリプトも用意しています（psutilも自動インストール）：
-> ```bash
-> # スクリプトに実行権限を付与（初回のみ）
-> chmod +x scripts/setup_unit_environment.sh
-> # 実行
-> sudo ./scripts/setup_unit_environment.sh
-> ```
+## 3. 親機の初回設定
 
-**6️⃣ 実行権限を確認・付与（初回のみ）**
+親機では `.env` を作ります。
+
 ```bash
-# 実行権限を付与
-chmod +x venv-start.sh
+cp .env.example .env
+nano .env
 ```
 
-**7️⃣ 子機を起動（CUIモード）**
+最低限、次を変更してください。
+
+| 変数 | 何を入れるか |
+|---|---|
+| `FLASK_SECRET_KEY` | 長いランダム文字列 |
+| `OITERU_ADMIN_PASSWORD` | 管理画面ログイン用パスワード |
+| `MYSQL_PASSWORD` | MySQL 接続パスワード |
+| `MYSQL_ROOT_PASSWORD` | MySQL root パスワード |
+
+保存方法:
+
+```text
+Ctrl+o → Enter → Ctrl+x
+```
+
+## 4. 親機を tmux で起動する
+
+MySQL を Docker で起動します。
+
 ```bash
+docker compose -f docker-compose.mysql.yml up -d
+```
+
+状態確認:
+
+```bash
+docker compose -f docker-compose.mysql.yml ps
+```
+
+親機用 tmux を作ります。
+
+```bash
+tmux new -s oiteru-parent
+```
+
+tmux の中で親機を起動します。
+
+```bash
+cd ~/Desktop/oiteru_202603
+./venv-start.sh parent-mysql
+```
+
+起動後、ブラウザで開きます。
+
+```text
+http://<親機IP>:5000/admin
+```
+
+同じ PC で確認する場合:
+
+```text
+http://localhost:5000/admin
+```
+
+SSH から抜けたい場合は `Ctrl+b` → `d` です。親機は動き続けます。
+
+親機へ戻る:
+
+```bash
+tmux attach -t oiteru-parent
+```
+
+## 5. 子機の初回設定
+
+子機では `config.json` を作ります。
+
+```bash
+cd ~/Desktop/oiteru_202603
+cp config.example.json config.json
+nano config.json
+```
+
+最低限、次を変更してください。
+
+| キー | 何を入れるか | 例 |
+|---|---|---|
+| `SERVER_URL` | 親機 URL | `http://192.168.1.10:5000` |
+| `UNIT_NAME` | 子機名 | `unit-01` |
+| `UNIT_PASSWORD` | 親機と合わせる子機パスワード | `change-this` |
+
+モーター設定の基本:
+
+| キー | 推奨値 | 説明 |
+|---|---|---|
+| `MOTOR_TYPE` | `STEPPER` | ステッピングモーター |
+| `CONTROL_METHOD` | `RASPI_DIRECT` | Raspberry Pi GPIO 直結 |
+| `STEPPER_BACKEND` | `auto` | PigpioZero → RpiMotorLib → GPIO の順で自動選択 |
+| `STEPPER_PINS` | `[5, 6, 13, 19]` | BCM 番号。物理ピン番号ではない |
+| `STEPPER_DRIVE_MODE` | `full` | 最初はトルクが出やすい full 推奨 |
+| `STEPPER_STEP_DELAY` | `0.01` | 速すぎると脱調する |
+
+保存方法:
+
+```text
+Ctrl+o → Enter → Ctrl+x
+```
+
+## 6. 子機のハードウェア準備
+
+子機では pigpio を有効にします。
+
+```bash
+sudo apt update
+sudo apt install -y pigpio tmux python3-full python3-venv python3-pip
+sudo systemctl enable pigpiod
+sudo systemctl start pigpiod
+systemctl status pigpiod
+```
+
+ステッピングモーターの既定配線は BCM 番号です。
+
+| ULN2003AN | Raspberry Pi BCM |
+|---|---:|
+| IN1 | GPIO5 |
+| IN2 | GPIO6 |
+| IN3 | GPIO13 |
+| IN4 | GPIO19 |
+
+重要:
+
+| 確認 | 内容 |
+|---|---|
+| 電源 | 28BYJ-48 は 5V 電源が必要 |
+| GND | Raspberry Pi と外部電源の GND を共通にする |
+| 番号 | `STEPPER_PINS` は BCM 番号 |
+| pigpio | `systemctl status pigpiod` が active |
+
+## 7. 子機を tmux で起動する
+
+子機用 tmux を作ります。
+
+```bash
+tmux new -s oiteru-unit
+```
+
+tmux の中で子機を起動します。
+
+```bash
+cd ~/Desktop/oiteru_202603
 ./venv-start.sh unit
 ```
 
-> 🔄 **設定同期について**
-> - 親機・従親機からの設定変更が自動的に反映されます
-> - Heartbeat経由: 30秒ごとに設定を同期
-> - 即時反映: Flask API (ポート5001) で親機から直接受信
+CUI メニューが出たら、まずモーターだけ確認します。
 
-**8️⃣ 一時退出（デタッチ）してSSH/PowerShellを閉じてOK！**
+| メニュー | 内容 |
+|---|---|
+| `22` | 自動選択正方向テスト |
+| `23` | 自動選択逆方向テスト |
+| `26` | GPIO フォールバック強制テスト |
+| `off` | コイル OFF |
+| `s` | 設定保存して起動 |
+| `q` | 保存せず起動 |
 
-```bash
-# tmuxセッションから離れる（デタッチ）
-Ctrl + B を押してから D を押す
+期待ログ:
+
+```text
+[STEPPER] backend=PigpioZero pins(IN1-4)=[5, 6, 13, 19] ...
+[STEPPER] start (...)
+[STEPPER] done (...)
+[STEPPER] coils off
 ```
 
-> 💡 **ヒント：** デタッチすると、プログラムは動き続けたまま、あなたは通常のターミナルに戻ります。SSH切断してもOK！
+SSH から抜けたい場合は `Ctrl+b` → `d` です。子機は動き続けます。
 
-**戻りたいとき：**
+子機へ戻る:
+
 ```bash
-tmux attach -t oiteru
+tmux attach -t oiteru-unit
 ```
 
-**セッション一覧：**
+## 8. NFC 排出確認
+
+子機が起動したら、カードをかざして排出処理を確認します。
+
+確認するログ:
+
+```text
+[DEBUG] dispense_item: MOTOR_REVERSE=False, SPEED=..., DURATION=...
+[STEPPER] backend=PigpioZero
+[STEPPER] start (nfc-dispense)
+[STEPPER] done (nfc-dispense)
+```
+
+次のログが出る場合は分岐注入が失敗しています。
+
+```text
+!! 未サポートのモーター設定です: STEPPER, RASPI_DIRECT
+```
+
+その場合は以下を実行して確認します。
+
+```bash
+python - <<'PY'
+from pathlib import Path
+from stepping_patch import patch_unit_client_source
+
+src = Path('archive/unit_client.py').read_text(encoding='utf-8')
+patched = patch_unit_client_source(src)
+marker = "elif current_motor_type == 'STEPPER' and current_control_method == 'RASPI_DIRECT':"
+print('marker_present =', marker in patched)
+PY
+```
+
+`marker_present = True` が正常です。
+
+## 9. 日常運用
+
+### 親機へ戻る
+
+```bash
+tmux attach -t oiteru-parent
+```
+
+### 子機へ戻る
+
+```bash
+tmux attach -t oiteru-unit
+```
+
+### tmux 一覧
+
 ```bash
 tmux ls
 ```
 
-**停止するとき：**
+### 親機停止
+
 ```bash
-# tmuxセッションに入る
-tmux attach -t oiteru
-# Ctrl + C で停止
-# セッションを終了
+tmux attach -t oiteru-parent
+# セッション内で
+Ctrl+c
 exit
 ```
 
-> ✅ **メリット**
-> - ログをリアルタイムで確認できる
-> - SSH切ってもセッション継続
-> - 複数の作業を並行できる
-> 
-> ⚠️ **注意**
-> - ラズパイを再起動したら止まる
-
----
-
-#### ⚙️ 方法C: systemdサービス化（最強・本番運用向け）
-
-**常駐アプリ・サーバ・IoT用途なら絶対これ！** ラズパイ起動時に自動で立ち上がります。
-
-**1️⃣ サービスファイルを作成**
+### 子機停止
 
 ```bash
-sudo nano /etc/systemd/system/oiteru-unit.service
+tmux attach -t oiteru-unit
+# セッション内で
+Ctrl+c
+exit
 ```
 
-**以下を貼り付け：**
+### MySQL 停止
+
+```bash
+docker compose -f docker-compose.mysql.yml down
+```
+
+### MySQL は残して親機だけ再起動
+
+```bash
+tmux attach -t oiteru-parent
+Ctrl+c
+./venv-start.sh parent-mysql
+```
+
+### 子機だけ再起動
+
+```bash
+tmux attach -t oiteru-unit
+Ctrl+c
+./venv-start.sh unit
+```
+
+## 10. よくあるトラブル
+
+### tmux duplicate session と出る
+
+すでに同じ名前の tmux があります。
+
+戻る:
+
+```bash
+tmux attach -t oiteru-unit
+```
+
+不要なら消す:
+
+```bash
+tmux kill-session -t oiteru-unit
+tmux new -s oiteru-unit
+```
+
+### tmux から抜け方が分からない
+
+`Ctrl+b` を押してから `d` です。同時押しではありません。
+
+### 管理画面にアクセスできない
+
+親機側で確認:
+
+```bash
+tmux attach -t oiteru-parent
+docker compose -f docker-compose.mysql.yml ps
+curl http://localhost:5000
+```
+
+別 PC から見る場合は、親機 IP とポート 5000 が正しいか確認してください。
+
+### MySQL が起動しない
+
+```bash
+docker compose -f docker-compose.mysql.yml ps
+docker compose -f docker-compose.mysql.yml logs mysql
+```
+
+`.env` の `MYSQL_*` が変更済みか確認してください。
+
+### 子機が親機に接続できない
+
+子機側で確認:
+
+```bash
+curl http://<親機IP>:5000
+```
+
+`config.json` の `SERVER_URL` が `http://<親機IP>:5000` になっているか確認してください。
+
+### pigpio が使えない
+
+```bash
+sudo systemctl start pigpiod
+systemctl status pigpiod
+```
+
+それでも動かない場合は、子機 CUI の `26` で GPIO fallback を確認してください。
+
+### モーターが回らない
+
+順番に確認してください。
+
+| 確認 | 内容 |
+|---|---|
+| CUI | `22` と `23` を実行したか |
+| backend | ログに `backend=PigpioZero` または `backend=RpiMotorLib` が出るか |
+| 配線 | `STEPPER_PINS` が実際の BCM 番号と一致するか |
+| 電源 | ULN2003AN に 5V が来ているか |
+| GND | Raspberry Pi と外部電源の GND が共通か |
+| LED | ULN2003 基板の LED が点滅するか |
+| 速度 | `STEPPER_STEP_DELAY` を `0.02` や `0.03` にする |
+| 順番 | CUI の配線順スキャンを試す |
+
+### NFC が読めない
+
+```bash
+lsusb
+python - <<'PY'
+import nfc
+print(nfc)
+PY
+```
+
+USB リーダーを抜き差しし、子機を再起動してください。
+
+### externally-managed-environment と出る
+
+Raspberry Pi OS Bookworm 以降では、直接 `pip install` しないで venv を使います。
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r requirements-client.txt
+```
+
+通常は `./venv-start.sh unit` が自動で処理します。
+
+## 11. 補足: systemd 化
+
+tmux は手作業・デバッグ向けです。実証で常時運用する段階では systemd 化を検討してください。
+
+子機 systemd 例:
 
 ```ini
 [Unit]
 Description=OITERU Unit Client
-After=network-online.target
-Wants=network-online.target
+After=network-online.target pigpiod.service
+Wants=network-online.target pigpiod.service
 
 [Service]
 Type=simple
 User=pi
-WorkingDirectory=/home/pi/oiteru_250827_restAPI
-ExecStart=/bin/bash /home/pi/oiteru_250827_restAPI/venv-start.sh unit
+WorkingDirectory=/home/pi/Desktop/oiteru_202603
+ExecStart=/bin/bash /home/pi/Desktop/oiteru_202603/venv-start.sh unit
 Restart=always
 RestartSec=10
-StandardOutput=append:/home/pi/oiteru_250827_restAPI/unit.log
-StandardError=append:/home/pi/oiteru_250827_restAPI/unit_error.log
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-> ⚠️ **重要：** systemdサービスファイルでは `~` が使えないため、実際のパスに置き換えてください。  
-> 例: `User=hirameki-2` の場合  
-> - `WorkingDirectory=/home/hirameki-2/oiteru_250827_restAPI`  
-> - `ExecStart=/bin/bash /home/hirameki-2/oiteru_250827_restAPI/venv-start.sh unit`
+パスと `User` は実機に合わせて変更してください。
 
-**保存:** `Ctrl + O` → `Enter` → `Ctrl + X`
+## 12. 補足: Windows について
 
-**2️⃣ サービスを有効化・起動**
+Windows 用の PowerShell や bat スクリプトは残っていますが、この取説の標準ではありません。
 
-```bash
-# 設定を読み込み
-sudo systemctl daemon-reload
+レビュー、実証運用、引き継ぎでは Linux/tmux 手順を基準にしてください。
 
-# 自動起動を有効化
-sudo systemctl enable oiteru-unit
+## 13. 作業前後チェックリスト
 
-# サービスを起動
-sudo systemctl start oiteru-unit
-```
-
-**3️⃣ 状態確認**
+作業前:
 
 ```bash
-# 動作状態を確認
-sudo systemctl status oiteru-unit
-
-# ログをリアルタイム表示
-sudo journalctl -u oiteru-unit -f
-
-# ログファイルを確認
-tail -f ~/oiteru_250827_restAPI/unit.log
-```
-
-**停止するとき：**
-
-```bash
-# 一時停止
-sudo systemctl stop oiteru-unit
-
-# 自動起動を無効化
-sudo systemctl disable oiteru-unit
-```
-
-**再起動：**
-
-```bash
-sudo systemctl restart oiteru-unit
-```
-
-> ✅ **メリット**
-> - SSH不要で動く
-> - ラズパイ再起動しても自動で立ち上がる
-> - エラーで止まっても自動再起動
-> - 本番運用レベル
-> 
-> ⚠️ **注意**
-> - 初期設定が少し手間（でも一度だけ）
-
----
-
-#### 📊 おすすめ早見表
-
-| 目的 | 方法 | SSH切断後 | 再起動後 | 難易度 |
-|:---|:---|:---:|:---:|:---|
-| 🧪 **一時的な実験** | `nohup` | ✅ | ❌ | ⭐ |
-| 🔍 **開発・デバッグ** | `tmux` | ✅ | ❌ | ⭐⭐ |
-| 🏢 **本番運用・常駐** | `systemd` | ✅ | ✅ | ⭐⭐⭐ |
-
-**おすすめ：**
-- **ちょっと試したい** → `nohup`
-- **開発中・ログ確認したい** → `tmux`
-- **研究室や本番で使う** → **`systemd`** 🔥
-
----
-
-### 方法3: 🔧 通常モードで起動（非推奨）
-
-仮想環境を使わず、システムのPython環境で直接実行する方法です。
-
-```bash
-cd /home/pi/oiteru_250827_restAPI
-sudo python3 unit.py
-```
-
-> ⚠️ **注意:** この方法は依存関係の管理が難しいため、できる限り **方法1** か **方法2** を使ってください。
-
----
-
-### 方法4: 🔄 自動起動の設定
-
-電源ON時に自動で子機を起動させたい場合：
-
-```bash
-# サービス登録
-sudo cp /home/pi/oiteru_250827_restAPI/oiteru-unit.service /etc/systemd/system/
-sudo systemctl enable oiteru-unit
-sudo systemctl start oiteru-unit
-
-# 確認
-sudo systemctl status oiteru-unit
-```
-
----
-
-# 🔄 リモート設定同期
-
-親機・従親機の管理画面から、子機の設定をリモートで変更できます！
-
-### ✨ 特長
-
-- 🚀 **即時反映**: 設定変更が数秒で子機に届く
-- 🔄 **自動同期**: Heartbeat経由でも30秒ごとに同期
-- 📡 **2重の通信経路**: 直接送信 + Heartbeat経由のフォールバック
-
-### 🎯 設定できる項目
-
-| カテゴリ | 設定項目 |
-|:---|:---|
-| 🔧 **モーター** | タイプ、制御方法、速度、動作時間、回転方向 |
-| 📡 **センサー** | 使用有無、GPIOピン、タイムアウト、前後チェック |
-| 🌐 **通信** | Heartbeat間隔、Arduinoポート、PCA9685チャンネル |
-| 🛠️ **詰まり対策** | 詰まり解除試行回数 |
-
-### 📝 使い方
-
-1. 管理画面にログイン (`http://100.114.99.67:5000/admin`, パスワードは `.env` の `OITERU_ADMIN_PASSWORD`)
-2. 「子機管理」→ 対象の子機を選択
-3. 「子機設定（リモート設定）」セクションで設定を変更
-4. 「📤 設定を子機に送信」ボタンをクリック
-
-### 🔍 動作の仕組み
-
-```
-親機管理画面
-    │
-    ├─【即時送信】──→ 子機Flask API (ポート5001)
-    │                  └─ 成功: 即座に反映 ✅
-    │
-    └─【フォールバック】→ Heartbeat待ち
-                          └─ 次回接続時に反映 🔄
-```
-
-### 💡 ヒント
-
-- ✅ 子機がオンラインなら **即座に反映**
-- ⏰ 子機がオフラインでも **次回接続時に自動反映**
-- 🔄 親機の画面も **設定送信後に即座に更新される**
-
----
-
-# ⚙️ 管理画面の使い方
-
-ブラウザで以下にアクセス：
-
-```
-🌐 http://100.114.99.67:5000/admin
-🔑 パスワード: `.env` の `OITERU_ADMIN_PASSWORD`
-```
-
-### できること
-
-| メニュー | 説明 |
-|:---|:---|
-| 👥 ユーザー管理 | ユーザーの登録・編集、個人在庫数調整 |
-| 🤖 子機管理 | 子機の登録・接続状態確認・在庫管理 |
-| 📜 利用履歴 | 匿名化された利用統計の確認 |
-| ⚙️ 設定 | 自動登録モード、1日の配布上限数など |
-| 🔒 プライバシー | 個人情報保護とデータ管理設定 |
-
-> 💡 **プライバシーに配慮した設計**
-> 利用履歴は統計目的で記録されますが、個人を特定する情報は含まれません。
-
----
-
-# 🔧 トラブルシューティング
-
----
-
-## 🔒 PowerShellでスクリプトが実行できない
-
-こんなエラーが出た場合：
-```
-このシステムではスクリプトの実行が無効になっているため...
-```
-
-### 解決方法1: バッチファイルを使う（おすすめ）
-
-`.ps1` の代わりに `.bat` ファイルを使ってください：
-
-```
-.\scripts\setup_config.ps1  ← ❌ エラーになる
-.\scripts\setup_config.bat  ← ✅ OK！
-```
-
-### 解決方法2: 実行ポリシーを変更する
-
-```batch
-scripts\fix_powershell_policy.bat
-```
-
-このバッチファイルを実行すると、PowerShellスクリプトが使えるようになります。
-
-### 解決方法3: コマンドで一時的に許可
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\setup_config.ps1
-```
-
----
-
-## � pip installで「externally-managed-environment」エラー
-
-**Raspberry Pi OS Bookworm（2023年10月〜）以降** でこのエラーが出ます：
-
-```
-error: externally-managed-environment
-
-× This environment is externally managed
-╰─> To install Python packages system-wide, try apt install python3-xyz
-```
-
-### 原因
-
-PEP 668により、システムのPython環境を保護するため、直接パッケージをインストールすることができなくなりました。
-
-### ✅ 解決方法: 仮想環境を使う（推奨）
-
-```bash
-# 必要なパッケージをインストール
-sudo apt update
-sudo apt install -y python3-full python3-venv python3-pip
-
-# プロジェクトフォルダに移動
-cd /home/pi/oiteru_250827_restAPI
-
-# 仮想環境を作成
-python3 -m venv .venv
-
-# 仮想環境をアクティベート
-source .venv/bin/activate
-
-# これでpip installが使えるようになります
-pip install requests flask psutil
-```
-
-> 💡 **ヒント**: 自動セットアップスクリプトも用意しています：
-> ```bash
-> # スクリプトに実行権限を付与（初回のみ）
-> chmod +x scripts/setup_unit_environment.sh
-> # 実行
-> sudo ./scripts/setup_unit_environment.sh
-> ```
-
-### ❌ 非推奨の方法
-
-以下の方法は **システムを壊す可能性があるため非推奨** です：
-
-```bash
-# ❌ これは使わないでください
-pip install --break-system-packages requests
-```
-
----
-
-## �🔌 接続できない
-
-### 1. Tailscaleは接続してる？
-
-```bash
-tailscale status
-```
-
-「connected」と出てなければ：
-
-```bash
-sudo tailscale up
-```
-
-### 2. サーバーは起動してる？
-
-ブラウザで `http://100.114.99.67:5000` を開いてみる
-
-### 3. config.json は正しい？
-
-- `http://` で始まる？（`https://` じゃない）
-- 最後にスラッシュ `/` は付いてない？
-- ポート番号 `:5000` は付いてる？
-
----
-
-## 📱 NFCカードが読めない
-
-### 1. USBが抜けてない？
-
-NFCリーダーのUSBケーブルを確認
-
-### 2. デバイスが認識されてる？
-
-```bash
-lsusb
-```
-
-→ Sony か ACS のデバイスが表示されればOK
-
-### 3. ラズパイを再起動
-
-```bash
-sudo reboot
-```
-
----
-
-## 🩹 ナプキンが出ない
-
-- 在庫は残ってる？（管理画面で確認）
-- 1日の上限に達してない？
-- モーターの配線は正しい？
-- 排出口が詰まってない？
-
----
-
-## 📊 管理画面で「psutil未インストール」と表示される
-
-```
-システム情報: psutil未インストール (pip install psutil)
-```
-
-このメッセージは、子機でシステム監視ライブラリ（psutil）がインストールされていないことを示しています。
-
-### 原因
-
-psutilライブラリがないと、CPU/メモリ/ディスク使用率などのシステム情報を取得できません。
-
-### ✅ 解決方法: psutilをインストール
-
-子機のSSHセッションで以下を実行：
-
-```bash
-# プロジェクトフォルダに移動
-cd ~/oiteru_250827_restAPI
-
-# 仮想環境をアクティベート
-source .venv/bin/activate
-
-# psutilをインストール
-pip install psutil
-
-# 子機を再起動
-# (nohupの場合は停止してから再起動)
-# (tmuxの場合はCtrl+Cで停止してから再起動)
-# (systemdの場合)
-sudo systemctl restart oiteru-unit
-```
-
-### インストール後の表示例
-
-正常にインストールされると、管理画面で以下のように表示されます：
-
-```
-システム情報:
-  CPU使用率: 15.2%
-  メモリ使用率: 45.8% (使用中: 1.8GB / 全体: 4.0GB)
-  ディスク使用率: 62.3% (使用中: 18.7GB / 全体: 30.0GB)
-```
-
-> 💡 **ヒント**: 自動セットアップスクリプトを使うと、psutilも一緒にインストールされます：
-> ```bash
-> # スクリプトに実行権限を付与（初回のみ）
-> chmod +x scripts/setup_unit_environment.sh
-> # 実行
-> sudo ./scripts/setup_unit_environment.sh
-> ```
-
----
-
-## �️ tmuxで「duplicate session」エラーが出る
-
-```bash
-duplicate session: oiteru
-```
-
-このエラーは、既に同じ名前のセッションが存在している場合に発生します。
-
-### 解決方法1: 既存のセッションに接続（おすすめ）
-
-```bash
-tmux attach -t oiteru
-```
-
-### 解決方法2: セッションをリセット
-
-```bash
-# 既存のセッションを削除
-tmux kill-session -t oiteru
-
-# 新規作成
-tmux new -s oiteru
-```
-
-### 確認: セッション一覧を見る
-
-```bash
+git branch --show-current
+git pull
+git status --short
 tmux ls
 ```
 
----
-
-## 🖼️ SSH経由で「no display name」エラーが出る
+作業後:
 
 ```bash
-_tkinter.TclError: no display name and no $DISPLAY environment variable
+python -m unittest tests.test_stepper_driver
+docker compose -f docker-compose.mysql.yml ps
+systemctl status pigpiod
 ```
 
-このエラーは、SSH経由で起動した際にX11ディスプレイがない場合に発生します。
-
-### 解決方法1: CUIモードで起動（おすすめ・デフォルト）
+秘密情報確認:
 
 ```bash
-# 通常起動（CUIモードがデフォルト）
-./venv-start.sh unit
+git status --short
 ```
 
-nohupやtmuxで使う場合：
+`.env`, `config.json`, ログ、DB ファイルをコミットしないでください。
 
-```bash
-# nohupの場合
-nohup ./venv-start.sh unit > unit.log 2>&1 &
-
-# tmux内で起動する場合
-./venv-start.sh unit
-```
-
-### 解決方法2: X11転送を使う
-
-SSH接続時に `-X` オプションを付けてX11転送を有効にします：
-
-```bash
-# X11転送を有効にしてSSH接続
-ssh -X pi@100.xxx.xxx.xxx
-
-# 通常通り起動
-cd ~/oiteru_250827_restAPI
-./venv-start.sh unit
-```
-
-> 💡 **ヒント：** 本番運用では、systemdサービス化（方法C）を使うとこの問題は発生しません
-」エラーが出る
-
-```bash
-ModuleNotFoundError: No module named 'requests'
-ModuleNotFoundError: No module named 'RPi'
-```
-
-このエラーは、必要なPythonパッケージがインストールされていない場合に発生します。
-
-### 解決方法: 不足しているパッケージをインストール
-
-```bash
-# すべての依存パッケージを再インストール
-.venv/bin/pip install -r requirements.txt
-
-# Raspberry Pi用ハードウェアライブラリをインストール
-.venv/bin/pip install RPi.GPIO Adafruit-PCA9685 pyserial
-
-# 起動
-./venv-start.sh unit
-```
-
-### 特定のパッケージだけインストールする場合
-
-```bash
-# requestsをインストール
-.venv/bin/pip install requests
-
-# RPi.GPIOをインストール
-.venv/bin/pip install RPi.GPIO Adafruit-PCA9685 pyseriall -r requirements.txt
-
-# 起動
-./venv-start.sh unit
-```
-
----
-## �🐳 MySQLに接続できない
-
-### Dockerが起動してる？
-
-```powershell
-docker ps
-```
-
-→ `oiteru_mysql` が表示されてなければ：
-
-```powershell
-docker-compose -f docker-compose.mysql.yml up -d
-```
-
----
-
-# 📋 起動方法まとめ
-
-| 対象 | おすすめ | コマンド |
-|:---:|:---|:---|
-| 🖥️ 親機 | 🐳 Docker | `docker-compose -f docker-compose.mysql.yml up -d` |
-| 🖥️ 親機 | 🐍 仮想環境 | `.\venv-start.ps1 parent-mysql` |
-| 🔗 従親機 | 🐍 仮想環境 | `.\venv-start.ps1 sub-parent` |
-| 📡 子機 | ⚡ クイック起動 | `sudo ./quick_start_unit.sh 100.114.99.67` |
-| 📡 子機 | 🐍 仮想環境 | `./venv-start.sh unit` |
-
----
-
-# 🛠️ スクリプト一覧
-
-| スクリプト | 場所 | 説明 |
-|:---|:---|:---|
-| 🚀 `launcher.bat` | scripts/ | ランチャー（Windows） |
-| 🚀 `launcher.sh` | scripts/ | ランチャー（Linux） |
-| ⚡ `quick_start_unit.sh` | scripts/ | 子機クイック起動 |
-| 🐍 `venv-start.ps1` | / | 仮想環境起動（Windows） |
-| 🐍 `venv-start.sh` | / | 仮想環境起動（Linux） |
-| 🐳 `docker-start.sh` | / | Docker起動 |
-
----
-
-# 📞 困ったら
-
-管理者に連絡！その時、以下を伝えてね：
-
-| 項目 | 例 |
-|:---|:---|
-| 1️⃣ **何をしたか** | 「カードをかざした」 |
-| 2️⃣ **何が起きたか** | 「エラーが出た」 |
-| 3️⃣ **エラーメッセージ** | 画面に出た文字 |
-| 4️⃣ **子機の名前** | `UNIT_NAME` の値 |
-
----
-
-<div align="center">
-
-**わからないことがあったら、遠慮なく管理者にお問い合わせください！** 😊
-
-📅 最終更新: 2026年1月23日
-
-</div>
-
-
-
-🚀 親機起動
-親機（MySQL版）が正常に起動し、http://localhost:5000 で稼働中です。
-
-📝 venv-start スクリプト対応
-Windows (venv-start.ps1)
-
-.\venv-start.ps1 parent-sqlite   # 親機 (SQLite版).\venv-start.ps1 parent-mysql    # 親機 (MySQL版).\venv-start.ps1 sub-parent      # 従親機 (MySQL版).\venv-start.ps1 unit            # 子機 (引数渡し対応).\venv-start.ps1 unit --gui      # 子機 GUIモード
-Linux/Mac (venv-start.sh)
-
-./venv-start.sh parent-sqlite    # 親機 (SQLite版)./venv-start.sh parent-mysql     # 親機 (MySQL版)./venv-start.sh sub-parent       # 従親機 (MySQL版)./venv-start.sh unit             # 子機 (引数渡し対応)./venv-start.sh unit --gui       # 子機 GUIモード
-📦 ライブラリー依存関係の整備
-1. 親機・従親機用
-requirements.txt + requests>=2.32.0
-requirements.mysql.txt + requests>=2.28.0
-2. 子機用
-requirements-client.txt + flask>=3.0.0
-🔄 設定同期の案内表示
-GUIモード
-ウィンドウ上部に「🔄 親機・従親機からの設定変更が自動的に反映されます」と表示
-CUIモード
-起動時に以下を表示:
-
-
-🔄 親機・従親機からの設定変更が自動的に反映されます   - Heartbeat経由: 30秒ごとに設定を同期   - 即時反映: Flask API (ポート5001) で受信
-🎯 動作確認済み
-✅ 親機が起動中（MySQL版） ✅ venv-start.ps1/sh で全モード対応 ✅ 子機起動時に設定同期の案内を表示 ✅ 全ての依存ライブラリーを適切に配置 ✅ GitHubに同期完了
-
-これで、親機・従親機・子機の3方向すべてで設定同期が可能になり、起動スクリプトも統一されました！🎉
+最終更新: 2026-06-02

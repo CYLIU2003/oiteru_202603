@@ -353,12 +353,12 @@ def show_cui_menu(config):
         print(f" 18. テスト用ステップ数      : {config.get('STEPPER_TEST_STEPS', 256)}")
         print(f" 19. 固定排出ステップ数      : {config.get('STEPPER_STEPS', 0)}  (0=秒数指定)")
         print(f" 20. 回転方向反転            : {config['MOTOR_REVERSE']}")
-        _lib_status = (('OK ' + (_stepper_driver.library_import_error() or ''))
-                       if (_stepper_driver is not None and _stepper_driver.library_available())
-                       else ('NG - ' + (_stepper_driver.library_import_error() if _stepper_driver else 'stepper_driver not imported')))
-        print(f" 21. STEPPER_BACKEND         : {config.get('STEPPER_BACKEND', 'auto')}  (auto/library/gpio)  RpiMotorLib={_lib_status}")
-        print(f" 22. ライブラリ正方向テスト  : {config.get('STEPPER_TEST_STEPS', 256)} steps を RpiMotorLib 経由")
-        print(f" 23. ライブラリ逆方向テスト  : {config.get('STEPPER_TEST_STEPS', 256)} steps を RpiMotorLib 経由")
+        _pg_ok = (_stepper_driver is not None and _stepper_driver.gpiozero_available())
+        _rml_ok = (_stepper_driver is not None and _stepper_driver.library_available())
+        _avail = f"PigpioZero={'OK' if _pg_ok else 'NG'} RpiMotorLib={'OK' if _rml_ok else 'NG'}"
+        print(f" 21. STEPPER_BACKEND         : {config.get('STEPPER_BACKEND', 'auto')}  (auto/pigpio/library/gpio)  {_avail}")
+        print(f" 22. 自動選択正方向テスト    : {config.get('STEPPER_TEST_STEPS', 256)} steps (auto 経由)")
+        print(f" 23. 自動選択逆方向テスト    : {config.get('STEPPER_TEST_STEPS', 256)} steps (auto 経由)")
         print(f" 24. 任意ステップ数          : 手入力 (現在のSTEPPER_BACKEND設定に従う)")
         print(f" 25. 任意秒数               : 手入力 (現在のSTEPPER_BACKEND設定に従う)")
         print(f" 26. GPIOフォールバック強制  : STEPPER_BACKEND=gpio でテスト")
@@ -439,19 +439,19 @@ def show_cui_menu(config):
             config['MOTOR_REVERSE'] = input("排出時に逆方向にしますか？ [y/N]: ").strip().lower() == 'y'
         elif choice == '21':
             cur = config.get('STEPPER_BACKEND', 'auto')
-            v = input(f"STEPPER_BACKEND [{cur}] (auto/library/gpio): ").strip().lower()
-            if v in ('auto', 'library', 'gpio'):
+            v = input(f"STEPPER_BACKEND [{cur}] (auto/pigpio/library/gpio): ").strip().lower()
+            if v in ('auto', 'pigpio', 'library', 'gpio'):
                 config['STEPPER_BACKEND'] = v
                 print(f"✓ STEPPER_BACKEND を {v} に設定しました")
             else:
-                print("✗ auto / library / gpio のいずれかを指定してください")
+                print("✗ auto / pigpio / library / gpio のいずれかを指定してください")
         elif choice == '22':
             _run_stepper_now(steps=int(config.get('STEPPER_TEST_STEPS',256)), reverse=False,
-                             label='ライブラリ正方向テスト', force_backend='library')
+                             label='自動選択正方向テスト', force_backend=None)
             input("\nEnterキーで戻る...")
         elif choice == '23':
             _run_stepper_now(steps=int(config.get('STEPPER_TEST_STEPS',256)), reverse=True,
-                             label='ライブラリ逆方向テスト', force_backend='library')
+                             label='自動選択逆方向テスト', force_backend=None)
             input("\nEnterキーで戻る...")
         elif choice == '24':
             try:
@@ -651,12 +651,12 @@ def patch_unit_client_source(source: str) -> str:
         '            packages = [\n'
         '                "nfcpy", "requests", "flask", "pandas", "openpyxl", "numpy",\n'
         '                "RPi.GPIO", "Adafruit-PCA9685", "pyserial",\n'
-        '                "RpiMotorLib"\n'
+        '                "RpiMotorLib", "pigpio", "gpiozero"\n'
         '            ]'
     )
     source = source.replace(
         '            print(f"    pip install nfcpy requests flask pandas openpyxl numpy RPi.GPIO Adafruit-PCA9685 pyserial")',
-        '            print(f"    pip install nfcpy requests flask pandas openpyxl numpy RPi.GPIO Adafruit-PCA9685 pyserial RpiMotorLib")'
+        '            print(f"    pip install nfcpy requests flask pandas openpyxl numpy RPi.GPIO Adafruit-PCA9685 pyserial RpiMotorLib pigpio gpiozero")'
     )
 
     source = inject_stepper_branch(source)
