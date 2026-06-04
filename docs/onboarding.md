@@ -23,6 +23,20 @@
 
 Docker は当面の標準手順では使いません。古い資料やスクリプトに Docker の記述があっても、初回セットアップでは `scripts/setup_local_mysql.sh` と `scripts/tmux_oiteru.sh` を優先してください。
 
+## 公式ダウンロード URL
+
+| ソフトウェア | 用途 | URL |
+|---|---|---|
+| Ubuntu | 親機 Linux OS の候補 | https://ubuntu.com/download |
+| Raspberry Pi Imager | Raspberry Pi OS を SD カードへ書き込む | https://www.raspberrypi.com/software/ |
+| Raspberry Pi OS | 子機 OS | https://www.raspberrypi.com/software/operating-systems/ |
+| Python | Python 本体 | https://www.python.org/downloads/ |
+| Git | Git CLI | https://git-scm.com/downloads |
+| MySQL Community Server | 親機 DB | https://dev.mysql.com/downloads/mysql/ |
+| tmux | tmux 本体。Linux では通常 `apt` で入れる | https://github.com/tmux/tmux/releases |
+| Visual Studio Code | 推奨エディタ | https://code.visualstudio.com/download |
+| Tailscale | 別ネットワーク間で使う任意 VPN | https://tailscale.com/downloads |
+
 ## 初回セットアップ
 
 ```bash
