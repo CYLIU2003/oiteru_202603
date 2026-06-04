@@ -1,143 +1,77 @@
-# 🚀 OITERUシステム クイック起動ガイド
+# OITERU クイック起動メモ
 
-## 📌 最短起動手順
+詳しい手順は `取説書/QUICKSTART.md` にまとめています。このファイルは、すでに概要を知っている人向けの短いメモです。
 
-### 標準構成
+標準は **Linux 系 OS + tmux + ローカル MySQL + `db_server.py` + `unit.py`** です。Docker は標準手順では使いません。
 
-- 親機: `db_server.py`
-- DB: `MySQL 8 (InnoDB)`
-- `server.py` は legacy 互換用です
-
-このガイドの標準経路は `MySQL + .env + db_server.py` です。
-`server.py + SQLite` は既存検証用としてのみ扱ってください。
-
-### 事前準備
+## 1. 親機
 
 ```bash
+cd ~/Desktop/oiteru_202603
+git pull
+
+sudo apt update
+sudo apt install -y git tmux python3-full python3-venv python3-pip mysql-server
+
 cp .env.example .env
+nano .env
+
+scripts/setup_local_mysql.sh
+scripts/tmux_oiteru.sh start parent
+scripts/tmux_oiteru.sh attach parent
 ```
 
-以下は必ず変更してください。
+管理画面:
 
-- `FLASK_SECRET_KEY`
-- `OITERU_ADMIN_PASSWORD`
-- `MYSQL_PASSWORD`
-- `MYSQL_ROOT_PASSWORD`
+```text
+http://<親機IP>:5000/admin
+```
 
-`OITERU_STRICT_SECURITY=true` の場合、既定値のままでは起動時に停止します。
-
-### 子機設定を作成
+## 2. 子機
 
 ```bash
+cd ~/Desktop/oiteru_202603
+git pull
+
+sudo apt update
+sudo apt install -y git tmux python3-full python3-venv python3-pip curl
+
 cp config.example.json config.json
+nano config.json
+
+scripts/tmux_oiteru.sh start unit
+scripts/tmux_oiteru.sh attach unit
 ```
 
-以下を子機ごとに変更してください。
+## 3. tmux 操作
 
-- `SERVER_URL`
-- `UNIT_NAME`
-- `UNIT_PASSWORD`
+| やりたいこと | コマンド |
+|---|---|
+| 一時退出 | `Ctrl+b` → `d` |
+| 一覧 | `tmux ls` |
+| 状態確認 | `scripts/tmux_oiteru.sh status` |
+| 親機に戻る | `scripts/tmux_oiteru.sh attach parent` |
+| 子機に戻る | `scripts/tmux_oiteru.sh attach unit` |
+| 停止 | `scripts/tmux_oiteru.sh stop <parent|unit>` |
 
-### 親機（MySQL標準構成）
+## 4. よく使う確認
 
-**Windows:**
-```powershell
-.\scripts\quick_start_parent.ps1
-```
-
-**Mac/Linux:**
 ```bash
-./scripts/quick_start_parent.sh
+git branch --show-current
+git status --short
+tmux ls
+systemctl status mysql
+curl http://localhost:5000
 ```
 
-> `quick_start_parent.*` は `.env` を読み込み、親機は `db_server.py` で起動します。
+## 5. 詳細資料
 
-### 従親機（親機のDBに接続）
+| ファイル | 内容 |
+|---|---|
+| `README.md` | 全体像 |
+| `docs/onboarding.md` | 新入生・新規参加者向け |
+| `取説書/QUICKSTART.md` | 初心者向けの詳細起動手順 |
+| `取説書/README.md` | 取説書の目次 |
+| `docs/operations.md` | 運用・障害対応 |
 
-**Windows:**
-```powershell
-.\scripts\quick_start_sub.ps1 -Host 192.168.1.100
-```
-
-**Mac/Linux:**
-```bash
-./scripts/quick_start_sub.sh 192.168.1.100
-```
-
-### 子機（Raspberry Pi）
-
-**自動起動スクリプト:**
-```bash
-sudo ./scripts/quick_start_unit.sh 192.168.1.100
-```
-
-**仮想環境で起動:**
-```bash
-# プロジェクトフォルダに移動
-cd /home/pi/oiteru_250827_restAPI
-
-# 仮想環境スクリプトを実行（自動で環境構築・起動）
-./venv-start.sh unit
-```
-
-> 💡 `venv-start.sh` が自動で仮想環境を作成し、必要なパッケージをインストールして起動します！
-> 
-> 停止は `Ctrl + C` で行います。
-
----
-
-## 🐍 仮想環境モード vs 🐳 Dockerモード
-
-### 仮想環境モード（推奨・初心者向け）
-- **特徴:** Python仮想環境 + Docker(MySQL)
-- **起動:** `quick_start_parent.ps1`
-- **メリット:** 軽量、デバッグしやすい
-- **用途:** 開発環境、テスト環境
-
-### Dockerモード（本番運用向け）
-- **特徴:** 全てDockerコンテナで実行
-- **起動:** `quick_start_parent.ps1 -Docker`
-- **メリット:** 環境の完全隔離、本番安定性
-- **用途:** 本番サーバー、複数サーバー運用
-
----
-
-## 📡 アクセスURL
-
-起動後、以下のURLにアクセスできます：
-
-- **トップページ:** http://localhost:5000
-- **管理画面:** http://localhost:5000/admin
-  - パスワード: `.env` の `OITERU_ADMIN_PASSWORD`
-
-## 互換/既存検証用
-
-- `server.py + SQLite` は legacy 経路です
-- 新規環境のセットアップ、運用確認、レビュー時の前提は `db_server.py + MySQL` に統一してください
-
----
-
-## 📚 詳しい説明
-
-詳細なセットアップ手順は以下を参照してください：
-
-- **クイックスタートガイド:** `取説書/QUICKSTART.md`
-- **詳細マニュアル:** `取説書/README.md`
-
----
-
-## ❓ トラブルシューティング
-
-### 仮想環境が見つからない
-→ スクリプトが自動で作成します（初回のみ時間がかかります）
-
-### MySQLコンテナが起動しない
-→ Docker Desktopが起動しているか確認してください
-
-### 子機が親機に接続できない
-→ 親機のIPアドレスが正しいか確認してください
-→ ファイアウォールでポート5000/3306が開いているか確認してください
-
----
-
-**最終更新: 2026年3月13日**
+最終更新: 2026-06-04

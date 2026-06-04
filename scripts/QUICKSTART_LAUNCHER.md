@@ -1,104 +1,37 @@
-# OITELU ランチャー - クイックスタート
+# 旧ランチャー資料について
 
-## 📌 はじめに
+この資料で扱っていた `launcher.sh`, `launcher.ps1`, `launcher.bat`, `launcher_gui.py`, `launcher_cui.py` は legacy 扱いです。
 
-OITELU システムランチャーをscriptsフォルダに配置しました。
-親機・従親機・子機を簡単に起動できます。
+現在の標準手順は **Linux 系 OS + tmux + ローカル MySQL** です。新しく作業する人はランチャーではなく、次の手順を使ってください。
 
-## 🚀 すぐに使う
+## 親機
 
-### Windows
-
-1. エクスプローラーで `scripts` フォルダを開く
-2. `launcher.bat` をダブルクリック
-3. GUI版またはCUI版を選択
-4. 起動モード（親機/従親機/子機）を選択
-5. 「起動」をクリック
-
-### 親機でカードリーダーを使う場合
-
-1. ランチャーを起動
-2. **GUI版**: `💳 カードリーダー設定` ボタンをクリック
-3. **CUI版**: メニューから `5 - Card Reader Setup` を選択
-4. 自動的にセットアップが完了します
-
-## 📋 新機能
-
-### ✨ カードリーダー自動セットアップ
-
-親機・従親機でもNFCカードリーダーを使用する場合、ランチャーから簡単にセットアップできるようになりました。
-
-**対応機能:**
-- ✅ NFCカードリーダーの自動検出
-- ✅ Windows環境でのWSL自動アタッチ（usbipdを使用）
-- ✅ pcscdデーモンの自動起動
-- ✅ セットアップ状態のリアルタイム表示
-
-### 🎯 3つの起動モード
-
-1. **親機**: データベース管理サーバー（SQLite/MySQL対応）
-   - SQLite: 単一ファイルデータベース（シンプル）
-   - MySQL: Docker化された本格的なRDBMS（推奨）
-2. **従親機**: 外部MySQL接続サーバー（親機のDocker化されたMySQLなどに接続）
-3. **子機**: NFC + モーター制御
-
-### 💾 親機でMySQLを使う場合（推奨構成）
-
-親機でMySQLを使用すると、Dockerが自動的にMySQLコンテナを起動します：
-
-1. ランチャーで「親機」を選択
-2. 「⚙️ 詳細設定」をクリック
-3. `データベース種類` を `MySQL` に変更
-4. 「🐳 Dockerモード」を選択
-5. 起動ボタンをクリック
-
-→ MySQLコンテナとFlaskサーバーが連携して起動します！
-
-### 🔄 従親機を別のマシンで起動する場合
-
-従親機は、親機のDocker化されたMySQLデータベースに接続できます：
-
-1. ランチャーで「従親機」を選択
-2. 「⚙️ 詳細設定」で親機の接続情報を設定：
-   - `MySQL ホスト`: 親機のIPアドレス（例: `192.168.1.100`）
-   - `MySQL ポート`: `3306`
-   - `MySQL パスワード`: `oiteru_password_2025`
-3. 起動モード（通常/仮想環境/Docker）を選択
-4. 起動ボタンをクリック
-
-### 🐍 3つの実行方法
-
-1. **通常モード**: システムのPythonで直接実行
-2. **仮想環境モード**: .venv内で実行（パッケージ分離）
-3. **Dockerモード**: コンテナで実行（完全分離）
-
-## 🔧 必要な環境
-
-### すべての環境
-- Python 3.8 以上
-
-### カードリーダーを使う場合（親機/従親機）
-
-**Windows + WSL:**
-```powershell
-# usbipdをインストール
-winget install usbipd
-```
-
-**Linux:**
 ```bash
-# Ubuntu/Debian
-sudo apt-get install pcscd pcsc-tools
-
-# Fedora
-sudo dnf install pcsc-lite pcsc-tools
+cd ~/Desktop/oiteru_202603
+cp .env.example .env
+nano .env
+scripts/setup_local_mysql.sh
+scripts/tmux_oiteru.sh start parent
+scripts/tmux_oiteru.sh attach parent
 ```
 
-## 📖 詳しい使い方
+## 子機
 
-`LAUNCHER_README.md` を参照してください。
+```bash
+cd ~/Desktop/oiteru_202603
+cp config.example.json config.json
+nano config.json
+scripts/tmux_oiteru.sh start unit
+scripts/tmux_oiteru.sh attach unit
+```
 
----
+## 詳細
 
-**OITELU System Launcher**  
-親機・従親機・子機の統合起動ソリューション
+| ファイル | 内容 |
+|---|---|
+| `../README.md` | 全体像 |
+| `../docs/onboarding.md` | 新規参加者向け |
+| `../取説書/QUICKSTART.md` | 詳細な起動手順 |
+| `../docs/operations.md` | 運用・障害対応 |
+
+最終更新: 2026-06-04

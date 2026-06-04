@@ -1,141 +1,149 @@
-# OITERU (オイテル) システム
+# OITERU システム
 
-**NFCカードで「生理用品(ナプキン)」を管理するスマートIoTシステム**
+OITERU は、NFC カードを用いて生理用品を管理・排出し、利用履歴・在庫・子機状態を扱う IoT システムです。
 
-社員証や学生証などのICカードをかざすだけで、自動で生理用品(ナプキン)を排出し、利用履歴を記録します。
+このリポジトリの標準運用は **Linux 系 OS + tmux + ローカル MySQL 8 + `db_server.py` + `unit.py`** です。しばらく Docker を使わない前提で、起動手順と運用手順を tmux 中心に整理しています。
 
----
+## まず読む順番
 
-## 📁 ファイル構成（これだけ覚えればOK！）
-
-```
-oiteru_202603/
-│
-├── 🗄️  db_server.py     ← 標準の親機エントリポイント（MySQL）
-├── 🖥️  server.py        ← legacy 親機エントリポイント（SQLite/互換用）
-├── 📡  unit.py          ← 子機を起動するファイル（Raspberry Pi用）
-│
-├── 📄  db_adapter.py    ← (内部用) データベース処理
-├── ⚙️  config.example.json ← 子機設定テンプレート
-├── ⚙️  .env.example     ← サーバー設定のテンプレート
-│
-├── 📁  docker/          ← Docker関連ファイル
-├── 📁  docs/            ← 運用資料・引き継ぎ資料
-├── 📁  scripts/         ← 便利スクリプト集
-├── 📁  tools/           ← テスト・診断ツール
-├── 📁  templates/       ← Web画面のHTML
-├── 📁  static/          ← CSS・画像
-│
-└── 📚  取説書/          ← ドキュメント
-    ├── QUICKSTART.md    ← 🔰 初心者はここから！
-    └── REFERENCE.md     ← 📖 全機能の詳細説明
-```
-
----
+| 順番 | ファイル | 目的 |
+|---:|---|---|
+| 1 | `README.md` | 全体像と最短起動を確認する |
+| 2 | `docs/onboarding.md` | 新しく参加した人が安全に開発へ入る |
+| 3 | `取説書/QUICKSTART.md` | 親機・子機を tmux で実際に起動する |
+| 4 | `docs/operations.md` | 日常運用・障害時対応・引き継ぎを見る |
+| 5 | `scripts/README.md` | 使ってよいスクリプトを確認する |
 
 ## 標準構成
 
-- 親機: `db_server.py`
-- DB: `MySQL 8 (InnoDB)`
-- Docker: `docker-compose.mysql.yml`
-- `server.py` は legacy 互換経路で、新規開発対象外です
+| 項目 | 標準 |
+|---|---|
+| 親機 OS | Linux 系 OS |
+| 子機 OS | Raspberry Pi OS / Linux 系 OS |
+| 起動方法 | `tmux` |
+| 親機エントリポイント | `db_server.py` |
+| 子機エントリポイント | `unit.py` |
+| DB | MySQL 8 (InnoDB) |
+| DB 起動 | OS の `mysql` サービス |
+| 設定 | `.env` と `config.json` |
 
-## 標準起動手順
+`server.py + SQLite` は legacy 互換経路です。新規セットアップ、学内実証、レビューでは使わないでください。
 
-この README の標準経路は `MySQL + .env + db_server.py` の 1 本です。
-`server.py + SQLite` は既存検証用の legacy 経路として扱います。
-
-## ⚡ 5ステップで始める
-
-### ステップ1: `.env` を作成
+## 最短起動: 親機
 
 ```bash
+cd ~/Desktop/oiteru_202603
+git pull
+
+sudo apt update
+sudo apt install -y git tmux python3-full python3-venv python3-pip mysql-server
+
 cp .env.example .env
+nano .env
+
+scripts/setup_local_mysql.sh
+scripts/tmux_oiteru.sh start parent
+scripts/tmux_oiteru.sh attach parent
 ```
 
-最低限、以下を必ず変更してください。
+管理画面:
 
-- `FLASK_SECRET_KEY`
-- `OITERU_ADMIN_PASSWORD`
-- `MYSQL_PASSWORD`
-- `MYSQL_ROOT_PASSWORD`
+```text
+http://<親機IP>:5000/admin
+```
 
-`OITERU_STRICT_SECURITY=true` の場合、既定値のままでは起動時に停止します。
+同じ端末で確認する場合:
 
-### ステップ2: 子機設定を作成
+```text
+http://localhost:5000/admin
+```
+
+## 最短起動: 子機
 
 ```bash
+cd ~/Desktop/oiteru_202603
+git pull
+
+sudo apt update
+sudo apt install -y git tmux python3-full python3-venv python3-pip curl
+
 cp config.example.json config.json
+nano config.json
+
+scripts/tmux_oiteru.sh start unit
+scripts/tmux_oiteru.sh attach unit
 ```
 
-最低限、以下を子機ごとに変更してください。
+`config.json` では最低限、次を子機ごとに変更してください。
 
-- `SERVER_URL`
-- `UNIT_NAME`
-- `UNIT_PASSWORD`
+| キー | 内容 | 例 |
+|---|---|---|
+| `SERVER_URL` | 親機 URL | `http://192.168.1.10:5000` |
+| `UNIT_NAME` | 管理画面に出る子機名 | `unit-01` |
+| `UNIT_PASSWORD` | 親機と合わせる子機パスワード | `change-this` |
 
-### ステップ3: 親機を起動
+## tmux 操作
+
+| やりたいこと | コマンド |
+|---|---|
+| 親機を起動 | `scripts/tmux_oiteru.sh start parent` |
+| 子機を起動 | `scripts/tmux_oiteru.sh start unit` |
+| 状態を見る | `scripts/tmux_oiteru.sh status` |
+| 親機に戻る | `scripts/tmux_oiteru.sh attach parent` |
+| 子機に戻る | `scripts/tmux_oiteru.sh attach unit` |
+| ログを見る | `scripts/tmux_oiteru.sh logs parent` |
+| 停止する | `scripts/tmux_oiteru.sh stop parent` |
+
+tmux 画面から一時退出するには `Ctrl+b` の後に `d` を押します。アプリは動き続けます。
+
+## よく使う確認コマンド
 
 ```bash
-# Dockerで起動（推奨・標準）
-docker compose -f docker-compose.mysql.yml up -d
-
-# または直接起動（MySQL接続）
-python db_server.py
-
-# venv経由でも MySQL が既定
-./venv-start.sh parent-mysql
+git branch --show-current
+git status --short
+tmux ls
+systemctl status mysql
+mysql -u oiteru_user -p oiteru -e "SELECT 1;"
+curl http://localhost:5000
 ```
 
-### ステップ4: 子機を起動（Raspberry Pi）
+## ディレクトリ概要
 
-```bash
-# 仮想環境で起動（推奨）
-./venv-start.sh unit
-
-# または直接起動（CUIモード）
-sudo python unit.py --no-gui
+```text
+oiteru_202603/
+├── db_server.py              # 標準の親機エントリポイント(MySQL)
+├── unit.py                   # 子機エントリポイント
+├── server.py                 # legacy / 従親機向け経路
+├── .env.example              # 親機 .env のテンプレート
+├── config.example.json       # 子機 config.json のテンプレート
+├── requirements.txt          # 親機依存パッケージ
+├── requirements-client.txt   # 子機依存パッケージ
+├── scripts/                  # tmux 起動・初期化・診断スクリプト
+├── docs/                     # 開発・運用資料
+├── tests/                    # 単体テスト
+└── 取説書/                   # 初心者向け手順書
 ```
 
-### ステップ5: 管理画面にアクセス
+## Git 管理しないもの
 
-ブラウザで http://localhost:5000/admin を開き、`.env` の `OITERU_ADMIN_PASSWORD` でログインします。
+次のファイルは秘密情報やローカル状態を含むため、コミットしないでください。
 
-## legacy / 互換構成
+| ファイル | 理由 |
+|---|---|
+| `.env` | 管理者パスワード、DB パスワード |
+| `config.json` | 子機パスワード、設置場所、親機 URL |
+| `logs/` | 運用ログ |
+| `*.log` | 運用ログ |
+| `*.sqlite3` | legacy DB / ローカルデータ |
 
-- `server.py + SQLite` は既存データ確認や互換検証向けです
-- 新規セットアップ、運用手順、障害切り分けは `db_server.py + MySQL` を前提にしてください
-- `config.json`、`*.sqlite3`、`*.log` はローカル生成物として Git 管理しません
-- `venv-start.sh` / `venv-start.ps1` は引数なしなら MySQL 親機を起動します
+## 開発の優先順位
 
----
+1. 認証、DB、ログ、障害時整合性を優先する
+2. 標準 DB は MySQL 8(InnoDB) とする
+3. 実機依存コードは抽象化し、モックでテストできる形にする
+4. route handler から直接 SQL を書かない
+5. コード変更時は README、取説、`.env.example`、docs も必要に応じて更新する
 
-## 📚 ドキュメント
+詳細な開発参加手順は `docs/onboarding.md` を読んでください。
 
-| 対象 | ドキュメント | 説明 |
-|:---:|:---|:---|
-| 🔰 | [取説書/QUICKSTART.md](取説書/QUICKSTART.md) | **初心者向け** - まずはここから |
-| 📖 | [取説書/REFERENCE.md](取説書/REFERENCE.md) | **上級者向け** - 全機能の詳細 |
-| 🛠️ | [docs/operations.md](docs/operations.md) | **運用・引き継ぎ向け** - 日常運用と障害対応 |
-
----
-
-## ✨ 主な機能
-
-- **自動登録モード**: 未登録カードも自動でユーザー登録
-- **複数親機対応**: 複数サーバーで同じDBを共有
-- **Web管理画面**: ブラウザから利用状況を確認
-- **Docker対応**: MySQL込みで環境構築
-
----
-
-## 運用上の注意
-
-- 標準DBは `MySQL 8 (InnoDB)` です
-- `config.json`、`*.sqlite3`、`*.log` は Git 管理しません
-- 管理者パスワードと Flask secret は必ず `.env` から設定してください
-- `server.py + SQLite` は legacy 互換経路です。標準構成では使いません
-
----
-
-**最終更新: 2026年3月13日**
+最終更新: 2026-06-04
