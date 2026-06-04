@@ -1,3 +1,4 @@
+# Runtime databases / generated data
 oiteru.sqlite3
 oiteru.sqlite3.backup_*
 *.db
@@ -6,19 +7,37 @@ oiteru.sqlite3.backup_*
 *.xlsx
 users_*.xlsx
 stats_*.xlsx
+
+# Logs
 *.log
+logs/
+
+# Python cache
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
-# 実運用設定
+# Branch-local / machine-local runtime settings
+# Keep actual unit wiring, server URL, passwords, and motor calibration out of git.
 config.json
+config.local.json
+config.*.local.json
+*.runtime.json
+*.secrets.json
 
-# 仮想環境
+# Virtual environments
 .venv/
 venv/
 env/
 .env
+.env.*
+!.env.example
 
-# エディタ設定
+# OS / editor files
+.DS_Store
+Thumbs.db
 .idea/
 .vscode/
