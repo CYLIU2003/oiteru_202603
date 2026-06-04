@@ -1,45 +1,48 @@
 # 子機環境セットアップガイド
 
-このガイドでは、Raspberry Pi上でOITERU子機を動作させるための環境準備手順を説明します。
+このガイドでは、Raspberry Pi 上で OITERU 子機を tmux で動かすための環境準備を説明します。
 
-## 📋 前提条件
+標準は **Linux 系 OS + tmux + `unit.py`** です。古い Docker や systemd 前提の手順は、この資料では扱いません。
 
-- Raspberry Pi 3/4/5 (Raspberry Pi OS Bullseye以降)
+## 前提条件
+
+- Raspberry Pi 3/4/5
+- Raspberry Pi OS Bullseye 以降
 - インターネット接続
-- 管理者権限 (sudo)
+- 管理者権限
+- 親機の URL が分かっていること
 
-## 🚀 クイックセットアップ
-
-### 方法1: 自動セットアップスクリプト (推奨)
+## 自動セットアップ
 
 ```bash
-# プロジェクトディレクトリに移動
-cd ~/oiteru_250827_restAPI
-
-# セットアップスクリプトを実行
+cd ~/Desktop/oiteru_202603
 chmod +x scripts/setup_unit_environment.sh
 ./scripts/setup_unit_environment.sh
 ```
 
-スクリプトが以下を自動で実行します:
-1. システムパッケージの更新
-2. 必要なライブラリのインストール
-3. I2Cインターフェースの有効化
-4. Python仮想環境の作成
-5. Pythonパッケージのインストール
-6. 設定ファイルのテンプレート作成
-
-### 方法2: 手動セットアップ
-
-#### 1. システムパッケージのインストール
+セットアップ後、`config.json` を確認します。
 
 ```bash
-# システム更新
-sudo apt-get update
-sudo apt-get upgrade -y
+cp config.example.json config.json
+nano config.json
+```
 
-# 必要なパッケージをインストール
-sudo apt-get install -y \
+最低限、次を変更してください。
+
+| キー | 内容 | 例 |
+|---|---|---|
+| `SERVER_URL` | 親機 URL | `http://192.168.1.10:5000` |
+| `UNIT_NAME` | 子機名 | `unit-01` |
+| `UNIT_PASSWORD` | 親機側と合わせるパスワード | `change-this` |
+
+## 手動セットアップ
+
+```bash
+sudo apt update
+sudo apt install -y \
+    git \
+    tmux \
+    curl \
     python3-dev \
     python3-pip \
     python3-venv \
@@ -47,243 +50,119 @@ sudo apt-get install -y \
     libusb-1.0-0-dev \
     libnfc-dev \
     pcscd \
-    i2c-tools \
-    git \
-    tmux
+    pcsc-tools \
+    i2c-tools
 ```
 
-#### 2. I2Cの有効化
+Python 仮想環境:
 
 ```bash
-# raspi-configを起動
+cd ~/Desktop/oiteru_202603
+python3 -m venv .venv
+.venv/bin/pip install --upgrade pip setuptools wheel
+.venv/bin/pip install -r requirements-client.txt
+```
+
+I2C を使う構成の場合:
+
+```bash
 sudo raspi-config
+```
 
-# 以下の順で選択:
-# 3. Interface Options
-# → I5 I2C
-# → Yes
+次の順で選択します。
 
-# 再起動
+```text
+3. Interface Options
+I5 I2C
+Yes
+```
+
+設定後に再起動してください。
+
+```bash
 sudo reboot
 ```
 
-または、手動で設定:
+## 起動
 
 ```bash
-# config.txtを編集
-sudo nano /boot/firmware/config.txt  # Bookworm以降
-# または
-sudo nano /boot/config.txt  # 旧バージョン
-
-# 以下を追加
-dtparam=i2c_arm=on
-
-# モジュールを自動読み込み
-echo "i2c-dev" | sudo tee -a /etc/modules
-
-# ユーザーをi2cグループに追加
-sudo usermod -aG i2c $USER
-
-# 再起動
-sudo reboot
+cd ~/Desktop/oiteru_202603
+scripts/tmux_oiteru.sh start unit
+scripts/tmux_oiteru.sh attach unit
 ```
 
-#### 3. Python仮想環境の作成
+tmux から一時退出:
+
+```text
+Ctrl+b → d
+```
+
+戻る:
 
 ```bash
-cd ~/oiteru_250827_restAPI
-
-# 仮想環境を作成
-python3 -m venv venv
-
-# 仮想環境を有効化
-source venv/bin/activate
+scripts/tmux_oiteru.sh attach unit
 ```
 
-#### 4. Pythonパッケージのインストール
+状態確認:
 
 ```bash
-# pipを最新版に更新
-pip install --upgrade pip setuptools wheel
-
-# 子機用パッケージをインストール
-pip install -r docker/requirements-client.txt
+scripts/tmux_oiteru.sh status unit
+scripts/tmux_oiteru.sh logs unit
 ```
 
-### インストールされるパッケージ
-
-- **requests** (>=2.28.0) - HTTP通信
-- **flask** (>=3.0.0) - リモート設定変更受信用APIサーバー
-- **psutil** (>=5.9.0) - CPU/メモリ使用率取得
-- **nfcpy** (>=1.0.4) - NFCカードリーダー制御
-- **RPi.GPIO** (>=0.7.1) - GPIO制御
-- **Adafruit-PCA9685** (>=1.0.1) - サーボモーター制御
-- **pyserial** (>=3.5) - Arduino通信
-
-## ⚙️ 設定
-
-### config.jsonの作成
+停止:
 
 ```bash
-# テンプレートをコピー
-cp config_templates/config_unit.template.json config.json
-
-# 設定ファイルを編集
-nano config.json
+scripts/tmux_oiteru.sh stop unit
 ```
 
-### 必須設定項目
-
-```json
-{
-  "SERVER_URL": "http://100.114.99.67:5000",  // 親機のURL
-  "UNIT_NAME": "2号機",                        // この子機の名前
-  "UNIT_PASSWORD": "password123",              // この子機のパスワード
-  "MOTOR_TYPE": "STEPPER",                     // SERVO or STEPPER
-  "CONTROL_METHOD": "ARDUINO_SERIAL"           // RASPI_DIRECT or ARDUINO_SERIAL
-}
-```
-
-## 🏃 起動
-
-### 通常起動
+## NFC リーダー確認
 
 ```bash
-# 仮想環境を有効化
-source venv/bin/activate
-
-# 子機を起動
-python unit.py
+lsusb
+systemctl status pcscd
 ```
 
-### tmuxセッションで起動 (推奨)
-
-tmuxを使用すると、SSH接続を切断してもプロセスが継続します。
+Sony RC-S380 などの USB リーダーを使う場合、認識しないときは抜き差ししてから `pcscd` を再起動します。
 
 ```bash
-# tmuxセッションを作成して起動
-tmux new-session -d -s oiteru 'source venv/bin/activate && python unit.py'
-
-# ログを確認
-tmux attach -t oiteru
-
-# セッションから切り離し (Ctrl+B → D)
-
-# セッション一覧
-tmux ls
-
-# セッション終了
-tmux kill-session -t oiteru
-```
-
-### systemdサービスとして起動 (自動起動)
-
-```bash
-# サービスファイルを作成
-sudo nano /etc/systemd/system/oiteru-unit.service
-```
-
-```ini
-[Unit]
-Description=OITERU Unit Client
-After=network.target
-
-[Service]
-Type=simple
-User=pi
-WorkingDirectory=/home/pi/oiteru_250827_restAPI
-ExecStart=/home/pi/oiteru_250827_restAPI/venv/bin/python unit.py
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
-# サービスを有効化
-sudo systemctl daemon-reload
-sudo systemctl enable oiteru-unit
-sudo systemctl start oiteru-unit
-
-# ステータス確認
-sudo systemctl status oiteru-unit
-
-# ログ確認
-sudo journalctl -u oiteru-unit -f
-```
-
-## 🔧 トラブルシューティング
-
-### NFCリーダーが認識されない
-
-```bash
-# USBデバイスを確認
-lsusb | grep -i sony
-
-# 期待される出力:
-# Bus 001 Device 004: ID 054c:06c3 Sony Corp. RC-S380
-
-# pcscdサービスを再起動
 sudo systemctl restart pcscd
-sudo systemctl status pcscd
 ```
 
-### I2Cが動作しない
+## GPIO 権限
+
+GPIO 権限エラーが出る場合:
 
 ```bash
-# I2Cデバイスをスキャン
-sudo i2cdetect -y 1
-
-# PCA9685が接続されている場合、0x40にデバイスが表示される
-```
-
-### psutilが動作しない
-
-```bash
-# 仮想環境内で再インストール
-source venv/bin/activate
-pip uninstall psutil
-pip install psutil
-```
-
-### GPIO権限エラー
-
-```bash
-# ユーザーをgpioグループに追加
 sudo usermod -aG gpio $USER
-
-# 再ログイン
-exit
 ```
 
-## 📊 動作確認
+いったんログアウトしてから入り直してください。
 
-### システム情報の確認
-
-親機の管理画面から「デバッグ・診断」セクションで以下を実行:
-- **接続テスト**: 子機との通信確認
-- **ステータス取得**: CPU/メモリ使用率などを表示
-
-### ログの確認
+## 親機との接続確認
 
 ```bash
-# tmuxセッションのログを確認
-tmux attach -t oiteru
-
-# systemdサービスのログを確認
-sudo journalctl -u oiteru-unit -n 100 --no-pager
+curl http://<親機IP>:5000
 ```
 
-## 🆘 サポート
+接続できない場合は、`config.json` の `SERVER_URL`、ネットワーク、Tailscale/LAN、親機 tmux の状態を確認してください。
 
-問題が発生した場合:
-1. ログを確認する (tmuxまたはjournalctl)
-2. config.jsonの設定を確認する
-3. ネットワーク接続を確認する (親機にpingが通るか)
-4. GitHubのIssuesで報告する
+## 作業後チェック
 
-## 📚 関連ドキュメント
+```bash
+git status --short
+scripts/tmux_oiteru.sh status unit
+```
 
-- [QUICKSTART.md](../取説書/QUICKSTART.md) - 全体的なクイックスタートガイド
-- [config_templates/README.md](../config_templates/README.md) - 設定ファイルの詳細
+`.env`, `config.json`, `logs/`, ログ、DB ファイルをコミットしないでください。
+
+## 関連ドキュメント
+
+| ファイル | 内容 |
+|---|---|
+| `../取説書/QUICKSTART.md` | 全体的なクイックスタート |
+| `../docs/onboarding.md` | 新規参加者向け |
+| `../docs/operations.md` | 運用・障害対応 |
+| `../config_templates/README.md` | 設定ファイルの詳細 |
+
+最終更新: 2026-06-04

@@ -4,128 +4,95 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>OITERU かんたんスタートガイド</title>
-  <style>
-    :root {
-      color-scheme: light;
-      --bg: #f7f7fb;
-      --card: #ffffff;
-      --text: #1f2937;
-      --muted: #6b7280;
-      --accent: #2563eb;
-      --border: #e5e7eb;
-      --code: #111827;
-    }
-    body {
-      margin: 0;
-      background: var(--bg);
-      color: var(--text);
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      line-height: 1.7;
-    }
-    main {
-      max-width: 920px;
-      margin: 0 auto;
-      padding: 32px 16px 56px;
-    }
-    header, section {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 24px;
-      margin-bottom: 18px;
-      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
-    }
-    h1, h2 {
-      line-height: 1.3;
-      margin: 0 0 12px;
-    }
-    p {
-      margin: 8px 0;
-    }
-    a {
-      color: var(--accent);
-      font-weight: 700;
-    }
-    table {
-      border-collapse: collapse;
-      width: 100%;
-      margin-top: 12px;
-      overflow-wrap: anywhere;
-    }
-    th, td {
-      border: 1px solid var(--border);
-      padding: 10px;
-      text-align: left;
-      vertical-align: top;
-    }
-    th {
-      background: #eef2ff;
-    }
-    pre {
-      background: var(--code);
-      color: #f9fafb;
-      padding: 14px;
-      border-radius: 12px;
-      overflow-x: auto;
-    }
-    code {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    }
-    .note {
-      color: var(--muted);
-      font-size: 0.95rem;
-    }
-  </style>
+  <link rel="stylesheet" href="manual.css">
 </head>
 <body>
-  <main>
-    <header>
-      <h1>OITERU かんたんスタートガイド</h1>
-      <p>最新版の詳しい手順は Markdown 版にまとめています。</p>
-      <p><a href="QUICKSTART.md">QUICKSTART.md を開く</a></p>
-      <p class="note">標準運用は Linux 系 OS + tmux + MySQL + db_server.py + unit.py です。</p>
-    </header>
+  <main class="container">
+    <h1>OITERU かんたんスタートガイド</h1>
+    <p>標準構成は <strong>Linux 系 OS + tmux + ローカル MySQL + db_server.py + unit.py</strong> です。Docker は標準手順では使いません。</p>
 
     <section>
-      <h2>最短: 親機を起動</h2>
-      <pre><code>cd ~/Desktop/oiteru_202603
+      <h2>読む順番</h2>
+      <ol>
+        <li><code>README.md</code> で全体像を確認する</li>
+        <li><code>docs/onboarding.md</code> で開発参加の注意点を読む</li>
+        <li><code>取説書/QUICKSTART.md</code> の手順で起動する</li>
+        <li><code>docs/operations.md</code> で運用・障害対応を見る</li>
+      </ol>
     </section>
 
     <section>
-      <h2>最短: 子機を起動</h2>
+      <h2>共通準備</h2>
       <pre><code>cd ~/Desktop/oiteru_202603
+git pull
+sudo apt update
+sudo apt install -y git tmux python3-full python3-venv python3-pip curl</code></pre>
     </section>
 
     <section>
-      <h2>tmux の基本</h2>
+      <h2>親機</h2>
+      <pre><code>cp .env.example .env
+nano .env
+sudo apt install -y mysql-server
+scripts/setup_local_mysql.sh
+scripts/tmux_oiteru.sh start parent
+scripts/tmux_oiteru.sh attach parent</code></pre>
+      <p>管理画面は <code>http://&lt;親機IP&gt;:5000/admin</code> です。</p>
+    </section>
+
+    <section>
+      <h2>子機</h2>
+      <pre><code>cp config.example.json config.json
+nano config.json
+scripts/tmux_oiteru.sh start unit
+scripts/tmux_oiteru.sh attach unit</code></pre>
+      <p><code>SERVER_URL</code>, <code>UNIT_NAME</code>, <code>UNIT_PASSWORD</code> を子機ごとに設定してください。</p>
+    </section>
+
+    <section>
+      <h2>tmux 操作</h2>
       <table>
         <thead>
-          <tr><th>やりたいこと</th><th>操作</th></tr>
+          <tr><th>やりたいこと</th><th>コマンド</th></tr>
         </thead>
         <tbody>
           <tr><td>一時退出</td><td><code>Ctrl+b</code> の後に <code>d</code></td></tr>
-          <tr><td>一覧を見る</td><td><code>tmux ls</code></td></tr>
-          <tr><td>親機に戻る</td><td><code>tmux attach -t oiteru-parent</code></td></tr>
-          <tr><td>子機に戻る</td><td><code>tmux attach -t oiteru-unit</code></td></tr>
-          <tr><td>止める</td><td>セッション内で <code>Ctrl+c</code></td></tr>
+          <tr><td>状態確認</td><td><code>scripts/tmux_oiteru.sh status</code></td></tr>
+          <tr><td>親機に戻る</td><td><code>scripts/tmux_oiteru.sh attach parent</code></td></tr>
+          <tr><td>子機に戻る</td><td><code>scripts/tmux_oiteru.sh attach unit</code></td></tr>
+          <tr><td>ログを見る</td><td><code>scripts/tmux_oiteru.sh logs parent</code></td></tr>
+          <tr><td>停止</td><td><code>scripts/tmux_oiteru.sh stop parent</code></td></tr>
         </tbody>
       </table>
     </section>
 
     <section>
-      <h2>次に見る資料</h2>
+      <h2>確認コマンド</h2>
+      <pre><code>git branch --show-current
+git status --short
+tmux ls
+systemctl status mysql
+curl http://localhost:5000</code></pre>
+    </section>
+
+    <section>
+      <h2>困ったとき</h2>
       <table>
         <thead>
-          <tr><th>資料</th><th>内容</th></tr>
+          <tr><th>症状</th><th>見る場所</th></tr>
         </thead>
         <tbody>
-          <tr><td><a href="../README.md">../README.md</a></td><td>リポジトリ全体の概要</td></tr>
-          <tr><td><a href="QUICKSTART.md">QUICKSTART.md</a></td><td>初心者向けの詳細手順</td></tr>
-          <tr><td><a href="README.md">取説書/README.md</a></td><td>取説書フォルダの目次</td></tr>
-          <tr><td><a href="../docs/operations.md">docs/operations.md</a></td><td>日常運用と障害対応</td></tr>
+          <tr><td>起動できない</td><td><code>取説書/QUICKSTART.md</code></td></tr>
+          <tr><td>管理画面に入れない</td><td><code>docs/operations.md</code></td></tr>
+          <tr><td>DB 接続に失敗する</td><td><code>.env</code> と <code>systemctl status mysql</code></td></tr>
+          <tr><td>子機がオンラインにならない</td><td><code>config.json</code> と子機 tmux ログ</td></tr>
         </tbody>
       </table>
     </section>
+
+    <footer>
+      <p>最終更新: 2026-06-04</p>
+    </footer>
   </main>
 </body>
 </html>

@@ -2,7 +2,7 @@
 
 詳しい手順は `取説書/QUICKSTART.md` にまとめています。このファイルは、すでに概要を知っている人向けの短いメモです。
 
-標準は **Linux 系 OS + tmux + MySQL + db_server.py + unit.py** です。
+標準は **Linux 系 OS + tmux + ローカル MySQL + `db_server.py` + `unit.py`** です。Docker は標準手順では使いません。
 
 ## 1. 親機
 
@@ -10,14 +10,15 @@
 cd ~/Desktop/oiteru_202603
 git pull
 
-# 初回だけ
+sudo apt update
+sudo apt install -y git tmux python3-full python3-venv python3-pip mysql-server
+
 cp .env.example .env
 nano .env
 
-docker compose -f docker-compose.mysql.yml up -d
-
-tmux new -s oiteru-parent
-./venv-start.sh parent-mysql
+scripts/setup_local_mysql.sh
+scripts/tmux_oiteru.sh start parent
+scripts/tmux_oiteru.sh attach parent
 ```
 
 管理画面:
@@ -32,28 +33,15 @@ http://<親機IP>:5000/admin
 cd ~/Desktop/oiteru_202603
 git pull
 
-# 初回だけ
+sudo apt update
+sudo apt install -y git tmux python3-full python3-venv python3-pip curl
+
 cp config.example.json config.json
 nano config.json
 
-sudo apt update
-sudo apt install -y pigpio tmux python3-full python3-venv python3-pip
-sudo systemctl enable pigpiod
-sudo systemctl start pigpiod
-
-tmux new -s oiteru-unit
-./venv-start.sh unit
+scripts/tmux_oiteru.sh start unit
+scripts/tmux_oiteru.sh attach unit
 ```
-
-子機 CUI で最初に確認する項目:
-
-| メニュー | 内容 |
-|---|---|
-| `22` | 自動選択正方向テスト |
-| `23` | 自動選択逆方向テスト |
-| `26` | GPIO フォールバック強制テスト |
-| `off` | コイル OFF |
-| `s` | 設定保存して起動 |
 
 ## 3. tmux 操作
 
@@ -61,18 +49,19 @@ tmux new -s oiteru-unit
 |---|---|
 | 一時退出 | `Ctrl+b` → `d` |
 | 一覧 | `tmux ls` |
-| 親機に戻る | `tmux attach -t oiteru-parent` |
-| 子機に戻る | `tmux attach -t oiteru-unit` |
-| セッション削除 | `tmux kill-session -t <名前>` |
+| 状態確認 | `scripts/tmux_oiteru.sh status` |
+| 親機に戻る | `scripts/tmux_oiteru.sh attach parent` |
+| 子機に戻る | `scripts/tmux_oiteru.sh attach unit` |
+| 停止 | `scripts/tmux_oiteru.sh stop <parent|unit>` |
 
 ## 4. よく使う確認
 
 ```bash
 git branch --show-current
 git status --short
-docker compose -f docker-compose.mysql.yml ps
-systemctl status pigpiod
-python -m unittest tests.test_stepper_driver
+tmux ls
+systemctl status mysql
+curl http://localhost:5000
 ```
 
 ## 5. 詳細資料
@@ -80,8 +69,9 @@ python -m unittest tests.test_stepper_driver
 | ファイル | 内容 |
 |---|---|
 | `README.md` | 全体像 |
+| `docs/onboarding.md` | 新入生・新規参加者向け |
 | `取説書/QUICKSTART.md` | 初心者向けの詳細起動手順 |
 | `取説書/README.md` | 取説書の目次 |
 | `docs/operations.md` | 運用・障害対応 |
 
-最終更新: 2026-06-02
+最終更新: 2026-06-04
