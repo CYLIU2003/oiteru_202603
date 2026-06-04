@@ -1,8 +1,55 @@
-# OITERU システム
+<div align="center">
+
+# OITERU
+
+NFC カードで生理用品の利用・在庫・子機状態を管理する学内実証向け IoT システム
+
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
+![Flask](https://img.shields.io/badge/Flask-Web%20API-000000?logo=flask&logoColor=white)
+![MySQL](https://img.shields.io/badge/MySQL-8.0-4479A1?logo=mysql&logoColor=white)
+![Raspberry Pi](https://img.shields.io/badge/Raspberry%20Pi-Unit-C51A4A?logo=raspberrypi&logoColor=white)
+![tmux](https://img.shields.io/badge/tmux-standard-1BB91F?logo=gnubash&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-not%20required-6B7280?logo=docker&logoColor=white)
+
+</div>
 
 OITERU は、NFC カードを用いて生理用品を管理・排出し、利用履歴・在庫・子機状態を扱う IoT システムです。
 
 このリポジトリの標準運用は **Linux 系 OS + tmux + ローカル MySQL 8 + `db_server.py` + `unit.py`** です。しばらく Docker を使わない前提で、起動手順と運用手順を tmux 中心に整理しています。
+
+## 必要な環境
+
+| 区分 | 必須 / 推奨 | 内容 |
+|---|---|---|
+| 親機 OS | 必須 | Ubuntu 22.04 LTS 以降などの Linux 系 OS |
+| 子機 OS | 必須 | Raspberry Pi OS 64-bit 推奨 |
+| Python | 必須 | Python 3.10 以上 |
+| DB | 必須 | MySQL 8.0 系 |
+| 起動管理 | 必須 | tmux |
+| Git | 必須 | Git CLI |
+| エディタ | 推奨 | Visual Studio Code |
+| ネットワーク | 必須 | 親機と子機が同一 LAN、または Tailscale 等で相互通信できること |
+
+## 公式ダウンロード URL
+
+| ソフトウェア | 用途 | URL |
+|---|---|---|
+| Ubuntu | 親機 Linux OS の候補 | https://ubuntu.com/download |
+| Raspberry Pi Imager | Raspberry Pi OS を SD カードへ書き込む | https://www.raspberrypi.com/software/ |
+| Raspberry Pi OS | 子機 OS | https://www.raspberrypi.com/software/operating-systems/ |
+| Python | Python 本体 | https://www.python.org/downloads/ |
+| Git | Git CLI | https://git-scm.com/downloads |
+| MySQL Community Server | 親機 DB | https://dev.mysql.com/downloads/mysql/ |
+| tmux | tmux 本体。Linux では通常 `apt` で入れる | https://github.com/tmux/tmux/releases |
+| Visual Studio Code | 推奨エディタ | https://code.visualstudio.com/download |
+| Tailscale | 別ネットワーク間で親機・子機をつなぐ場合の任意 VPN | https://tailscale.com/downloads |
+
+Linux では、通常は次の `apt` コマンドで必要な実行環境を入れます。
+
+```bash
+sudo apt update
+sudo apt install -y git tmux python3-full python3-venv python3-pip mysql-server curl
+```
 
 ## まず読む順番
 

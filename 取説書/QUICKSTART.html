@@ -12,13 +12,23 @@
     <p>標準構成は <strong>Linux 系 OS + tmux + ローカル MySQL + db_server.py + unit.py</strong> です。Docker は標準手順では使いません。</p>
 
     <section>
-      <h2>読む順番</h2>
-      <ol>
-        <li><code>README.md</code> で全体像を確認する</li>
-        <li><code>docs/onboarding.md</code> で開発参加の注意点を読む</li>
-        <li><code>取説書/QUICKSTART.md</code> の手順で起動する</li>
-        <li><code>docs/operations.md</code> で運用・障害対応を見る</li>
-      </ol>
+      <h2>必要なソフトウェア</h2>
+      <table>
+        <thead>
+          <tr><th>ソフトウェア</th><th>用途</th><th>URL</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Ubuntu</td><td>親機 Linux OS の候補</td><td><a href="https://ubuntu.com/download">ubuntu.com/download</a></td></tr>
+          <tr><td>Raspberry Pi Imager</td><td>子機 OS 書き込み</td><td><a href="https://www.raspberrypi.com/software/">raspberrypi.com/software</a></td></tr>
+          <tr><td>Raspberry Pi OS</td><td>子機 OS</td><td><a href="https://www.raspberrypi.com/software/operating-systems/">operating-systems</a></td></tr>
+          <tr><td>Python</td><td>実行環境</td><td><a href="https://www.python.org/downloads/">python.org/downloads</a></td></tr>
+          <tr><td>Git</td><td>バージョン管理</td><td><a href="https://git-scm.com/downloads">git-scm.com/downloads</a></td></tr>
+          <tr><td>MySQL Community Server</td><td>親機 DB</td><td><a href="https://dev.mysql.com/downloads/mysql/">dev.mysql.com/downloads/mysql</a></td></tr>
+          <tr><td>tmux</td><td>起動管理</td><td><a href="https://github.com/tmux/tmux/releases">tmux releases</a></td></tr>
+          <tr><td>Visual Studio Code</td><td>推奨エディタ</td><td><a href="https://code.visualstudio.com/download">code.visualstudio.com/download</a></td></tr>
+          <tr><td>Tailscale</td><td>任意 VPN</td><td><a href="https://tailscale.com/downloads">tailscale.com/downloads</a></td></tr>
+        </tbody>
+      </table>
     </section>
 
     <section>
@@ -26,14 +36,13 @@
       <pre><code>cd ~/Desktop/oiteru_202603
 git pull
 sudo apt update
-sudo apt install -y git tmux python3-full python3-venv python3-pip curl</code></pre>
+sudo apt install -y git tmux python3-full python3-venv python3-pip mysql-server curl</code></pre>
     </section>
 
     <section>
       <h2>親機</h2>
       <pre><code>cp .env.example .env
 nano .env
-sudo apt install -y mysql-server
 scripts/setup_local_mysql.sh
 scripts/tmux_oiteru.sh start parent
 scripts/tmux_oiteru.sh attach parent</code></pre>
