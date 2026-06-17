@@ -71,8 +71,8 @@ if ($Type -eq "unit") {
         UNIT_PASSWORD = $Password
         UNIT_LOCATION = $Location
         IS_SECONDARY = $false
-        MOTOR_TYPE = "SERVO"
-        CONTROL_METHOD = "RASPI_DIRECT"
+        MOTOR_TYPE = "STEPPER"
+        CONTROL_METHOD = "ARDUINO_SERIAL"
         USE_SENSOR = $true
         GREEN_LED_PIN = 17
         RED_LED_PIN = 27

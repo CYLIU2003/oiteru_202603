@@ -70,6 +70,7 @@ sudo apt install -y git tmux python3-full python3-venv python3-pip mysql-server 
 | 起動方法 | `tmux` |
 | 親機エントリポイント | `db_server.py` |
 | 子機エントリポイント | `unit.py` |
+| 子機モーター制御 | `archive/unit_client.py` から `stepper_driver.py` を呼び出す |
 | DB | MySQL 8 (InnoDB) |
 | DB 起動 | OS の `mysql` サービス |
 | 設定 | `.env` と `config.json` |
@@ -128,6 +129,14 @@ scripts/tmux_oiteru.sh attach unit
 | `SERVER_URL` | 親機 URL | `http://192.168.1.10:5000` |
 | `UNIT_NAME` | 管理画面に出る子機名 | `unit-01` |
 | `UNIT_PASSWORD` | 親機と合わせる子機パスワード | `change-this` |
+| `MOTOR_TYPE` | `SERVO` または `STEPPER` | `STEPPER` |
+| `CONTROL_METHOD` | ラズパイ直結なら `RASPI_DIRECT` | `RASPI_DIRECT` |
+
+## 子機モーター制御
+
+`unit.py` は小さな起動ファイルです。実際の子機処理は `archive/unit_client.py` にあり、サーボとステッピングモーターは `dispense_item()` の通常の分岐で選ばれます。
+
+ステッピングモーターの GPIO 制御は `stepper_driver.py` に集約しています。`main_stepping_branch` の実機設定は `config.example.json` の `MOTOR_TYPE=STEPPER`、`CONTROL_METHOD=RASPI_DIRECT`、`STEPPER_*` を見てください。サーボ運用の main へ取り込む場合は、同じ分岐構造のまま `MOTOR_TYPE=SERVO` を使えます。
 
 ## tmux 操作
 
@@ -159,7 +168,9 @@ curl http://localhost:5000
 ```text
 oiteru_202603/
 ├── db_server.py              # 標準の親機エントリポイント(MySQL)
-├── unit.py                   # 子機エントリポイント
+├── unit.py                   # 子機エントリポイント(小さなランチャー)
+├── stepper_driver.py         # ステッピングモーター制御
+├── archive/unit_client.py    # 現行の子機クライアント本体
 ├── server.py                 # legacy / 従親機向け経路
 ├── .env.example              # 親機 .env のテンプレート
 ├── config.example.json       # 子機 config.json のテンプレート
@@ -193,4 +204,4 @@ oiteru_202603/
 
 詳細な開発参加手順は `docs/onboarding.md` を読んでください。
 
-最終更新: 2026-06-04
+最終更新: 2026-06-17

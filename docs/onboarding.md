@@ -82,12 +82,15 @@ systemctl status mysql
 |---|---|
 | 管理画面 API | `db_server.py`, `server.py`, `templates/` |
 | DB 接続 | `db_adapter.py`, `.env.example` |
-| 子機通信 | `unit.py`, `unit/client/` が追加された場合はそこ |
-| ハード制御 | `unit.py`, `unit/device/` が追加された場合はそこ |
+| 子機通信 | `archive/unit_client.py` |
+| 子機起動 | `unit.py` |
+| ハード制御 | `stepper_driver.py`, `archive/unit_client.py` の `dispense_item()` |
 | 起動手順 | `scripts/`, `README.md`, `取説書/QUICKSTART.md` |
 | 運用資料 | `docs/operations.md` |
 
 今後の整理では、HTTP ルーティング、業務ロジック、DB アクセス、認証、ハード制御を分けていく方針です。新しいコードを足すときは、route handler に SQL や GPIO 処理を直接増やさないようにしてください。
+
+子機のモーター制御は、まず `archive/unit_client.py` の `dispense_item()` を入口として読みます。ステッピングモーターの GPIO 詳細は `stepper_driver.py` に集約しているため、`unit.py` へ分岐やパッチ処理を増やさないでください。
 
 ## やってはいけないこと
 
@@ -133,4 +136,4 @@ mysql -u oiteru_user -p oiteru -e "SELECT 1;"
 | DB 接続に失敗する | `.env`, `systemctl status mysql` |
 | 子機がオンラインにならない | `config.json`, 子機 tmux ログ |
 
-最終更新: 2026-06-04
+最終更新: 2026-06-17

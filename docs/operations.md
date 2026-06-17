@@ -76,6 +76,8 @@ scripts/tmux_oiteru.sh stop unit
 
 - 子機在庫が 0 でないか確認する
 - センサー詰まり、モーター配線、電源を確認する
+- ステッピング子機は `config.json` の `STEPPER_PINS`, `STEPPER_PHASE_ORDER`, `STEPPER_BACKEND` を確認する
+- CUI 設定メニューの `t` / `r` でステッパー単体テストを行う
 - 子機ログと heartbeat の直近時刻を確認する
 - 同一カードの短時間連打でないか確認する
 - 物理排出済みだが DB 未反映の疑いがある場合は、時刻、子機名、カード操作の有無をメモしてから調査する
@@ -109,4 +111,4 @@ mysql -u oiteru_user -p oiteru -e "SELECT 1;"
 - 子機 heartbeat を確認した
 - 補充手順と障害時一次対応を担当者へ説明した
 
-最終更新: 2026-06-04
+最終更新: 2026-06-17

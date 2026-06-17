@@ -63,6 +63,8 @@ scripts/tmux_oiteru.sh start unit
 scripts/tmux_oiteru.sh attach unit
 ```
 
+ステッピングモーターの子機では、`config.json` の `MOTOR_TYPE=STEPPER`、`CONTROL_METHOD=RASPI_DIRECT`、`STEPPER_PINS`、`STEPPER_BACKEND` を確認してください。サーボ子機へ流用する場合は `MOTOR_TYPE=SERVO` にします。
+
 ## 4. tmux 操作
 
 | やりたいこと | コマンド |
@@ -94,4 +96,4 @@ curl http://localhost:5000
 | `取説書/README.md` | 取説書の目次 |
 | `docs/operations.md` | 運用・障害対応 |
 
-最終更新: 2026-06-04
+最終更新: 2026-06-17

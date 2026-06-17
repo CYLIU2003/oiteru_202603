@@ -34,6 +34,9 @@ nano config.json
 | `SERVER_URL` | 親機 URL | `http://192.168.1.10:5000` |
 | `UNIT_NAME` | 子機名 | `unit-01` |
 | `UNIT_PASSWORD` | 親機側と合わせるパスワード | `change-this` |
+| `MOTOR_TYPE` | `SERVO` または `STEPPER` | `STEPPER` |
+| `CONTROL_METHOD` | ラズパイ直結なら `RASPI_DIRECT` | `RASPI_DIRECT` |
+| `STEPPER_BACKEND` | ステッパー制御方式 | `auto` |
 
 ## 手動セットアップ
 
@@ -165,4 +168,4 @@ scripts/tmux_oiteru.sh status unit
 | `../docs/operations.md` | 運用・障害対応 |
 | `../config_templates/README.md` | 設定ファイルの詳細 |
 
-最終更新: 2026-06-04
+最終更新: 2026-06-17

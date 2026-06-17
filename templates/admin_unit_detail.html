@@ -141,7 +141,7 @@
               <div class="form-group">
                 <label>制御方法</label>
                 <select id="config-control-method" class="form-control">
-                  <option value="RASPI_DIRECT" {% if unit_config.get('CONTROL_METHOD') in ['raspi', 'RASPI_DIRECT'] %}selected{% endif %}>ラズパイ直結 (PCA9685)</option>
+                  <option value="RASPI_DIRECT" {% if unit_config.get('CONTROL_METHOD') in ['raspi', 'RASPI_DIRECT'] %}selected{% endif %}>ラズパイ直結 (GPIO/PCA9685)</option>
                   <option value="ARDUINO_SERIAL" {% if unit_config.get('CONTROL_METHOD') in ['arduino', 'ARDUINO_SERIAL'] %}selected{% endif %}>Arduino経由 (シリアル)</option>
                 </select>
               </div>
@@ -189,7 +189,7 @@
               <div class="form-group">
                 <label>センサーGPIOピン (BCM)</label>
                 <input type="number" id="config-sensor-pin" class="form-control" 
-                       value="{{ unit_config.get('SENSOR_GPIO_PIN', 22) }}" min="0" max="40">
+                       value="{{ unit_config.get('SENSOR_GPIO_PIN', unit_config.get('SENSOR_PIN', 22)) }}" min="0" max="40">
               </div>
               <div class="form-group">
                 <label>センサータイムアウト (秒)</label>
@@ -246,6 +246,55 @@
                 <label>PCA9685チャンネル（サーボ使用時）</label>
                 <input type="number" id="config-pca-channel" class="form-control" 
                        value="{{ unit_config.get('PCA9685_CHANNEL', 15) }}" min="0" max="15">
+              </div>
+            </div>
+
+            <!-- ステッパー設定 -->
+            <div class="config-group" id="stepper-config-group">
+              <h4 style="margin:0 0 12px;font-size:1rem;color:var(--primary-color);">⚙️ ステッパー設定</h4>
+              <div class="form-group">
+                <label>IN1-4 GPIO (BCM)</label>
+                <input type="text" id="config-stepper-pins" class="form-control"
+                       value="{{ unit_config.get('STEPPER_PINS', [21, 17, 27, 22]) | join(',') if unit_config.get('STEPPER_PINS') is iterable and unit_config.get('STEPPER_PINS') is not string else unit_config.get('STEPPER_PINS', '21,17,27,22') }}">
+              </div>
+              <div class="form-group">
+                <label>位相順序</label>
+                <input type="text" id="config-stepper-phase-order" class="form-control"
+                       value="{{ unit_config.get('STEPPER_PHASE_ORDER', [0, 1, 2, 3]) | join(',') if unit_config.get('STEPPER_PHASE_ORDER') is iterable and unit_config.get('STEPPER_PHASE_ORDER') is not string else unit_config.get('STEPPER_PHASE_ORDER', '0,1,2,3') }}">
+              </div>
+              <div class="form-group">
+                <label>1ステップ待機秒</label>
+                <input type="number" id="config-stepper-step-delay" class="form-control"
+                       value="{{ unit_config.get('STEPPER_STEP_DELAY', 0.01) }}" step="0.001" min="0.001">
+              </div>
+              <div class="form-group">
+                <label>駆動方式</label>
+                <select id="config-stepper-drive-mode" class="form-control">
+                  {% set drive_mode = unit_config.get('STEPPER_DRIVE_MODE', 'half') %}
+                  <option value="half" {% if drive_mode == 'half' %}selected{% endif %}>半ステップ</option>
+                  <option value="full" {% if drive_mode == 'full' %}selected{% endif %}>フルステップ</option>
+                  <option value="wave" {% if drive_mode == 'wave' %}selected{% endif %}>ウェーブ</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>排出ステップ数</label>
+                <input type="number" id="config-stepper-steps" class="form-control"
+                       value="{{ unit_config.get('STEPPER_STEPS', 0) }}" min="0">
+              </div>
+              <div class="form-group">
+                <label>テストステップ数</label>
+                <input type="number" id="config-stepper-test-steps" class="form-control"
+                       value="{{ unit_config.get('STEPPER_TEST_STEPS', 2048) }}" min="1">
+              </div>
+              <div class="form-group">
+                <label>バックエンド</label>
+                <select id="config-stepper-backend" class="form-control">
+                  {% set stepper_backend = unit_config.get('STEPPER_BACKEND', 'auto') %}
+                  <option value="auto" {% if stepper_backend == 'auto' %}selected{% endif %}>自動選択</option>
+                  <option value="pigpio" {% if stepper_backend == 'pigpio' %}selected{% endif %}>pigpio優先</option>
+                  <option value="library" {% if stepper_backend == 'library' %}selected{% endif %}>RpiMotorLib</option>
+                  <option value="gpio" {% if stepper_backend == 'gpio' %}selected{% endif %}>GPIO直接</option>
+                </select>
               </div>
             </div>
           </div>
@@ -401,6 +450,22 @@ async function toggleAvailable(checkbox) {
 
 // センサートグルのラベル更新
 document.addEventListener('DOMContentLoaded', function() {
+  const motorTypeSelect = document.getElementById('config-motor-type');
+  const controlMethodSelect = document.getElementById('config-control-method');
+  const stepperGroup = document.getElementById('stepper-config-group');
+
+  function updateMotorConfigVisibility() {
+    if (!stepperGroup) return;
+    const isStepperDirect =
+      motorTypeSelect?.value === 'STEPPER' &&
+      controlMethodSelect?.value === 'RASPI_DIRECT';
+    stepperGroup.style.display = isStepperDirect ? 'block' : 'none';
+  }
+
+  motorTypeSelect?.addEventListener('change', updateMotorConfigVisibility);
+  controlMethodSelect?.addEventListener('change', updateMotorConfigVisibility);
+  updateMotorConfigVisibility();
+
   const sensorCheckbox = document.getElementById('config-use-sensor');
   const sensorLabel = document.getElementById('sensor-label');
   if (sensorCheckbox && sensorLabel) {
@@ -437,11 +502,19 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 
+function parseNumberList(value, fallback) {
+  const parsed = String(value || '')
+    .split(',')
+    .map((item) => parseInt(item.trim(), 10))
+    .filter((item) => Number.isFinite(item));
+  return parsed.length ? parsed : fallback;
+}
+
 // 設定を子機に送信
 async function saveUnitConfig() {
   const config = {
-    MOTOR_TYPE: document.getElementById('config-motor-type')?.value || 'servo',
-    CONTROL_METHOD: document.getElementById('config-control-method')?.value || 'raspi',
+    MOTOR_TYPE: document.getElementById('config-motor-type')?.value || 'SERVO',
+    CONTROL_METHOD: document.getElementById('config-control-method')?.value || 'RASPI_DIRECT',
     MOTOR_SPEED: parseInt(document.getElementById('config-motor-speed')?.value) || 50,
     MOTOR_DURATION: parseFloat(document.getElementById('config-motor-duration')?.value) || 2,
     MOTOR_REVERSE: document.getElementById('config-motor-reverse')?.checked || false,
@@ -453,7 +526,15 @@ async function saveUnitConfig() {
     JAM_CLEAR_ATTEMPTS: parseInt(document.getElementById('config-jam-clear-attempts')?.value) || 3,
     HEARTBEAT_INTERVAL: parseInt(document.getElementById('config-heartbeat-interval')?.value) || 30,
     ARDUINO_PORT: document.getElementById('config-arduino-port')?.value || '/dev/ttyUSB0',
-    PCA9685_CHANNEL: parseInt(document.getElementById('config-pca-channel')?.value) || 15
+    PCA9685_CHANNEL: parseInt(document.getElementById('config-pca-channel')?.value) || 15,
+    STEPPER_PINS: parseNumberList(document.getElementById('config-stepper-pins')?.value, [21, 17, 27, 22]),
+    STEPPER_PHASE_ORDER: parseNumberList(document.getElementById('config-stepper-phase-order')?.value, [0, 1, 2, 3]),
+    STEPPER_STEP_DELAY: parseFloat(document.getElementById('config-stepper-step-delay')?.value) || 0.01,
+    STEPPER_DRIVE_MODE: document.getElementById('config-stepper-drive-mode')?.value || 'half',
+    STEPPER_STEPS: parseInt(document.getElementById('config-stepper-steps')?.value) || 0,
+    STEPPER_STEPS_PER_REV: 2048,
+    STEPPER_TEST_STEPS: parseInt(document.getElementById('config-stepper-test-steps')?.value) || 2048,
+    STEPPER_BACKEND: document.getElementById('config-stepper-backend')?.value || 'auto'
   };
 
   try {
