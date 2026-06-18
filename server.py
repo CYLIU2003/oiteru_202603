@@ -52,6 +52,10 @@ from flask import (
 )
 from db_adapter import db, get_connection, DatabaseError
 
+# --- New app module imports ---
+from app.logger import get_logger as _get_logger
+logger = _get_logger(__name__)
+
 
 def load_env_file(env_path: str):
     """.env を読み込み、未設定の環境変数だけを補完する。"""
@@ -91,7 +95,17 @@ app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "oiteru.sqlite3")
 
 if "FLASK_SECRET_KEY" not in os.environ:
-    print("警告: FLASK_SECRET_KEY が未設定です。再起動ごとに一時キーを生成します。")
+    logger.warning("FLASK_SECRET_KEY が未設定です。再起動ごとに一時キーを生成します。")
+
+# --- Blueprint registration ---
+from app.api.health import health_bp
+from app.api.dispense import dispense_bp
+from app.api.units import unit_bp
+
+app.register_blueprint(health_bp)
+app.register_blueprint(dispense_bp)
+app.register_blueprint(unit_bp)
+logger.info("Registered API blueprints: health, dispense, unit")
 
 # ========================================
 # サーバー設定
@@ -208,7 +222,7 @@ def validate_runtime_security():
             errors.append("MYSQL_PASSWORD に既定値/弱い値は使用できません。")
 
     for warning in warnings:
-        print(f"警告: {warning}")
+        logger.warning(warning)
 
     if errors:
         raise RuntimeError(
@@ -365,14 +379,14 @@ def ensure_admin_password():
             )
 
     if generated_password:
-        print("管理者アカウントを初期化しました。")
-        print(f"管理者パスワード: {generated_password}")
+        logger.info("管理者アカウントを初期化しました。")
+        logger.info("管理者パスワード: %s", generated_password)
         if not configured_password:
-            print("OITERU_ADMIN_PASSWORD を設定して恒久値へ更新してください。")
+            logger.info("OITERU_ADMIN_PASSWORD を設定して恒久値へ更新してください。")
     if updated_password:
-        print("管理者パスワードを環境変数の値へ同期しました。")
+        logger.info("管理者パスワードを環境変数の値へ同期しました。")
     if warning_message:
-        print(f"警告: {warning_message}")
+        logger.warning(warning_message)
 
 
 # ========================================
@@ -401,15 +415,15 @@ def load_settings_from_db():
                     settings_row.get("limit_period", "day") or "day"
                 )
                 settings_version = int(settings_row.get("version", 0))
-                print(
-                    f"[DEBUG] 設定をDBから読み込み: auto_register_mode={server_settings['auto_register_mode']}, version={settings_version}"
+                logger.info(
+                    "設定をDBから読み込み: auto_register_mode=%s, version=%d",
+                    server_settings['auto_register_mode'],
+                    settings_version,
                 )
             else:
-                print(
-                    f"[DEBUG] settingsテーブルにデータがありません。デフォルト設定を使用します。"
-                )
+                logger.info("settingsテーブルにデータがありません。デフォルト設定を使用します。")
     except Exception as e:
-        print(f"設定読み込みエラー（テーブルが未作成の可能性）: {e}")
+        logger.warning("設定読み込みエラー（テーブルが未作成の可能性）: %s", e)
 
 
 def save_settings_to_db():
@@ -458,10 +472,10 @@ def save_settings_to_db():
                         datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     ),
                 )
-        print(f"設定をDBに保存しました (version: {settings_version})")
+        logger.info("設定をDBに保存しました (version: %d)", settings_version)
         return True
     except Exception as e:
-        print(f"設定保存エラー: {e}")
+        logger.error("設定保存エラー: %s", e)
         return False
 
 
@@ -2701,42 +2715,63 @@ def admin_settings():
 # メイン
 # ========================================
 if __name__ == "__main__":
-    print("\n" + "=" * 60)
-    print("OITELU 親機/従親機 を起動しています...")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("OITELU 親機/従親機 を起動しています...")
+    logger.info("=" * 60)
 
     if db.db_type == "sqlite":
-        print("警告: server.py + SQLite は legacy 互換経路です。")
-        print("標準構成は db_server.py + MySQL を使用してください。")
-    try:
-        validate_runtime_security()
-    except RuntimeError as error:
-        print(str(error))
-        raise
+        logger.warning("server.py + SQLite は legacy 互換経路です。")
+        logger.warning("標準構成は db_server.py + MySQL を使用してください。")
 
-    print("\nデータベースを初期化中...")
+    # Security validation
+    from app.auth.auth_manager import validate_runtime_security
+    strict = db.db_type == "mysql"
+    issues = validate_runtime_security(db_type=db.db_type, strict=strict)
+    errors = [msg for sev, msg in issues if sev == "error"]
+    for sev, msg in issues:
+        if sev == "error":
+            logger.error(msg)
+        else:
+            logger.warning(msg)
+    if errors:
+        raise RuntimeError(
+            "セキュリティ設定エラーにより起動を停止しました:\n- " + "\n- ".join(errors)
+        )
+
+    logger.info("データベースを初期化中...")
     init_db()
-    migrate_db()
+
+    # Run migrations (new system)
+    from app.migrations import run_all_migrations
+    migrate_db()  # legacy inline migration (keep for backward compat)
+    run_all_migrations()
+
     ensure_admin_password()
 
-    print("設定をDBから読み込み中...")
+    logger.info("設定をDBから読み込み中...")
+    from app.services.settings_service import load_settings_from_db, server_settings as _svc_settings
+    import app.services.settings_service as _settings_svc
     load_settings_from_db()
 
-    print(f"\n設定:")
-    print(f"  データベース: {db.db_type.upper()}")
-    print(
-        f"  自動登録モード: {'有効' if server_settings['auto_register_mode'] else '無効'}"
+    logger.info("設定:")
+    logger.info("  データベース: %s", db.db_type.upper())
+    logger.info(
+        "  自動登録モード: %s",
+        "有効" if _settings_svc.server_settings["auto_register_mode"] else "無効",
     )
-    if server_settings["auto_register_mode"]:
-        print(f"  自動登録時の初期残数: {server_settings['auto_register_stock']}")
+    if _settings_svc.server_settings["auto_register_mode"]:
+        logger.info(
+            "  自動登録時の初期残数: %d",
+            _settings_svc.server_settings["auto_register_stock"],
+        )
 
-    print("\n子機向けブロードキャストスレッドを起動中...")
+    logger.info("子機向けブロードキャストスレッドを起動中...")
     heartbeat_thread = threading.Thread(target=broadcast_server_info, daemon=True)
     heartbeat_thread.start()
 
-    print("\n" + "=" * 60)
-    print("OITELU 親機/従親機の起動が完了しました！")
-    print(f"Webブラウザで http://localhost:{SERVER_PORT} にアクセスしてください")
-    print("=" * 60 + "\n")
+    logger.info("=" * 60)
+    logger.info("OITELU 親機/従親機の起動が完了しました！")
+    logger.info("Webブラウザで http://localhost:%d にアクセスしてください", SERVER_PORT)
+    logger.info("=" * 60)
 
     app.run(host="0.0.0.0", port=SERVER_PORT, debug=False)

@@ -4,9 +4,11 @@ import threading
 import json
 import os
 import hmac
+import hashlib
 import socket
 import subprocess # Tailscale対応のため追加
 import queue
+import getpass  # 安全なパスワード入力
 from pathlib import Path
 
 # --------------------------------------------------------------------------
@@ -144,15 +146,16 @@ def ensure_root_privileges():
 CONFIG_FILE = 'config.json'
 DEFAULT_CONFIG = {
     "SERVER_URL": "http://127.0.0.1:5000", "UNIT_NAME": "test-01",
-    "UNIT_PASSWORD": "password123", "MOTOR_TYPE": "STEPPER",
+    "UNIT_PASSWORD": "",  # 初回起動時は空、対話的に設定
+    "MOTOR_TYPE": "STEPPER",
     "CONTROL_METHOD": "RASPI_DIRECT", "USE_SENSOR": True,
     "GREEN_LED_PIN": 17, "RED_LED_PIN": 27, "SENSOR_PIN": 22,
     "ARDUINO_PORT": "/dev/ttyACM0",
     "MOTOR_SPEED": 100, "MOTOR_DURATION": 2.0, "MOTOR_REVERSE": False,
-    "SENSOR_CHECK_PRE": True,  # 回転前のセンサーチェック
-    "SENSOR_CHECK_POST": True,  # 回転後のセンサーチェック
-    "JAM_CLEAR_ATTEMPTS": 3,  # 詰まり解消の最大試行回数
-    "SENSOR_STABILIZE_TIME": 0.3,  # センサー安定待ち時間（秒）
+    "SENSOR_CHECK_PRE": True,
+    "SENSOR_CHECK_POST": True,
+    "JAM_CLEAR_ATTEMPTS": 3,
+    "SENSOR_STABILIZE_TIME": 0.3,
     "STEPPER_PINS": [21, 17, 27, 22],
     "STEPPER_PHASE_ORDER": [0, 1, 2, 3],
     "STEPPER_STEP_DELAY": 0.01,
@@ -163,28 +166,59 @@ DEFAULT_CONFIG = {
     "STEPPER_BACKEND": "auto"
 }
 
+
+def _hash_password_for_storage(password: str) -> str:
+    """SHA-256 hash password before storing to config file.
+    
+    Production deployments should use systemd credentials or a hardware
+    security module instead of config-file-based passwords.
+    """
+    if not password:
+        return ""
+    salt = hashlib.sha256(b"oiteru-unit-config-salt").digest()
+    return hashlib.pbkdf2_hmac(
+        "sha256", password.encode("utf-8"), salt, 100000, dklen=32
+    ).hex()
+
+
+def _masked_config_for_persistence(config: dict) -> dict:
+    """Return a copy of config safe for writing to disk.
+    
+    The UNIT_PASSWORD is replaced with a one-way hash for at-rest protection.
+    The live config dict retains the plaintext for API calls.
+    """
+    result = {}
+    for key, value in config.items():
+        if key.startswith("_"):
+            continue
+        if key == "UNIT_PASSWORD" and value:
+            result[key] = _hash_password_for_storage(str(value))
+        else:
+            result[key] = value
+    return result
+
+
 def save_config(config):
     try:
-        persisted_config = {
-            key: value for key, value in config.items()
-            if not key.startswith('_')
-        }
+        persisted_config = _masked_config_for_persistence(config)
         with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
             json.dump(persisted_config, f, indent=4, ensure_ascii=False)
         return True
     except IOError:
         return False
 
+
 def load_config():
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
                 config = DEFAULT_CONFIG.copy()
-                config.update(json.load(f))
+                loaded = json.load(f)
+                config.update(loaded)
                 return config
         except (IOError, json.JSONDecodeError):
-            return DEFAULT_CONFIG
-    return DEFAULT_CONFIG
+            return DEFAULT_CONFIG.copy()
+    return DEFAULT_CONFIG.copy()
 
 
 def parse_int_list(value, default=None):
