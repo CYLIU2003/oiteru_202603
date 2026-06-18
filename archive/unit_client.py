@@ -148,9 +148,8 @@ DEFAULT_CONFIG = {
     "SERVER_URL": "http://127.0.0.1:5000", "UNIT_NAME": "test-01",
     "UNIT_PASSWORD": "",  # 初回起動時は空、対話的に設定
     "MOTOR_TYPE": "STEPPER",
-    "CONTROL_METHOD": "RASPI_DIRECT", "USE_SENSOR": True,
+    "USE_SENSOR": True,
     "GREEN_LED_PIN": 17, "RED_LED_PIN": 27, "SENSOR_PIN": 22,
-    "ARDUINO_PORT": "/dev/ttyACM0",
     "MOTOR_SPEED": 100, "MOTOR_DURATION": 2.0, "MOTOR_REVERSE": False,
     "SENSOR_CHECK_PRE": True,
     "SENSOR_CHECK_POST": True,
@@ -254,11 +253,8 @@ def normalize_motor_config(config):
         normalized['SENSOR_PIN'] = normalized['SENSOR_GPIO_PIN']
 
     normalized['MOTOR_TYPE'] = str(normalized.get('MOTOR_TYPE', 'STEPPER')).upper()
-    normalized['CONTROL_METHOD'] = str(normalized.get('CONTROL_METHOD', 'RASPI_DIRECT')).upper()
     if normalized['MOTOR_TYPE'] not in ('SERVO', 'STEPPER'):
         normalized['MOTOR_TYPE'] = DEFAULT_CONFIG['MOTOR_TYPE']
-    if normalized['CONTROL_METHOD'] not in ('RASPI_DIRECT', 'ARDUINO_SERIAL'):
-        normalized['CONTROL_METHOD'] = DEFAULT_CONFIG['CONTROL_METHOD']
     normalized['USE_SENSOR'] = parse_bool_value(normalized.get('USE_SENSOR'))
     normalized['MOTOR_REVERSE'] = parse_bool_value(normalized.get('MOTOR_REVERSE'))
 
@@ -311,7 +307,6 @@ def normalize_motor_config(config):
     if normalized['STEPPER_BACKEND'] not in ('auto', 'pigpio', 'library', 'gpio'):
         normalized['STEPPER_BACKEND'] = 'auto'
 
-    normalized['ARDUINO_PORT'] = str(normalized.get('ARDUINO_PORT', '/dev/ttyACM0'))
     normalized['SERVER_URL'] = str(normalized.get('SERVER_URL', DEFAULT_CONFIG['SERVER_URL']))
     normalized['UNIT_NAME'] = str(normalized.get('UNIT_NAME', DEFAULT_CONFIG['UNIT_NAME']))
     normalized['UNIT_PASSWORD'] = str(normalized.get('UNIT_PASSWORD', DEFAULT_CONFIG['UNIT_PASSWORD']))
@@ -329,14 +324,12 @@ def apply_remote_config(remote_config, current_config):
     # 設定キーのマッピング（親機キー → 子機キー）
     key_mapping = {
         'MOTOR_TYPE': 'MOTOR_TYPE',
-        'CONTROL_METHOD': 'CONTROL_METHOD',
         'USE_SENSOR': 'USE_SENSOR',
         'MOTOR_SPEED': 'MOTOR_SPEED',
         'MOTOR_DURATION': 'MOTOR_DURATION',
         'MOTOR_REVERSE': 'MOTOR_REVERSE',
-        'SENSOR_GPIO_PIN': 'SENSOR_PIN',  # 親機ではSENSOR_GPIO_PIN
+        'SENSOR_GPIO_PIN': 'SENSOR_PIN',
         'SENSOR_PIN': 'SENSOR_PIN',
-        'ARDUINO_PORT': 'ARDUINO_PORT',
         'PCA9685_CHANNEL': 'PCA9685_CHANNEL',
         'HEARTBEAT_INTERVAL': 'HEARTBEAT_INTERVAL',
         'SENSOR_TIMEOUT': 'SENSOR_TIMEOUT',
@@ -404,47 +397,18 @@ def start_flask_api_server(config, port=5001):
 
     def run_motor_test_from_api():
         test_config = normalize_motor_config(app.config['config_ref'])
-        motor_type = test_config.get('MOTOR_TYPE')
-        control_method = test_config.get('CONTROL_METHOD')
 
         if PLATFORM != "RASPI":
             return {'ok': True, 'message': 'PCモードのためモーターは動作しません'}
 
-        if motor_type == 'STEPPER' and control_method == 'RASPI_DIRECT':
-            if stepper_driver is None:
-                return {'ok': False, 'message': 'stepper_driver が利用できません'}
-            result = stepper_driver.run_stepper(
-                GPIO,
-                test_config,
-                steps=test_config.get('STEPPER_TEST_STEPS', 2048),
-                reverse=test_config.get('MOTOR_REVERSE', False),
-                motor_speed=test_config.get('MOTOR_SPEED', 100),
-                label='api-stepper-test',
-            )
-            return {'ok': bool(result.get('ok')), 'message': str(result)}
-
-        if motor_type == 'SERVO' and control_method == 'RASPI_DIRECT':
-            if Adafruit_PCA9685 is None:
-                return {'ok': False, 'message': 'Adafruit_PCA9685 が利用できません'}
-            pwm = Adafruit_PCA9685.PCA9685(address=0x40, busnum=1)
-            pwm.set_pwm_freq(60)
-            channel = int(test_config.get('PCA9685_CHANNEL', 15))
-            speed_pwm = int(150 + (test_config.get('MOTOR_SPEED', 100) / 100.0) * 450)
-            pwm.set_pwm(channel, 0, speed_pwm)
-            time.sleep(min(1.0, float(test_config.get('MOTOR_DURATION', 1.0))))
-            pwm.set_pwm(channel, 0, 0)
-            return {'ok': True, 'message': f'SERVO test completed on PCA9685 channel {channel}'}
-
-        if control_method == 'ARDUINO_SERIAL':
-            import serial as _serial
-            with _serial.Serial(test_config.get('ARDUINO_PORT', '/dev/ttyACM0'), 9600, timeout=1) as ser:
-                time.sleep(2)
-                direction_flag = 1 if test_config.get('MOTOR_REVERSE') else 0
-                command = f"S{test_config.get('MOTOR_SPEED', 100)}T{test_config.get('MOTOR_DURATION', 1.0)}D{direction_flag}\n"
-                ser.write(command.encode('utf-8'))
-            return {'ok': True, 'message': 'Arduino command sent'}
-
-        return {'ok': False, 'message': f'未サポートのモーター設定です: {motor_type}, {control_method}'}
+        from unit.hardware_controller import HardwareController
+        controller = HardwareController(gpio_module=GPIO, platform=PLATFORM)
+        result = controller.test_motor(
+            test_config,
+            reverse=test_config.get('MOTOR_REVERSE', False),
+            label='api-test',
+        )
+        return {'ok': result.success, 'message': result.message}
     
     @app.route('/api/config/update', methods=['POST'])
     def update_config():
@@ -518,7 +482,6 @@ def start_flask_api_server(config, port=5001):
                 status_info = {
                     'unit_name': config.get('UNIT_NAME'),
                     'motor_type': config.get('MOTOR_TYPE'),
-                    'control_method': config.get('CONTROL_METHOD'),
                     'use_sensor': config.get('USE_SENSOR'),
                     'motor_speed': config.get('MOTOR_SPEED'),
                     'motor_duration': config.get('MOTOR_DURATION'),
@@ -656,13 +619,11 @@ class SettingsGUI:
         self.auto_detection_started = False
 
         self.MOTOR_TYPE_MAP = {"サーボモーター": "SERVO", "ステッピングモーター": "STEPPER"}
-        self.CONTROL_METHOD_MAP = {"ラズパイ直結 (GPIO/PCA9685)": "RASPI_DIRECT", "Arduino経由 (シリアル通信)": "ARDUINO_SERIAL"}
         self.USE_SENSOR_MAP = {"使用する": True, "使用しない": False}
         self.MOTOR_REVERSE_MAP = {"正回転": False, "逆回転": True}
         self.STEPPER_DRIVE_MODE_MAP = {"半ステップ": "half", "フルステップ": "full", "ウェーブ": "wave"}
         self.STEPPER_BACKEND_MAP = {"自動選択": "auto", "pigpio優先": "pigpio", "RpiMotorLib": "library", "GPIO直接": "gpio"}
         self.MOTOR_TYPE_MAP_REV = {v: k for k, v in self.MOTOR_TYPE_MAP.items()}
-        self.CONTROL_METHOD_MAP_REV = {v: k for k, v in self.CONTROL_METHOD_MAP.items()}
         self.USE_SENSOR_MAP_REV = {v: k for k, v in self.USE_SENSOR_MAP.items()}
         self.MOTOR_REVERSE_MAP_REV = {v: k for k, v in self.MOTOR_REVERSE_MAP.items()}
         self.STEPPER_DRIVE_MODE_MAP_REV = {v: k for k, v in self.STEPPER_DRIVE_MODE_MAP.items()}
@@ -719,16 +680,12 @@ class SettingsGUI:
         self.comboboxes["MOTOR_TYPE"] = ttk.Combobox(self.settings_frame, values=list(self.MOTOR_TYPE_MAP.keys()), state="readonly")
         self.comboboxes["MOTOR_TYPE"].grid(row=3, column=1, sticky=(tk.W, tk.E))
         self.comboboxes["MOTOR_TYPE"].bind("<<ComboboxSelected>>", lambda _event: self.update_motor_option_visibility())
-        ttk.Label(self.settings_frame, text="モーターの制御方法").grid(row=4, column=0, sticky=tk.W, pady=4)
-        self.comboboxes["CONTROL_METHOD"] = ttk.Combobox(self.settings_frame, values=list(self.CONTROL_METHOD_MAP.keys()), state="readonly")
-        self.comboboxes["CONTROL_METHOD"].grid(row=4, column=1, sticky=(tk.W, tk.E))
-        self.comboboxes["CONTROL_METHOD"].bind("<<ComboboxSelected>>", lambda _event: self.update_motor_option_visibility())
-        ttk.Label(self.settings_frame, text="排出検知センサー").grid(row=5, column=0, sticky=tk.W, pady=4)
+        ttk.Label(self.settings_frame, text="排出検知センサー").grid(row=4, column=0, sticky=tk.W, pady=4)
         self.comboboxes["USE_SENSOR"] = ttk.Combobox(self.settings_frame, values=list(self.USE_SENSOR_MAP.keys()), state="readonly")
-        self.comboboxes["USE_SENSOR"].grid(row=5, column=1, sticky=(tk.W, tk.E))
+        self.comboboxes["USE_SENSOR"].grid(row=4, column=1, sticky=(tk.W, tk.E))
 
         self.hardware_status_frame = ttk.LabelFrame(self.settings_frame, text="ハードウェア状態", padding="10")
-        self.hardware_status_frame.grid(row=6, column=0, columnspan=2, sticky="ew", pady=10, padx=5)
+        self.hardware_status_frame.grid(row=5, column=0, columnspan=2, sticky="ew", pady=10, padx=5)
         self.pca_status = tk.StringVar(value="未診断")
         self.sensor_status = tk.StringVar(value="未診断")
         ttk.Label(self.hardware_status_frame, text="モータードライバー:").grid(row=0, column=0, sticky=tk.W)
@@ -738,7 +695,7 @@ class SettingsGUI:
         self.hardware_status_frame.grid_remove()
 
         self.advanced_settings_frame = ttk.Frame(self.settings_frame, padding="10 10 10 0")
-        self.advanced_settings_frame.grid(row=7, column=0, columnspan=2, sticky="ew")
+        self.advanced_settings_frame.grid(row=6, column=0, columnspan=2, sticky="ew")
         
         # ▼▼▼ 高度な設定にモーター方向を追加 ▼▼▼
         ttk.Label(self.advanced_settings_frame, text="モーター回転方向").grid(row=0, column=0, sticky=tk.W, pady=2)
@@ -765,9 +722,6 @@ class SettingsGUI:
         ttk.Label(self.advanced_settings_frame, text="センサーピン (BCM)").grid(row=6, column=0, sticky=tk.W, pady=2)
         self.entries["SENSOR_PIN"] = ttk.Entry(self.advanced_settings_frame)
         self.entries["SENSOR_PIN"].grid(row=6, column=1, sticky=(tk.W, tk.E), pady=2)
-        ttk.Label(self.advanced_settings_frame, text="Arduinoポート").grid(row=7, column=0, sticky=tk.W, pady=2)
-        self.entries["ARDUINO_PORT"] = ttk.Entry(self.advanced_settings_frame)
-        self.entries["ARDUINO_PORT"].grid(row=7, column=1, sticky=(tk.W, tk.E), pady=2)
 
         self.servo_frame = ttk.LabelFrame(self.advanced_settings_frame, text="サーボ設定", padding="8")
         self.servo_frame.grid(row=8, column=0, columnspan=2, sticky="ew", pady=(8, 2))
@@ -913,7 +867,7 @@ class SettingsGUI:
 
         while self.is_checking_hardware:
             pca_msg, sensor_msg = "未診断", "未診断"
-            if current_config.get("MOTOR_TYPE") == "STEPPER" and current_config.get("CONTROL_METHOD") == "RASPI_DIRECT":
+            if current_config.get("MOTOR_TYPE") == "STEPPER":
                 if stepper_driver is None:
                     pca_msg = "❌ stepper_driverなし"
                 else:
@@ -924,7 +878,7 @@ class SettingsGUI:
                         pca_msg = "✅ " + ",".join(ok_backends)
                     except Exception as exc:
                         pca_msg = f"❌ 設定エラー: {exc}"
-            elif current_config.get("CONTROL_METHOD") == "RASPI_DIRECT":
+            elif current_config.get("MOTOR_TYPE") == "SERVO":
                 try:
                     if Adafruit_PCA9685 is None:
                         raise RuntimeError("Adafruit_PCA9685なし")
@@ -933,7 +887,7 @@ class SettingsGUI:
                 except Exception:
                     pca_msg = "❌ PCA9685接続エラー"
             else:
-                pca_msg = "Arduino制御"
+                pca_msg = "不明"
             if current_config.get("USE_SENSOR"):
                 try:
                     sensor_msg = "検知なし (クリア)" if GPIO.input(current_config["SENSOR_PIN"]) else "検知あり (物品あり)"
@@ -953,7 +907,6 @@ class SettingsGUI:
         config = {key: entry.get() for key, entry in self.entries.items()}
         config.update({
             "MOTOR_TYPE": self.MOTOR_TYPE_MAP.get(self.comboboxes["MOTOR_TYPE"].get()),
-            "CONTROL_METHOD": self.CONTROL_METHOD_MAP.get(self.comboboxes["CONTROL_METHOD"].get()),
             "USE_SENSOR": self.USE_SENSOR_MAP.get(self.comboboxes["USE_SENSOR"].get()),
             "MOTOR_REVERSE": self.MOTOR_REVERSE_MAP.get(self.comboboxes["MOTOR_REVERSE"].get()),
             "STEPPER_DRIVE_MODE": self.STEPPER_DRIVE_MODE_MAP.get(self.comboboxes["STEPPER_DRIVE_MODE"].get()),
@@ -973,10 +926,10 @@ class SettingsGUI:
 
     def update_motor_option_visibility(self):
         config = self.get_current_config()
-        if config.get("MOTOR_TYPE") == "STEPPER" and config.get("CONTROL_METHOD") == "RASPI_DIRECT":
+        if config.get("MOTOR_TYPE") == "STEPPER":
             self.stepper_frame.grid()
             self.servo_frame.grid_remove()
-        elif config.get("MOTOR_TYPE") == "SERVO" and config.get("CONTROL_METHOD") == "RASPI_DIRECT":
+        elif config.get("MOTOR_TYPE") == "SERVO":
             self.servo_frame.grid()
             self.stepper_frame.grid_remove()
         else:
@@ -985,8 +938,8 @@ class SettingsGUI:
 
     def run_stepper_test(self, reverse=False):
         config = self.get_current_config()
-        if config.get("MOTOR_TYPE") != "STEPPER" or config.get("CONTROL_METHOD") != "RASPI_DIRECT":
-            messagebox.showinfo("ステッパーテスト", "STEPPER + RASPI_DIRECT のときだけ実行できます。")
+        if config.get("MOTOR_TYPE") != "STEPPER":
+            messagebox.showinfo("ステッパーテスト", "STEPPER のときだけ実行できます。")
             return
         if PLATFORM != "RASPI" or GPIO is None:
             messagebox.showwarning("ステッパーテスト", "Raspberry Pi上で実行してください。")
@@ -997,18 +950,17 @@ class SettingsGUI:
         if not messagebox.askyesno("ステッパーテスト", "現在の設定でモーターを回しますか？"):
             return
         try:
-            result = stepper_driver.run_stepper(
-                GPIO,
+            from unit.hardware_controller import HardwareController
+            controller = HardwareController(gpio_module=GPIO, platform=PLATFORM)
+            result = controller.test_motor(
                 config,
-                steps=config.get("STEPPER_TEST_STEPS", 2048),
                 reverse=reverse,
-                motor_speed=config.get("MOTOR_SPEED", 100),
-                label="gui-stepper-test",
+                label='gui-stepper-test',
             )
-            if result.get("ok"):
-                messagebox.showinfo("ステッパーテスト", f"完了しました: {result.get('backend')}")
+            if result.success:
+                messagebox.showinfo("ステッパーテスト", f"完了しました: {result.message}")
             else:
-                messagebox.showerror("ステッパーテスト", f"失敗しました: {result}")
+                messagebox.showerror("ステッパーテスト", f"失敗しました: {result.message}")
         except Exception as exc:
             messagebox.showerror("ステッパーテスト", str(exc))
 
@@ -1041,7 +993,6 @@ class SettingsGUI:
                 value = format_int_list(value, DEFAULT_CONFIG.get(key, []))
             entry.insert(0, str(value))
         self.comboboxes["MOTOR_TYPE"].set(self.MOTOR_TYPE_MAP_REV.get(self.config.get("MOTOR_TYPE")))
-        self.comboboxes["CONTROL_METHOD"].set(self.CONTROL_METHOD_MAP_REV.get(self.config.get("CONTROL_METHOD")))
         self.comboboxes["USE_SENSOR"].set(self.USE_SENSOR_MAP_REV.get(self.config.get("USE_SENSOR")))
         self.comboboxes["MOTOR_REVERSE"].set(self.MOTOR_REVERSE_MAP_REV.get(self.config.get("MOTOR_REVERSE")))
         self.comboboxes["STEPPER_DRIVE_MODE"].set(
@@ -1161,7 +1112,7 @@ def startup_diagnostics(config):
             diagnostics.append(("GPIO", "エラー", str(e)[:30]))
         
         # モーター制御チェック
-        if config.get('CONTROL_METHOD') == 'RASPI_DIRECT' and config.get('MOTOR_TYPE') == 'STEPPER':
+        if config.get('MOTOR_TYPE') == 'STEPPER':
             if stepper_driver is None:
                 print("  ⚠ Stepper: stepper_driver が利用できません")
                 diagnostics.append(("Stepper", "エラー", "stepper_driver unavailable"))
@@ -1182,7 +1133,7 @@ def startup_diagnostics(config):
                 except Exception as e:
                     print(f"  ⚠ Stepper設定: エラー ({str(e)[:40]})")
                     diagnostics.append(("Stepper設定", "エラー", str(e)[:30]))
-        elif config.get('CONTROL_METHOD') == 'RASPI_DIRECT':
+        elif config.get('MOTOR_TYPE') == 'SERVO':
             try:
                 if Adafruit_PCA9685 is None:
                     raise RuntimeError("Adafruit_PCA9685 is not installed")
@@ -1232,7 +1183,7 @@ def startup_diagnostics(config):
     
     # 6. 設定ファイルチェック
     print("\n[6/6] 設定ファイルチェック...")
-    required_keys = ['SERVER_URL', 'UNIT_NAME', 'MOTOR_TYPE', 'CONTROL_METHOD']
+    required_keys = ['SERVER_URL', 'UNIT_NAME', 'MOTOR_TYPE']
     missing = [k for k in required_keys if not config.get(k)]
     if not missing:
         print("  ✓ 設定ファイル: 完全")
@@ -1267,12 +1218,10 @@ def run_client(config, stop_event, gui_queue):
     UNIT_NAME = config.get('UNIT_NAME')
     UNIT_PASSWORD = config.get('UNIT_PASSWORD')
     MOTOR_TYPE = config.get('MOTOR_TYPE')
-    CONTROL_METHOD = config.get('CONTROL_METHOD')
     USE_SENSOR = config.get('USE_SENSOR')
     GREEN_LED_PIN = config.get('GREEN_LED_PIN')
     RED_LED_PIN = config.get('RED_LED_PIN')
     SENSOR_PIN = config.get('SENSOR_PIN')
-    ARDUINO_PORT = config.get('ARDUINO_PORT')
     MOTOR_SPEED = config.get('MOTOR_SPEED', 100)
     MOTOR_DURATION = config.get('MOTOR_DURATION', 2.0)
     MOTOR_REVERSE = config.get('MOTOR_REVERSE', False)
@@ -1287,8 +1236,6 @@ def run_client(config, stop_event, gui_queue):
     send_diagnostics_to_server(SERVER_URL, UNIT_NAME, diagnostics)
 
     PLATFORM_RUNTIME = PLATFORM
-    serial = None
-    Adafruit_PCA9685_runtime = None
     GPIO_runtime = None
 
     if PLATFORM_RUNTIME == 'RASPI':
@@ -1297,14 +1244,6 @@ def run_client(config, stop_event, gui_queue):
             GPIO_runtime.setmode(GPIO_runtime.BCM)
             GPIO_runtime.setup(GREEN_LED_PIN, GPIO_runtime.OUT)
             GPIO_runtime.setup(RED_LED_PIN, GPIO_runtime.OUT)
-
-            if CONTROL_METHOD == 'RASPI_DIRECT' and MOTOR_TYPE == 'SERVO':
-                import Adafruit_PCA9685 as Adafruit_PCA9685_runtime
-            elif CONTROL_METHOD == 'RASPI_DIRECT' and MOTOR_TYPE == 'STEPPER':
-                Adafruit_PCA9685_runtime = None
-            elif CONTROL_METHOD == 'ARDUINO_SERIAL':
-                import serial as _serial
-                serial = _serial
 
             if USE_SENSOR:
                 # LBR-127HLDはオープンコレクタ出力のため、プルアップ抵抗を有効化
@@ -1339,18 +1278,16 @@ def run_client(config, stop_event, gui_queue):
         return "unknown"
 
     def refresh_runtime_settings():
-        nonlocal MOTOR_TYPE, CONTROL_METHOD, USE_SENSOR, MOTOR_SPEED, MOTOR_DURATION, MOTOR_REVERSE
-        nonlocal SENSOR_PIN, ARDUINO_PORT, SENSOR_CHECK_PRE, SENSOR_CHECK_POST, JAM_CLEAR_ATTEMPTS
+        nonlocal MOTOR_TYPE, USE_SENSOR, MOTOR_SPEED, MOTOR_DURATION, MOTOR_REVERSE
+        nonlocal SENSOR_PIN, SENSOR_CHECK_PRE, SENSOR_CHECK_POST, JAM_CLEAR_ATTEMPTS
         nonlocal SENSOR_STABILIZE_TIME, HEARTBEAT_INTERVAL
 
         MOTOR_TYPE = config.get('MOTOR_TYPE', MOTOR_TYPE)
-        CONTROL_METHOD = config.get('CONTROL_METHOD', CONTROL_METHOD)
         USE_SENSOR = config.get('USE_SENSOR', USE_SENSOR)
         MOTOR_SPEED = config.get('MOTOR_SPEED', MOTOR_SPEED)
         MOTOR_DURATION = config.get('MOTOR_DURATION', MOTOR_DURATION)
         MOTOR_REVERSE = config.get('MOTOR_REVERSE', MOTOR_REVERSE)
         SENSOR_PIN = config.get('SENSOR_PIN', SENSOR_PIN)
-        ARDUINO_PORT = config.get('ARDUINO_PORT', ARDUINO_PORT)
         SENSOR_CHECK_PRE = config.get('SENSOR_CHECK_PRE', SENSOR_CHECK_PRE)
         SENSOR_CHECK_POST = config.get('SENSOR_CHECK_POST', SENSOR_CHECK_POST)
         JAM_CLEAR_ATTEMPTS = config.get('JAM_CLEAR_ATTEMPTS', JAM_CLEAR_ATTEMPTS)
@@ -1369,13 +1306,11 @@ def run_client(config, stop_event, gui_queue):
                 # 現在の設定を構築
                 current_config = {
                     "MOTOR_TYPE": MOTOR_TYPE,
-                    "CONTROL_METHOD": CONTROL_METHOD,
                     "USE_SENSOR": USE_SENSOR,
                     "MOTOR_SPEED": MOTOR_SPEED,
                     "MOTOR_DURATION": MOTOR_DURATION,
                     "MOTOR_REVERSE": MOTOR_REVERSE,
                     "SENSOR_GPIO_PIN": SENSOR_PIN,
-                    "ARDUINO_PORT": ARDUINO_PORT,
                     "SENSOR_CHECK_PRE": SENSOR_CHECK_PRE,
                     "SENSOR_CHECK_POST": SENSOR_CHECK_POST,
                     "JAM_CLEAR_ATTEMPTS": JAM_CLEAR_ATTEMPTS,
@@ -1477,267 +1412,30 @@ def run_client(config, stop_event, gui_queue):
         return is_clear
 
     def dispense_item():
-        # ▼▼▼ 毎回 config から最新の設定を読み取る ▼▼▼
-        current_motor_speed = config.get('MOTOR_SPEED', 100)
-        current_motor_duration = config.get('MOTOR_DURATION', 2.0)
-        current_motor_reverse = config.get('MOTOR_REVERSE', False)
-        current_motor_type = config.get('MOTOR_TYPE', MOTOR_TYPE)
-        current_control_method = config.get('CONTROL_METHOD', CONTROL_METHOD)
-        current_use_sensor = config.get('USE_SENSOR', USE_SENSOR)
-        
-        print(f"[DEBUG] dispense_item: MOTOR_REVERSE={current_motor_reverse}, SPEED={current_motor_speed}, DURATION={current_motor_duration}")
-        
-        if PLATFORM_RUNTIME != 'RASPI':
-            print("INFO: PCモードのためモーターは動作しません。")
-            send_log_to_server("排出完了 (PCモード)")
-            return True
-        
-        if current_motor_type == 'SERVO' and current_control_method == 'RASPI_DIRECT':
-            try:
-                pwm = Adafruit_PCA9685_runtime.PCA9685(address=0x40, busnum=1)
-                pwm.set_pwm_freq(60)
-                speed_pwm = int(150 + (current_motor_speed / 100.0) * 450)
+        from unit.hardware_controller import HardwareController, DispenseRequest
 
-                # ▼▼▼ 回転方向に応じてPWM値を設定 ▼▼▼
-                if current_motor_reverse:
-                    jam_clear_pwm = speed_pwm 
-                    final_push_pwm = int(speed_pwm * 0.5) 
-                else:
-                    jam_clear_pwm = int(speed_pwm * 0.5)
-                    final_push_pwm = speed_pwm
+        controller = HardwareController(
+            gpio_module=GPIO_runtime,
+            platform=PLATFORM_RUNTIME,
+        )
+        request = DispenseRequest(
+            config=config,
+            stop_event=stop_event,
+            on_log=send_log_to_server,
+        )
+        result = controller.dispense(request)
 
-                if current_use_sensor:
-                    print("INFO: センサー付きで排出を開始します。")
-                    
-                    # ========== 【1. モーター回転前のチェック】 ==========
-                    if SENSOR_CHECK_PRE:
-                        print("\n--- ステップ1: 回転前のセンサーチェック ---")
-                        if not check_sensor("(回転前)"):
-                            print("⚠ 警告: 回転前に物体を検知。排出口に残留物がある可能性")
-                            send_log_to_server("警告: 排出前に残留物検知")
-                            # 詰まり解消を試みる
-                            for attempt in range(JAM_CLEAR_ATTEMPTS):
-                                print(f"詰まり解消試行 {attempt+1}/{JAM_CLEAR_ATTEMPTS}")
-                                pwm.set_pwm(15, 0, jam_clear_pwm)
-                                time.sleep(0.3)
-                                pwm.set_pwm(15, 0, 0)
-                                time.sleep(0.5)
-                                
-                                if check_sensor("(解消確認)"):
-                                    print("✓ 詰まり解消成功")
-                                    break
-                            else:
-                                print("✗ 詰まり解消失敗。強制的に排出を試みます。")
-                                send_log_to_server("エラー: 初期詰まり解消失敗")
-                        else:
-                            print("✓ 回転前チェック: 排出口クリア")
-                    
-                    # ========== 【2. モーター回転】 ==========
-                    print(f"\n--- ステップ2: モーター回転 ({current_motor_duration}秒) ---")
-                    pwm.set_pwm(15, 0, final_push_pwm)
-                    time.sleep(current_motor_duration)
-                    pwm.set_pwm(15, 0, 0)
-                    print("✓ モーター回転完了")
-                    
-                    # ========== 【3. モーター回転後のチェック】 ==========
-                    if SENSOR_CHECK_POST:
-                        print("\n--- ステップ3: 回転後のセンサーチェック ---")
-                        time.sleep(SENSOR_STABILIZE_TIME)  # センサー安定待ち
-                        
-                        if check_sensor("(回転後)"):
-                            print("✓ 回転後チェック: 正常に排出されました")
-                            send_log_to_server("排出完了 (正常)")
-                        else:
-                            print("⚠ 警告: 回転後も物体検知。排出失敗の可能性")
-                            send_log_to_server("警告: 排出後に物体残留")
-                            
-                            # 追加の排出試行
-                            print("\n--- 追加排出試行 ---")
-                            for attempt in range(JAM_CLEAR_ATTEMPTS):
-                                print(f"追加排出 {attempt+1}/{JAM_CLEAR_ATTEMPTS}")
-                                pwm.set_pwm(15, 0, jam_clear_pwm)
-                                time.sleep(0.5)
-                                pwm.set_pwm(15, 0, 0)
-                                time.sleep(0.5)
-                                
-                                if check_sensor("(追加確認)"):
-                                    print("✓ 追加排出成功")
-                                    send_log_to_server("排出完了 (追加試行後)")
-                                    break
-                            else:
-                                print("✗ 排出失敗: 物体が詰まっています")
-                                send_log_to_server("エラー: 排出失敗 (詰まり)")
-                                return False
-                    else:
-                        # SENSOR_CHECK_POSTが無効の場合は成功とみなす
-                        print("✓ 排出完了 (回転後チェック無効)")
-                        send_log_to_server("排出完了 (チェックなし)")
-                    
-                else:
-                    print(f"INFO: センサーなしで排出 (速度:{current_motor_speed}, 時間:{current_motor_duration}秒)")
-                    pwm.set_pwm(15, 0, final_push_pwm)
-                    time.sleep(current_motor_duration)
-                    pwm.set_pwm(15, 0, 0)
-                    print("排出動作が完了しました。")
-                    send_log_to_server("排出完了 (センサーなし)")
-                return True
-
-            except Exception as e:
-                msg = f"モーター/センサー制御エラー: {e}"
-                print(f"!! {msg}")
-                send_log_to_server(msg)
-                return False
-
-        elif current_motor_type == 'STEPPER' and current_control_method == 'RASPI_DIRECT':
-            try:
-                try:
-                    import stepper_driver as stepper_runtime
-                except Exception as import_exc:
-                    stepper_runtime = stepper_driver
-                    if stepper_runtime is None:
-                        raise RuntimeError(f"stepper_driver import failed: {import_exc}")
-
-                if GPIO_runtime is None:
-                    raise RuntimeError("GPIO_runtime is not initialised")
-
-                drive_mode = stepper_runtime.resolve_drive_mode(config)
-                step_delay = stepper_runtime.resolve_step_delay(
-                    config,
-                    motor_speed=current_motor_speed,
-                )
-                wait = stepper_runtime.step_delay_for_drive_mode(drive_mode, step_delay)
-                steps_per_rev = stepper_runtime.resolve_steps_per_rev(drive_mode)
-
-                configured_steps = config.get('STEPPER_STEPS', 0)
-                try:
-                    configured_steps = int(configured_steps)
-                except (TypeError, ValueError):
-                    configured_steps = 0
-                main_steps = (
-                    configured_steps
-                    if configured_steps > 0
-                    else max(1, int(float(current_motor_duration) / wait))
-                )
-
-                summary = stepper_runtime.summarise(config)
-                print(
-                    "INFO: STEPPER/RASPI_DIRECT "
-                    f"pins={summary['pins']} phase_order={summary['phase_order']} "
-                    f"mode={drive_mode} steps={main_steps} wait={wait:.4f}s "
-                    f"reverse={current_motor_reverse}"
-                )
-
-                def rotate_stepper(fixed_steps, reverse, label):
-                    result = stepper_runtime.run_stepper(
-                        GPIO_runtime,
-                        config,
-                        steps=fixed_steps,
-                        reverse=reverse,
-                        motor_speed=current_motor_speed,
-                        stop_check=lambda: stop_event.is_set(),
-                        label=label,
-                    )
-                    if not result.get('ok'):
-                        raise RuntimeError(result.get('error', 'stepper run failed'))
-                    return result
-
-                if current_use_sensor:
-                    print("INFO: センサー付きでステッピング排出を開始します。")
-
-                    if SENSOR_CHECK_PRE:
-                        print("\n--- ステップ1: 回転前のセンサーチェック ---")
-                        if not check_sensor("(回転前)"):
-                            print("⚠ 警告: 回転前に物体を検知。詰まり解消を試みます")
-                            send_log_to_server("警告: 排出前に残留物検知")
-                            for attempt in range(JAM_CLEAR_ATTEMPTS):
-                                print(f"詰まり解消試行 {attempt + 1}/{JAM_CLEAR_ATTEMPTS}")
-                                rotate_stepper(
-                                    fixed_steps=max(64, steps_per_rev // 16),
-                                    reverse=not current_motor_reverse,
-                                    label='stepper-jam-clear',
-                                )
-                                time.sleep(0.3)
-                                if check_sensor("(解消確認)"):
-                                    print("✓ 詰まり解消成功")
-                                    break
-
-                    print(f"\n--- ステップ2: ステッピングモーター回転 ({current_motor_duration}秒) ---")
-                    rotate_stepper(
-                        fixed_steps=main_steps,
-                        reverse=current_motor_reverse,
-                        label='stepper-dispense',
-                    )
-
-                    if SENSOR_CHECK_POST:
-                        print("\n--- ステップ3: 回転後のセンサーチェック ---")
-                        time.sleep(SENSOR_STABILIZE_TIME)
-                        if check_sensor("(回転後)"):
-                            print("✓ 回転後チェック: 正常に排出されました")
-                            send_log_to_server("排出完了 (STEPPER/RASPI_DIRECT 正常)")
-                        else:
-                            print("⚠ 警告: 回転後も物体検知。追加排出を試みます")
-                            send_log_to_server("警告: 排出後に物体残留")
-                            for attempt in range(JAM_CLEAR_ATTEMPTS):
-                                print(f"追加排出 {attempt + 1}/{JAM_CLEAR_ATTEMPTS}")
-                                rotate_stepper(
-                                    fixed_steps=max(128, steps_per_rev // 8),
-                                    reverse=current_motor_reverse,
-                                    label='stepper-retry',
-                                )
-                                time.sleep(0.3)
-                                if check_sensor("(追加確認)"):
-                                    print("✓ 追加排出成功")
-                                    send_log_to_server("排出完了 (STEPPER/RASPI_DIRECT 追加試行後)")
-                                    break
-                            else:
-                                print("✗ 排出失敗: 物体が詰まっています")
-                                send_log_to_server("エラー: 排出失敗 (STEPPER/RASPI_DIRECT 詰まり)")
-                                return False
-                    else:
-                        send_log_to_server("排出完了 (STEPPER/RASPI_DIRECT チェックなし)")
-                else:
-                    print(f"INFO: センサーなしでステッピング排出 (時間:{current_motor_duration}秒)")
-                    rotate_stepper(
-                        fixed_steps=main_steps,
-                        reverse=current_motor_reverse,
-                        label='stepper-dispense-nosensor',
-                    )
-                    send_log_to_server("排出完了 (STEPPER/RASPI_DIRECT センサーなし)")
-
-                return True
-
-            except Exception as e:
-                msg = f"ステッピングモーター制御エラー: {e}"
-                print(f"!! {msg}")
-                send_log_to_server(msg)
-                try:
-                    if stepper_driver is not None:
-                        stepper_driver.coils_off(GPIO_runtime, config)
-                except Exception:
-                    pass
-                return False
-
-        elif current_control_method == 'ARDUINO_SERIAL':
-            try:
-                ser = serial.Serial(ARDUINO_PORT, 9600, timeout=1)
-                time.sleep(2)
-                direction_flag = 1 if current_motor_reverse else 0
-                command = f"S{current_motor_speed}T{current_motor_duration}D{direction_flag}\n"
-                ser.write(command.encode('utf-8'))
-                print(f"Arduinoにコマンド送信: {command.strip()}")
-                send_log_to_server(f"Arduinoに排出指令: {command.strip()}")
-                ser.close()
-                return True
-            except Exception as e:
-                msg = f"Arduino通信エラー: {e}"
-                print(f"!! {msg}")
-                send_log_to_server(msg)
-                return False
+        if result.success:
+            indicate("success")
         else:
-            error_message = f"未サポートのモーター設定です: {current_motor_type}, {current_control_method}"
-            print(f"!! {error_message}")
-            send_log_to_server(error_message)
-            return False
+            indicate("failure")
+
+        send_log_to_server(
+            f"排出{'成功' if result.success else '失敗'}"
+            f" ({result.motor_type}, attempts={result.attempts}"
+            + (f", error={result.error}" if result.error else "") + ")"
+        )
+        return result.success
 
     def handle_card_touch(tag):
         """NFCカードタッチ時の処理（改良版）"""
@@ -2061,23 +1759,21 @@ def show_cui_menu(config):
         print(f"  2. 子機名          : {config['UNIT_NAME']}")
         print(f"  3. パスワード      : {'*' * len(config.get('UNIT_PASSWORD', ''))}")
         print(f"  4. モーター種類    : {config['MOTOR_TYPE']}")
-        print(f"  5. 制御方法        : {config['CONTROL_METHOD']}")
-        print(f"  6. センサー使用    : {config['USE_SENSOR']}")
-        print(f"  7. 緑LED PIN       : {config['GREEN_LED_PIN']}")
-        print(f"  8. 赤LED PIN       : {config['RED_LED_PIN']}")
-        print(f"  9. センサーPIN     : {config['SENSOR_PIN']}")
-        print(f" 10. Arduino PORT    : {config['ARDUINO_PORT']}")
-        print(f" 11. モーター速度    : {config['MOTOR_SPEED']}")
-        print(f" 12. モーター時間    : {config['MOTOR_DURATION']}秒")
-        print(f" 13. モーター反転    : {config['MOTOR_REVERSE']}")
-        if config.get('MOTOR_TYPE') == 'STEPPER' and config.get('CONTROL_METHOD') == 'RASPI_DIRECT':
-            print(f" 14. STEPPER_PINS    : {format_list('STEPPER_PINS', [21, 17, 27, 22])}")
-            print(f" 15. PHASE_ORDER     : {format_list('STEPPER_PHASE_ORDER', [0, 1, 2, 3])}")
-            print(f" 16. STEP_DELAY      : {config.get('STEPPER_STEP_DELAY', 0.01)}秒")
-            print(f" 17. DRIVE_MODE      : {config.get('STEPPER_DRIVE_MODE', 'half')}")
-            print(f" 18. 排出ステップ数  : {config.get('STEPPER_STEPS', 0)} (0=秒数から計算)")
-            print(f" 19. テストステップ  : {config.get('STEPPER_TEST_STEPS', 2048)}")
-            print(f" 20. STEPPER_BACKEND : {config.get('STEPPER_BACKEND', 'auto')}")
+        print(f"  5. センサー使用    : {config['USE_SENSOR']}")
+        print(f"  6. 緑LED PIN       : {config['GREEN_LED_PIN']}")
+        print(f"  7. 赤LED PIN       : {config['RED_LED_PIN']}")
+        print(f"  8. センサーPIN     : {config['SENSOR_PIN']}")
+        print(f"  9. モーター速度    : {config['MOTOR_SPEED']}")
+        print(f" 10. モーター時間    : {config['MOTOR_DURATION']}秒")
+        print(f" 11. モーター反転    : {config['MOTOR_REVERSE']}")
+        if config.get('MOTOR_TYPE') == 'STEPPER':
+            print(f" 12. STEPPER_PINS    : {format_list('STEPPER_PINS', [21, 17, 27, 22])}")
+            print(f" 13. PHASE_ORDER     : {format_list('STEPPER_PHASE_ORDER', [0, 1, 2, 3])}")
+            print(f" 14. STEP_DELAY      : {config.get('STEPPER_STEP_DELAY', 0.01)}秒")
+            print(f" 15. DRIVE_MODE      : {config.get('STEPPER_DRIVE_MODE', 'half')}")
+            print(f" 16. 排出ステップ数  : {config.get('STEPPER_STEPS', 0)} (0=秒数から計算)")
+            print(f" 17. テストステップ  : {config.get('STEPPER_TEST_STEPS', 2048)}")
+            print(f" 18. STEPPER_BACKEND : {config.get('STEPPER_BACKEND', 'auto')}")
         print("=" * 60)
         print("  a. 親機自動探知")
         print("  d. ハードウェア診断")
@@ -2088,7 +1784,7 @@ def show_cui_menu(config):
         print("  q. 保存せずに起動")
         print("=" * 60)
         
-        choice = input("\n選択 [1-20/a/d/t/r/off/s/q]: ").strip().lower()
+        choice = input("\n選択 [1-18/a/d/t/r/off/s/q]: ").strip().lower()
         
         if choice == '1':
             new_val = input(f"サーバーURL [{config['SERVER_URL']}]: ").strip()
@@ -2112,15 +1808,6 @@ def show_cui_menu(config):
             elif motor_choice == '2':
                 config['MOTOR_TYPE'] = 'STEPPER'
         elif choice == '5':
-            print("\n制御方法:")
-            print("  1. RASPI_DIRECT (ラズパイ直結・GPIO/PCA9685)")
-            print("  2. ARDUINO (Arduino経由)")
-            control_choice = input("選択 [1-2]: ").strip()
-            if control_choice == '1':
-                config['CONTROL_METHOD'] = 'RASPI_DIRECT'
-            elif control_choice == '2':
-                config['CONTROL_METHOD'] = 'ARDUINO_SERIAL'
-        elif choice == '6':
             print("\nセンサー使用:")
             print("  1. 使用する")
             print("  2. 使用しない")
@@ -2129,33 +1816,29 @@ def show_cui_menu(config):
                 config['USE_SENSOR'] = True
             elif sensor_choice == '2':
                 config['USE_SENSOR'] = False
-        elif choice == '7':
+        elif choice == '6':
             new_val = input(f"緑LED PIN (BCM) [{config['GREEN_LED_PIN']}]: ").strip()
             if new_val.isdigit():
                 config['GREEN_LED_PIN'] = int(new_val)
-        elif choice == '8':
+        elif choice == '7':
             new_val = input(f"赤LED PIN (BCM) [{config['RED_LED_PIN']}]: ").strip()
             if new_val.isdigit():
                 config['RED_LED_PIN'] = int(new_val)
-        elif choice == '9':
+        elif choice == '8':
             new_val = input(f"センサーPIN (BCM) [{config['SENSOR_PIN']}]: ").strip()
             if new_val.isdigit():
                 config['SENSOR_PIN'] = int(new_val)
-        elif choice == '10':
-            new_val = input(f"Arduino PORT [{config['ARDUINO_PORT']}]: ").strip()
-            if new_val:
-                config['ARDUINO_PORT'] = new_val
-        elif choice == '11':
+        elif choice == '9':
             new_val = input(f"モーター速度 (0-100) [{config['MOTOR_SPEED']}]: ").strip()
             if new_val.isdigit():
                 config['MOTOR_SPEED'] = int(new_val)
-        elif choice == '12':
+        elif choice == '10':
             new_val = input(f"モーター時間 (秒) [{config['MOTOR_DURATION']}]: ").strip()
             try:
                 config['MOTOR_DURATION'] = float(new_val)
             except ValueError:
                 pass
-        elif choice == '13':
+        elif choice == '11':
             print("\nモーター反転:")
             print("  1. 正転")
             print("  2. 逆転")
@@ -2164,7 +1847,7 @@ def show_cui_menu(config):
                 config['MOTOR_REVERSE'] = False
             elif reverse_choice == '2':
                 config['MOTOR_REVERSE'] = True
-        elif choice == '14':
+        elif choice == '12':
             new_val = input(
                 f"STEPPER_PINS IN1,IN2,IN3,IN4 (BCM) [{format_list('STEPPER_PINS', [21, 17, 27, 22])}]: "
             ).strip()
@@ -2174,7 +1857,7 @@ def show_cui_menu(config):
                     config['STEPPER_PINS'] = pins
                 else:
                     print("✗ 4本指定してください")
-        elif choice == '15':
+        elif choice == '13':
             new_val = input(
                 f"STEPPER_PHASE_ORDER [{format_list('STEPPER_PHASE_ORDER', [0, 1, 2, 3])}]: "
             ).strip()
@@ -2184,25 +1867,25 @@ def show_cui_menu(config):
                     config['STEPPER_PHASE_ORDER'] = order
                 else:
                     print("✗ 0,1,2,3 の並べ替えで指定してください")
-        elif choice == '16':
+        elif choice == '14':
             new_val = input(f"STEP_DELAY秒 [{config.get('STEPPER_STEP_DELAY', 0.01)}]: ").strip()
             if new_val:
                 config['STEPPER_STEP_DELAY'] = max(0.01, float(new_val))
-        elif choice == '17':
+        elif choice == '15':
             new_val = input("DRIVE_MODE [full/half/wave]: ").strip().lower()
             if new_val in ('full', 'half', 'wave'):
                 config['STEPPER_DRIVE_MODE'] = new_val
             else:
                 print("✗ full / half / wave のいずれかを指定してください")
-        elif choice == '18':
+        elif choice == '16':
             new_val = input(f"排出ステップ数 [{config.get('STEPPER_STEPS', 0)}] (0=秒数から計算): ").strip()
             if new_val:
                 config['STEPPER_STEPS'] = max(0, int(new_val))
-        elif choice == '19':
+        elif choice == '17':
             new_val = input(f"テストステップ数 [{config.get('STEPPER_TEST_STEPS', 2048)}]: ").strip()
             if new_val:
                 config['STEPPER_TEST_STEPS'] = max(1, int(new_val))
-        elif choice == '20':
+        elif choice == '18':
             new_val = input(f"STEPPER_BACKEND [{config.get('STEPPER_BACKEND', 'auto')}] (auto/pigpio/library/gpio): ").strip().lower()
             if new_val in ('auto', 'pigpio', 'library', 'gpio'):
                 config['STEPPER_BACKEND'] = new_val
@@ -2284,7 +1967,7 @@ def run_cui_diagnostics(config):
         print(f"\n[センサー] エラー: {e}")
     
     # モーター制御診断
-    if config['CONTROL_METHOD'] == 'RASPI_DIRECT' and config.get('MOTOR_TYPE') == 'STEPPER':
+    if config['MOTOR_TYPE'] == 'STEPPER':
         if stepper_driver is None:
             print("[STEPPER] エラー: stepper_driver が利用できません")
         else:
@@ -2299,7 +1982,7 @@ def run_cui_diagnostics(config):
                     print(f"[STEPPER] backend {name}: {'OK' if ok else 'NG'}")
             except Exception as e:
                 print(f"[STEPPER] 設定エラー: {e}")
-    elif config['CONTROL_METHOD'] == 'RASPI_DIRECT':
+    elif config['MOTOR_TYPE'] == 'SERVO':
         try:
             if Adafruit_PCA9685 is None:
                 raise RuntimeError("Adafruit_PCA9685 is not installed")
@@ -2316,8 +1999,8 @@ def run_cui_diagnostics(config):
 def run_cui_mode():
     """CUIモードで子機を起動（GUIなし）"""
     global SERVER_URL, UNIT_NAME, UNIT_PASSWORD
-    global MOTOR_TYPE, CONTROL_METHOD, USE_SENSOR
-    global GREEN_LED_PIN, RED_LED_PIN, SENSOR_PIN, ARDUINO_PORT
+    global MOTOR_TYPE, USE_SENSOR
+    global GREEN_LED_PIN, RED_LED_PIN, SENSOR_PIN
     global MOTOR_SPEED, MOTOR_DURATION, MOTOR_REVERSE
     
     # 停止イベントを作成
@@ -2401,12 +2084,10 @@ def run_cui_mode():
     UNIT_NAME = config['UNIT_NAME']
     UNIT_PASSWORD = config['UNIT_PASSWORD']
     MOTOR_TYPE = config['MOTOR_TYPE']
-    CONTROL_METHOD = config['CONTROL_METHOD']
     USE_SENSOR = config['USE_SENSOR']
     GREEN_LED_PIN = config['GREEN_LED_PIN']
     RED_LED_PIN = config['RED_LED_PIN']
     SENSOR_PIN = config['SENSOR_PIN']
-    ARDUINO_PORT = config['ARDUINO_PORT']
     MOTOR_SPEED = config['MOTOR_SPEED']
     MOTOR_DURATION = config['MOTOR_DURATION']
     MOTOR_REVERSE = config['MOTOR_REVERSE']
