@@ -2,7 +2,9 @@
 
 このガイドは、OITERU を初めて触る人が **Linux 系 OS + tmux + ローカル MySQL** で親機と子機を起動できるようにまとめた手順書です。
 
-コマンドを上から順に実行すれば、基本的な起動確認まで進められます。Docker は標準手順では使いません。
+コマンドを上から順に実行すれば、基本的な起動確認まで進められます。Linux の標準手順では Docker を使いません。
+
+親機の管理画面や API を Windows 上で開発したい場合は、最後の「Windowsで親機を開発起動する」を使ってください。子機の GPIO/NFC/モーター確認は Raspberry Pi 上で行います。
 
 ## 0. 必要なソフトウェアと環境
 
@@ -29,6 +31,7 @@
 | Python | Python 本体 | https://www.python.org/downloads/ |
 | Git | Git CLI | https://git-scm.com/downloads |
 | MySQL Community Server | 親機 DB | https://dev.mysql.com/downloads/mysql/ |
+| Docker Desktop | Windows で MySQL コンテナを使う場合 | https://www.docker.com/products/docker-desktop/ |
 | tmux | tmux 本体。Linux では通常 `apt` で入れる | https://github.com/tmux/tmux/releases |
 | Visual Studio Code | 推奨エディタ | https://code.visualstudio.com/download |
 | Tailscale | 別ネットワーク間で親機・子機をつなぐ場合の任意 VPN | https://tailscale.com/downloads |
@@ -211,9 +214,6 @@ nano config.json
 | `SERVER_URL` | 親機 URL | `http://192.168.1.10:5000` |
 | `UNIT_NAME` | 子機名 | `unit-01` |
 | `UNIT_PASSWORD` | 親機側と合わせるパスワード | `change-this` |
-| `MOTOR_TYPE` | `SERVO` または `STEPPER` | `STEPPER` |
-| `CONTROL_METHOD` | ラズパイ直結なら `RASPI_DIRECT` | `RASPI_DIRECT` |
-| `STEPPER_BACKEND` | ステッパー制御方式 | `auto` |
 
 子機が Raspberry Pi の場合、必要に応じて pigpio も準備します。
 
@@ -381,10 +381,154 @@ git status --short
 
 `.env`, `config.json`, `logs/`, ログ、DB ファイルをコミットしないでください。
 
-## 13. 補足: Windows について
+## 13. Windowsで親機を開発起動する
 
-Windows 用の PowerShell や bat スクリプトは残っていますが、この取説の標準ではありません。
+この章は、Windows 上で親機の管理画面や API を開発したい人向けです。
 
-レビュー、実証運用、引き継ぎでは Linux/tmux 手順を基準にしてください。
+実証運用の標準は Linux/tmux ですが、親機の画面確認・API 修正・DB 連携確認は Windows でもできます。子機の GPIO/NFC/ステッピングモーター確認は Raspberry Pi 上で行ってください。
 
-最終更新: 2026-06-17
+### 13.1 Windowsで使う構成
+
+| 項目 | Windows 開発時の使い方 |
+|---|---|
+| OS | Windows 10 / 11 |
+| ターミナル | PowerShell |
+| Python | Windows 版 Python 3.10 以上 |
+| DB | Docker Desktop 上の MySQL 8 |
+| 親機 | `db_server.py` |
+| 起動補助 | `venv-start.ps1` |
+| 子機実機確認 | Raspberry Pi で実施 |
+
+Windows では tmux は使いません。PowerShell の画面を閉じると親機も止まります。
+
+### 13.2 初回だけ入れるもの
+
+| ソフト | 確認コマンド |
+|---|---|
+| Git | `git --version` |
+| Python | `python --version` |
+| Docker Desktop | `docker version` |
+| VS Code | 任意 |
+
+Docker Desktop は起動した状態にしてから作業してください。
+
+### 13.3 プロジェクトへ移動する
+
+PowerShell を開きます。
+
+```powershell
+cd "$env:USERPROFILE\Desktop\oiteru_202603"
+git branch --show-current
+git pull
+git status --short
+```
+
+場所が違う場合は、実際に `oiteru_202603` を置いた場所へ移動してください。
+
+### 13.4 `.env` を作る
+
+初回だけ `.env.example` をコピーします。
+
+```powershell
+Copy-Item .env.example .env
+notepad .env
+```
+
+最低限、次を変更してください。
+
+| 変数 | 何を入れるか |
+|---|---|
+| `FLASK_SECRET_KEY` | 長いランダム文字列 |
+| `OITERU_ADMIN_PASSWORD` | 管理画面ログイン用パスワード |
+| `MYSQL_PASSWORD` | MySQL 接続パスワード |
+| `MYSQL_ROOT_PASSWORD` | MySQL root パスワード |
+
+`.env` は秘密情報です。Git にコミットしないでください。
+
+### 13.5 Python仮想環境を作る
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+`PyMySQL` は `requirements.txt` に含まれています。MySQL 親機を起動するために必要です。
+
+### 13.6 MySQLをDockerで起動する
+
+```powershell
+docker compose -f docker-compose.mysql.yml up -d mysql
+docker compose -f docker-compose.mysql.yml ps
+```
+
+`oiteru_mysql` が `running` または `healthy` になれば OK です。
+
+ログを見たい場合:
+
+```powershell
+docker compose -f docker-compose.mysql.yml logs -f mysql
+```
+
+### 13.7 親機を起動する
+
+PowerShell の実行ポリシーで止まる場合があるため、まずこのコマンドを同じ PowerShell で実行します。
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+```
+
+親機を起動します。
+
+```powershell
+.\venv-start.ps1 parent-mysql
+```
+
+起動したらブラウザで開きます。
+
+```text
+http://localhost:5000/admin
+```
+
+ログインパスワードは `.env` の `OITERU_ADMIN_PASSWORD` です。
+
+### 13.8 よく使うWindows確認コマンド
+
+```powershell
+git status --short
+docker compose -f docker-compose.mysql.yml ps
+.\.venv\Scripts\python.exe -m unittest
+```
+
+親機を止める:
+
+```text
+PowerShell 上で Ctrl+c
+```
+
+MySQL だけ止める:
+
+```powershell
+docker compose -f docker-compose.mysql.yml stop mysql
+```
+
+MySQL のデータも消す場合だけ使います。
+
+```powershell
+docker compose -f docker-compose.mysql.yml down -v
+```
+
+### 13.9 Windowsで困ったとき
+
+| 症状 | 確認すること |
+|---|---|
+| `running scripts is disabled` | `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` を実行 |
+| `docker` が見つからない | Docker Desktop を起動し、PowerShell を開き直す |
+| MySQL に接続できない | `docker compose -f docker-compose.mysql.yml ps` と `.env` の `MYSQL_*` を確認 |
+| `ModuleNotFoundError` | `.\.venv\Scripts\python.exe -m pip install -r requirements.txt` を再実行 |
+| `localhost:5000` が開かない | 親機 PowerShell のエラー表示を確認 |
+| ポート `3306` が使えない | 既存の MySQL を止めるか、Docker/MySQL のポート設定を変更 |
+
+Windows で作った `.env`、ログ、DB データ、`config.json` はコミットしないでください。
+
+最終更新: 2026-06-10
