@@ -2,17 +2,23 @@
 {% block content %}
 <section class="hero">
   <div class="hero-text">
-    <h2>オイテルシステムへようこそ</h2>
+    <h2>OITERU システムへようこそ</h2>
     <p>学生証をかざすだけでスムーズに備品を受け取れるセルフサービスです。<br class="u-hide-mobile">はじめての方でも直感的に操作できるよう、シンプルなステップでご案内します。</p>
     <div class="hero-actions">
-      <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg">学生証を登録する</a>
-      <a href="{{ url_for('usage') }}" class="btn btn-outline btn-lg">利用状況を確認する</a>
+      <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg">
+        <span class="material-symbols-outlined">app_registration</span>
+        学生証を登録する
+      </a>
+      <a href="{{ url_for('usage') }}" class="btn btn-outline btn-lg">
+        <span class="material-symbols-outlined">manage_search</span>
+        利用状況を確認する
+      </a>
     </div>
     <p class="hero-note">管理者の方は <a href="{{ url_for('admin_login') }}">こちらからログイン</a></p>
   </div>
   <div class="hero-visual" aria-hidden="true">
     <div class="hero-card">
-      <span class="hero-icon">📱</span>
+      <span class="material-symbols-outlined">touch_app</span>
       <h3>かんたん3ステップ</h3>
       <ol>
         <li>学生証をリーダーにタッチ</li>
@@ -25,17 +31,17 @@
 
 <section class="feature-grid">
   <article class="feature-card">
-    <span class="feature-icon">✅</span>
+    <span class="material-symbols-outlined">inventory_2</span>
     <h3>リアルタイムな在庫表示</h3>
     <p>在庫状況が瞬時に更新されるので、備品の残数をすぐに把握できます。</p>
   </article>
   <article class="feature-card">
-    <span class="feature-icon">🔐</span>
+    <span class="material-symbols-outlined">verified_user</span>
     <h3>安心の認証フロー</h3>
     <p>学生証による認証で、権限のあるユーザーだけが利用できる安全な運用を実現します。</p>
   </article>
   <article class="feature-card">
-    <span class="feature-icon">💡</span>
+    <span class="material-symbols-outlined">lightbulb</span>
     <h3>はじめてでも迷わない</h3>
     <p>画面の案内やLED表示で、操作手順を丁寧にナビゲーションします。</p>
   </article>

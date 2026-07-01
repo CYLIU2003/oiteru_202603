@@ -41,3 +41,4 @@ env/
 Thumbs.db
 .idea/
 .vscode/
+node_modules/

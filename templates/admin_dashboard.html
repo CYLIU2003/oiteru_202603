@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="admin-dashboard">
-  <h2>🎛️ 管理者ダッシュボード</h2>
+  <h2><span class="material-symbols-outlined">dashboard</span> 管理者ダッシュボード</h2>
   
   <!-- サーバー情報 -->
   {% if server_info %}
   <div class="info-card">
-    <h3>📡 このサーバーの情報</h3>
+    <h3><span class="material-symbols-outlined">dns</span> このサーバーの情報</h3>
     <div class="info-grid">
       <strong>サーバー名:</strong> <span>{{ server_info.name }}</span>
       <strong>設置場所:</strong> <span>{{ server_info.location }}</span>
@@ -18,7 +18,11 @@
   <!-- 自動登録モード状態 -->
   <div class="info-card {% if server_info.auto_register %}success{% else %}warning{% endif %}">
     <h3>
-      {% if server_info.auto_register %}✅ 自動登録モード: 有効{% else %}⚠️ 自動登録モード: 無効{% endif %}
+      {% if server_info.auto_register %}
+        <span class="material-symbols-outlined">check_circle</span> 自動登録モード: 有効
+      {% else %}
+        <span class="material-symbols-outlined">warning</span> 自動登録モード: 無効
+      {% endif %}
     </h3>
     <div>
       {% if server_info.auto_register %}
@@ -33,17 +37,17 @@
   <!-- 統計情報 -->
   <div class="stats-grid">
     <div class="stat-card">
-      <div class="stat-icon">👥</div>
+      <span class="material-symbols-outlined">group</span>
       <div class="stat-value">{{ stats.user_count }}</div>
       <div class="stat-label">登録ユーザー</div>
     </div>
     <div class="stat-card">
-      <div class="stat-icon">📦</div>
+      <span class="material-symbols-outlined">devices</span>
       <div class="stat-value">{{ stats.unit_count }}</div>
       <div class="stat-label">子機</div>
     </div>
     <div class="stat-card">
-      <div class="stat-icon">✅</div>
+      <span class="material-symbols-outlined">check_circle</span>
       <div class="stat-value">{{ total_dispensed }}</div>
       <div class="stat-label">実排出数</div>
     </div>
@@ -51,14 +55,30 @@
   
   <!-- メニュー -->
   <div class="menu-grid">
-    <a href="{{ url_for('admin_settings') }}" class="menu-btn purple">⚙️ システム設定</a>
-    <a href="{{ url_for('admin_users') }}" class="menu-btn">👥 利用者一覧</a>
-    <a href="{{ url_for('admin_units') }}" class="menu-btn">📦 子機一覧</a>
-    <a href="{{ url_for('admin_history') }}" class="menu-btn">📋 利用履歴</a>
-    <a href="{{ url_for('admin_visuals') }}" class="menu-btn orange">📊 グラフ表示</a>
-    <a href="{{ url_for('admin_backup_download') }}" class="menu-btn">💾 バックアップ</a>
-    <a href="{{ url_for('admin_restore') }}" class="menu-btn">🔄 データ復元</a>
-    <a href="{{ url_for('admin_login') }}?logout=1" class="menu-btn gray">🚪 ログアウト</a>
+    <a href="{{ url_for('admin_settings') }}" class="menu-btn purple">
+      <span class="material-symbols-outlined">settings</span> システム設定
+    </a>
+    <a href="{{ url_for('admin_users') }}" class="menu-btn">
+      <span class="material-symbols-outlined">group</span> 利用者一覧
+    </a>
+    <a href="{{ url_for('admin_units') }}" class="menu-btn">
+      <span class="material-symbols-outlined">devices</span> 子機一覧
+    </a>
+    <a href="{{ url_for('admin_history') }}" class="menu-btn">
+      <span class="material-symbols-outlined">history</span> 利用履歴
+    </a>
+    <a href="{{ url_for('admin_visuals') }}" class="menu-btn orange">
+      <span class="material-symbols-outlined">monitoring</span> グラフ表示
+    </a>
+    <a href="{{ url_for('admin_backup_download') }}" class="menu-btn">
+      <span class="material-symbols-outlined">download</span> バックアップ
+    </a>
+    <a href="{{ url_for('admin_restore') }}" class="menu-btn">
+      <span class="material-symbols-outlined">restore_page</span> データ復元
+    </a>
+    <a href="{{ url_for('admin_login') }}?logout=1" class="menu-btn gray">
+      <span class="material-symbols-outlined">logout</span> ログアウト
+    </a>
   </div>
 </div>
 {% endblock %}

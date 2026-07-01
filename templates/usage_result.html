@@ -1,15 +1,33 @@
 {% extends "base.html" %}
 
 {% block content %}
-  <h1>利用状況結果</h1>
-  <table>
-    <tr><th>カードID</th><td>{{ cardid }}</td></tr>
-    <tr><th>残り利用回数</th><td>{{ stock }}</td></tr>
+<div class="card-action">
+  <span class="material-symbols-outlined" style="font-size: 2.8rem; color: var(--md-primary); margin-bottom: 8px;">person_search</span>
+  <h2>利用状況結果</h2>
+  <table class="modern-table" style="margin: 0 auto; max-width: 480px;">
+    <tr><th>カードID</th><td><code>{{ cardid }}</code></td></tr>
+    <tr><th>残り利用回数</th><td><strong style="color: var(--md-primary); font-size: 1.2rem;">{{ stock }}</strong></td></tr>
     <tr><th>利用状況</th><td>
-      {% if allow == 1 %}利用可能{% else %}利用停止中{% endif %}
+      {% if allow == 1 %}
+        <span class="status-badge online">
+          <span class="status-dot online"></span> 利用可能
+        </span>
+      {% else %}
+        <span class="status-badge offline">
+          <span class="status-dot offline"></span> 利用停止中
+        </span>
+      {% endif %}
     </td></tr>
     <tr><th>登録日</th><td>{{ entry_at }}</td></tr>
     <tr><th>累計利用回数</th><td>{{ total }}</td></tr>
   </table>
-  <p><a href="{{ url_for('usage') }}">← 戻る</a></p>
+  <div class="btn-group">
+    <a href="{{ url_for('usage') }}" class="btn btn-secondary">
+      <span class="material-symbols-outlined">arrow_back</span> 戻る
+    </a>
+    <a href="{{ url_for('index') }}" class="btn btn-outline">
+      <span class="material-symbols-outlined">home</span> ホーム
+    </a>
+  </div>
+</div>
 {% endblock %}

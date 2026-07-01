@@ -3,7 +3,7 @@
 <div class="admin-section">
   <div class="admin-card">
     <div class="admin-card-header">
-      <h2><span class="icon">🖥️</span>子機編集 (ID: {{ unit['id'] }})</h2>
+      <h2><span class="material-symbols-outlined">devices</span> 子機編集 (ID: {{ unit['id'] }})</h2>
       <div class="admin-card-actions">
         {% if unit['connect'] == 1 %}
           <span class="status-badge online">
@@ -22,7 +22,7 @@
       <div class="info-item">
         <div class="info-label">子機名（システム識別子）</div>
         <div class="info-value">{{ unit['name'] }}</div>
-        <div class="form-hint" style="margin-top:4px;font-size:0.8rem;color:var(--muted-text);">
+        <div class="form-help" style="margin-top:4px;font-size:0.8rem;color:var(--md-on-surface-variant);">
           ※ 通信で使用されるため変更不可
         </div>
       </div>
@@ -45,11 +45,11 @@
     </div>
 
     <!-- 利用可能トグル -->
-    <div style="background:#f8f9fa;padding:20px;border-radius:12px;margin-bottom:24px;">
+    <div style="background:var(--md-surface-container-low);padding:20px;border-radius:var(--md-radius-sm);margin-bottom:24px;">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">
         <div>
           <strong style="font-size:1.1rem;">利用可能状態</strong>
-          <p style="margin:4px 0 0;color:var(--muted-text);font-size:0.9rem;">
+          <p style="margin:4px 0 0;color:var(--md-on-surface-variant);font-size:0.9rem;">
             無効にすると、この子機でのカード利用ができなくなります
           </p>
         </div>
@@ -72,87 +72,87 @@
     <form method="post">
       <input type="hidden" name="available" id="available-input" value="{{ unit['available'] }}">
       
-      <div class="section-divider">
-        <h3>📦 在庫管理</h3>
+      <div style="margin-bottom: var(--md-space-md);">
+        <h3><span class="material-symbols-outlined">inventory_2</span> 在庫管理</h3>
       </div>
       
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px;">
         <div class="form-group">
-          <label for="initial_stock">初期在庫数</label>
-          <input type="number" class="form-control" id="initial_stock" name="initial_stock" 
+          <label class="form-label" for="initial_stock">初期在庫数</label>
+          <input type="number" class="form-input" id="initial_stock" name="initial_stock" 
                  value="{{ unit['initial_stock'] or 100 }}">
-          <div class="form-hint">補充時に設定してください</div>
+          <div class="form-help">補充時に設定してください</div>
         </div>
         <div class="form-group">
-          <label for="stock">現在の残り在庫</label>
-          <input type="number" class="form-control" id="stock" name="stock" 
+          <label class="form-label" for="stock">現在の残り在庫</label>
+          <input type="number" class="form-input" id="stock" name="stock" 
                  value="{{ unit['stock'] }}">
         </div>
       </div>
 
-      <div class="btn-group" style="margin-top:24px;">
+      <div class="btn-group">
         <button type="submit" class="btn btn-primary btn-icon">
-          <span>💾</span> 更新する
+          <span class="material-symbols-outlined">save</span> 更新する
         </button>
         <a href="{{ url_for('admin_units') }}" class="btn btn-secondary btn-icon">
-          <span>←</span> 一覧に戻る
+          <span class="material-symbols-outlined">arrow_back</span> 一覧に戻る
         </a>
       </div>
     </form>
 
     <!-- 子機設定セクション（折りたたみ可能） -->
     <div class="collapsible-section" style="margin-top:32px;">
-      <div class="section-header" onclick="toggleSection('config-section')">
-        <h3><span class="icon">⚙️</span> 子機設定（リモート設定）</h3>
-        <span class="toggle-icon" id="config-section-icon">▼</span>
+      <div class="section-header" onclick="toggleSection('config-section')" style="cursor: pointer;">
+        <h3><span class="material-symbols-outlined">settings</span> 子機設定（リモート設定）</h3>
+        <span class="material-symbols-outlined" id="config-section-icon">expand_more</span>
       </div>
       <div class="section-content" id="config-section" style="display:none;">
       
       {% if unit_config %}
         <div style="margin-bottom:16px;">
-          <span class="status-badge" style="background:#e8f5e9;color:#2e7d32;padding:8px 16px;border-radius:8px;">
-            ✓ 設定取得済み
+          <span class="status-badge online" style="padding:8px 16px;">
+            <span class="material-symbols-outlined" style="font-size:16px;">check</span> 設定取得済み
           </span>
           {% if config_last_updated %}
-            <span style="margin-left:12px;color:var(--muted-text);font-size:0.9rem;">
+            <span style="margin-left:12px;color:var(--md-on-surface-variant);font-size:0.9rem;">
               最終更新: {{ config_last_updated }}
             </span>
           {% endif %}
           {% if has_pending_config %}
-            <span class="status-badge" style="background:#fff3e0;color:#e65100;padding:8px 16px;border-radius:8px;margin-left:12px;">
-              ⏳ 設定変更待ち（次回heartbeatで反映）
+            <span class="status-badge" style="background:var(--md-warning-container);color:var(--md-on-warning-container);padding:8px 16px;margin-left:12px;">
+              <span class="material-symbols-outlined" style="font-size:16px;">pending</span> 設定変更待ち（次回heartbeatで反映）
             </span>
           {% endif %}
         </div>
 
-        <div style="background:#f8f9fa;padding:20px;border-radius:12px;">
+        <div style="background:var(--md-surface-container-low);padding:20px;border-radius:var(--md-radius-sm);">
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;">
             
             <!-- モーター設定 -->
             <div class="config-group">
-              <h4 style="margin:0 0 12px;font-size:1rem;color:var(--primary-color);">🔧 モーター設定</h4>
+              <h4 style="margin:0 0 12px;font-size:1rem;color:var(--md-primary);"><span class="material-symbols-outlined">build</span> モーター設定</h4>
               <div class="form-group">
-                <label>モータータイプ</label>
-                <select id="config-motor-type" class="form-control">
+                <label class="form-label">モータータイプ</label>
+                <select id="config-motor-type" class="form-select">
                   <option value="SERVO" {% if unit_config.get('MOTOR_TYPE') in ['servo', 'SERVO'] %}selected{% endif %}>サーボモーター</option>
                   <option value="STEPPER" {% if unit_config.get('MOTOR_TYPE') in ['stepper', 'STEPPER'] %}selected{% endif %}>ステッピングモーター</option>
                 </select>
               </div>
               <div class="form-group">
-                <label>制御方法</label>
-                <select id="config-control-method" class="form-control">
+                <label class="form-label">制御方法</label>
+                <select id="config-control-method" class="form-select">
                   <option value="RASPI_DIRECT" {% if unit_config.get('CONTROL_METHOD') in ['raspi', 'RASPI_DIRECT'] %}selected{% endif %}>ラズパイ直結 (GPIO/PCA9685)</option>
                   <option value="ARDUINO_SERIAL" {% if unit_config.get('CONTROL_METHOD') in ['arduino', 'ARDUINO_SERIAL'] %}selected{% endif %}>Arduino経由 (シリアル)</option>
                 </select>
               </div>
               <div class="form-group">
-                <label>モーター速度 (0-100)</label>
-                <input type="number" id="config-motor-speed" class="form-control" 
+                <label class="form-label">モーター速度 (0-100)</label>
+                <input type="number" id="config-motor-speed" class="form-input" 
                        value="{{ unit_config.get('MOTOR_SPEED', 50) }}" min="0" max="100">
               </div>
               <div class="form-group">
-                <label>動作時間 (秒)</label>
-                <input type="number" id="config-motor-duration" class="form-control" 
+                <label class="form-label">動作時間 (秒)</label>
+                <input type="number" id="config-motor-duration" class="form-input" 
                        value="{{ unit_config.get('MOTOR_DURATION', 2) }}" step="0.1" min="0.1">
               </div>
               <div class="form-group">
@@ -172,7 +172,7 @@
 
             <!-- センサー設定 -->
             <div class="config-group">
-              <h4 style="margin:0 0 12px;font-size:1rem;color:var(--primary-color);">📡 センサー設定</h4>
+              <h4 style="margin:0 0 12px;font-size:1rem;color:var(--md-primary);"><span class="material-symbols-outlined">sensors</span> センサー設定</h4>
               <div class="form-group">
                 <label>排出検知センサー</label>
                 <div style="margin-top:8px;">
@@ -188,12 +188,12 @@
               </div>
               <div class="form-group">
                 <label>センサーGPIOピン (BCM)</label>
-                <input type="number" id="config-sensor-pin" class="form-control" 
+                <input type="number" id="config-sensor-pin" class="form-input" 
                        value="{{ unit_config.get('SENSOR_GPIO_PIN', unit_config.get('SENSOR_PIN', 22)) }}" min="0" max="40">
               </div>
               <div class="form-group">
                 <label>センサータイムアウト (秒)</label>
-                <input type="number" id="config-sensor-timeout" class="form-control" 
+                <input type="number" id="config-sensor-timeout" class="form-input" 
                        value="{{ unit_config.get('SENSOR_TIMEOUT', 5) }}" step="0.5" min="0.5">
               </div>
               <div class="form-group">
@@ -224,52 +224,52 @@
               </div>
               <div class="form-group">
                 <label>詰まり解除試行回数</label>
-                <input type="number" id="config-jam-clear-attempts" class="form-control" 
+                <input type="number" id="config-jam-clear-attempts" class="form-input" 
                        value="{{ unit_config.get('JAM_CLEAR_ATTEMPTS', 3) }}" min="0" max="10">
               </div>
             </div>
 
             <!-- 通信設定 -->
             <div class="config-group">
-              <h4 style="margin:0 0 12px;font-size:1rem;color:var(--primary-color);">🌐 通信設定</h4>
+              <h4 style="margin:0 0 12px;font-size:1rem;color:var(--md-primary);">🌐 通信設定</h4>
               <div class="form-group">
                 <label>Heartbeat間隔 (秒)</label>
-                <input type="number" id="config-heartbeat-interval" class="form-control" 
+                <input type="number" id="config-heartbeat-interval" class="form-input" 
                        value="{{ unit_config.get('HEARTBEAT_INTERVAL', 30) }}" min="5" max="300">
               </div>
               <div class="form-group">
                 <label>Arduinoポート（Arduino使用時）</label>
-                <input type="text" id="config-arduino-port" class="form-control" 
+                <input type="text" id="config-arduino-port" class="form-input" 
                        value="{{ unit_config.get('ARDUINO_PORT', '/dev/ttyUSB0') }}">
               </div>
               <div class="form-group">
                 <label>PCA9685チャンネル（サーボ使用時）</label>
-                <input type="number" id="config-pca-channel" class="form-control" 
+                <input type="number" id="config-pca-channel" class="form-input" 
                        value="{{ unit_config.get('PCA9685_CHANNEL', 15) }}" min="0" max="15">
               </div>
             </div>
 
             <!-- ステッパー設定 -->
             <div class="config-group" id="stepper-config-group">
-              <h4 style="margin:0 0 12px;font-size:1rem;color:var(--primary-color);">⚙️ ステッパー設定</h4>
+              <h4 style="margin:0 0 12px;font-size:1rem;color:var(--md-primary);"><span class="material-symbols-outlined">precision_manufacturing</span> ステッパー設定</h4>
               <div class="form-group">
                 <label>IN1-4 GPIO (BCM)</label>
-                <input type="text" id="config-stepper-pins" class="form-control"
+                <input type="text" id="config-stepper-pins" class="form-input"
                        value="{{ unit_config.get('STEPPER_PINS', [21, 17, 27, 22]) | join(',') if unit_config.get('STEPPER_PINS') is iterable and unit_config.get('STEPPER_PINS') is not string else unit_config.get('STEPPER_PINS', '21,17,27,22') }}">
               </div>
               <div class="form-group">
                 <label>位相順序</label>
-                <input type="text" id="config-stepper-phase-order" class="form-control"
+                <input type="text" id="config-stepper-phase-order" class="form-input"
                        value="{{ unit_config.get('STEPPER_PHASE_ORDER', [0, 1, 2, 3]) | join(',') if unit_config.get('STEPPER_PHASE_ORDER') is iterable and unit_config.get('STEPPER_PHASE_ORDER') is not string else unit_config.get('STEPPER_PHASE_ORDER', '0,1,2,3') }}">
               </div>
               <div class="form-group">
                 <label>1ステップ待機秒</label>
-                <input type="number" id="config-stepper-step-delay" class="form-control"
+                <input type="number" id="config-stepper-step-delay" class="form-input"
                        value="{{ unit_config.get('STEPPER_STEP_DELAY', 0.01) }}" step="0.001" min="0.001">
               </div>
               <div class="form-group">
                 <label>駆動方式</label>
-                <select id="config-stepper-drive-mode" class="form-control">
+                <select id="config-stepper-drive-mode" class="form-input">
                   {% set drive_mode = unit_config.get('STEPPER_DRIVE_MODE', 'half') %}
                   <option value="half" {% if drive_mode == 'half' %}selected{% endif %}>半ステップ</option>
                   <option value="full" {% if drive_mode == 'full' %}selected{% endif %}>フルステップ</option>
@@ -278,17 +278,17 @@
               </div>
               <div class="form-group">
                 <label>排出ステップ数</label>
-                <input type="number" id="config-stepper-steps" class="form-control"
+                <input type="number" id="config-stepper-steps" class="form-input"
                        value="{{ unit_config.get('STEPPER_STEPS', 0) }}" min="0">
               </div>
               <div class="form-group">
                 <label>テストステップ数</label>
-                <input type="number" id="config-stepper-test-steps" class="form-control"
+                <input type="number" id="config-stepper-test-steps" class="form-input"
                        value="{{ unit_config.get('STEPPER_TEST_STEPS', 2048) }}" min="1">
               </div>
               <div class="form-group">
                 <label>バックエンド</label>
-                <select id="config-stepper-backend" class="form-control">
+                <select id="config-stepper-backend" class="form-input">
                   {% set stepper_backend = unit_config.get('STEPPER_BACKEND', 'auto') %}
                   <option value="auto" {% if stepper_backend == 'auto' %}selected{% endif %}>自動選択</option>
                   <option value="pigpio" {% if stepper_backend == 'pigpio' %}selected{% endif %}>pigpio優先</option>
@@ -310,10 +310,10 @@
         </div>
 
       {% else %}
-        <div style="background:#fff3e0;padding:24px;border-radius:12px;text-align:center;">
+        <div style="background:#fff3e0;padding:24px;border-radius:var(--md-radius-sm);text-align:center;">
           <div style="font-size:3rem;margin-bottom:12px;">📭</div>
           <h4 style="margin:0 0 8px;">設定情報がありません</h4>
-          <p style="color:var(--muted-text);margin:0 0 16px;">
+          <p style="color:var(--md-on-surface-variant);margin:0 0 16px;">
             子機がまだ一度も接続していないか、設定情報を送信していません。<br>
             子機が接続すると、ここに設定が表示されます。
           </p>
@@ -334,15 +334,15 @@
         <span class="toggle-icon" id="log-section-icon">▼</span>
       </div>
       <div class="section-content" id="log-section" style="display:none;">
-        <div style="background:#f8f9fa;padding:20px;border-radius:12px;">
+        <div style="background:var(--md-surface-container-low);padding:20px;border-radius:var(--md-radius-sm);">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-            <span id="log-count" style="color:var(--muted-text);">ログ: 読み込み中...</span>
+            <span id="log-count" style="color:var(--md-on-surface-variant);">ログ: 読み込み中...</span>
             <button class="btn btn-secondary btn-sm" onclick="refreshLogs()">
               <span>🔄</span> 更新
             </button>
           </div>
           <div id="log-container" style="max-height:400px;overflow-y:auto;font-family:monospace;font-size:0.85rem;">
-            <p style="color:var(--muted-text);font-style:italic;">ログを読み込み中...</p>
+            <p style="color:var(--md-on-surface-variant);font-style:italic;">ログを読み込み中...</p>
           </div>
         </div>
       </div>
@@ -355,8 +355,8 @@
         <span class="toggle-icon" id="debug-section-icon">▼</span>
       </div>
       <div class="section-content" id="debug-section" style="display:none;">
-        <div style="background:#f8f9fa;padding:20px;border-radius:12px;">
-          <p style="color:var(--muted-text);margin-bottom:16px;">
+        <div style="background:var(--md-surface-container-low);padding:20px;border-radius:var(--md-radius-sm);">
+          <p style="color:var(--md-on-surface-variant);margin-bottom:16px;">
             子機への診断コマンドを送信できます。子機がオンラインの場合のみ有効です。
           </p>
           
@@ -599,7 +599,7 @@ async function refreshLogs() {
       ).reverse().join('');
     } else {
       countEl.textContent = 'ログ: 0件';
-      container.innerHTML = '<p style="color:var(--muted-text);font-style:italic;">この子機からのログはまだ記録されていません。</p>';
+      container.innerHTML = '<p style="color:var(--md-on-surface-variant);font-style:italic;">この子機からのログはまだ記録されていません。</p>';
     }
   } catch (error) {
     container.innerHTML = '<p style="color:#c62828;">ログの取得に失敗しました。</p>';
@@ -680,7 +680,7 @@ document.addEventListener('DOMContentLoaded', function() {
   
   .toggle-icon {
     font-size: 0.9rem;
-    color: var(--muted-text);
+    color: var(--md-on-surface-variant);
   }
   
   .section-content {

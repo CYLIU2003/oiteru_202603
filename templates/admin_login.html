@@ -1,12 +1,23 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="admin-login">
+  <span class="material-symbols-outlined" style="font-size: 3rem; color: var(--md-primary); margin-bottom: 12px;">admin_panel_settings</span>
   <h2>管理者ログイン</h2>
   <form method="post">
-    <label for="password">パスワード:</label>
-    <input type="password" name="password" id="password" required>
-    <button type="submit" class="btn">ログイン</button>
+    <div class="form-group">
+      <label for="password" class="form-label">パスワード</label>
+      <input type="password" name="password" id="password" class="form-input" placeholder="パスワードを入力" required autofocus>
+    </div>
+    <button type="submit" class="btn btn-primary" style="width:100%;">
+      <span class="material-symbols-outlined">login</span>
+      ログイン
+    </button>
   </form>
-  <a href="{{ url_for('index') }}" class="btn btn-secondary">ホームに戻る</a>
+  <div style="margin-top: var(--md-space-lg);">
+    <a href="{{ url_for('index') }}" class="btn btn-secondary">
+      <span class="material-symbols-outlined">home</span>
+      ホームに戻る
+    </a>
+  </div>
 </div>
 {% endblock %}

@@ -3,7 +3,7 @@
 <div class="admin-section">
   <div class="admin-card">
     <div class="admin-card-header">
-      <h2><span class="icon">👤</span>利用者詳細 (ID: {{ user['id'] }})</h2>
+      <h2><span class="material-symbols-outlined">person</span> 利用者詳細 (ID: {{ user['id'] }})</h2>
     </div>
 
     <!-- 基本情報 -->
@@ -19,11 +19,11 @@
     </div>
 
     <!-- 利用許可トグル -->
-    <div style="background:#f8f9fa;padding:20px;border-radius:12px;margin-bottom:24px;">
+    <div style="background:var(--md-surface-container-low);padding:20px;border-radius:var(--md-radius-sm);margin-bottom:24px;">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">
         <div>
           <strong style="font-size:1.1rem;">利用許可</strong>
-          <p style="margin:4px 0 0;color:var(--muted-text);font-size:0.9rem;">
+          <p style="margin:4px 0 0;color:var(--md-on-surface-variant);font-size:0.9rem;">
             不許可にすると、この利用者はカードを使えなくなります
           </p>
         </div>
@@ -46,43 +46,43 @@
     <form method="post">
       <input type="hidden" name="allow" id="allow-input" value="{{ user['allow'] }}">
       
-      <div class="section-divider">
-        <h3>📝 利用者情報</h3>
+      <div style="margin-bottom: var(--md-space-md);">
+        <h3><span class="material-symbols-outlined">edit</span> 利用者情報</h3>
       </div>
       
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:20px;">
         <div class="form-group">
-          <label for="cardid">カードID</label>
-          <input type="text" class="form-control" id="cardid" name="cardid" 
+          <label class="form-label" for="cardid">カードID</label>
+          <input type="text" class="form-input" id="cardid" name="cardid" 
                  value="{{ user['card_id'] }}">
-          <div class="form-hint">NFCカードのID</div>
+          <div class="form-help">NFCカードのID</div>
         </div>
         <div class="form-group">
-          <label for="stock">残り利用回数</label>
-          <input type="number" class="form-control" id="stock" name="stock" 
+          <label class="form-label" for="stock">残り利用回数</label>
+          <input type="number" class="form-input" id="stock" name="stock" 
                  value="{{ user['stock'] }}">
-          <div class="form-hint">利用可能な残り回数</div>
+          <div class="form-help">利用可能な残り回数</div>
         </div>
       </div>
 
-      <div class="btn-group" style="margin-top:24px;">
+      <div class="btn-group">
         <button type="submit" class="btn btn-primary btn-icon">
-          <span>💾</span> 更新する
+          <span class="material-symbols-outlined">save</span> 更新する
         </button>
         <a href="{{ url_for('admin_users') }}" class="btn btn-secondary btn-icon">
-          <span>←</span> 一覧に戻る
+          <span class="material-symbols-outlined">arrow_back</span> 一覧に戻る
         </a>
       </div>
     </form>
 
     <!-- 危険ゾーン -->
-    <div class="danger-zone">
-      <h4>⚠️ 危険ゾーン</h4>
+    <div class="info-card error" style="margin-top: var(--md-space-xl);">
+      <h4><span class="material-symbols-outlined">warning</span> 危険ゾーン</h4>
       <p>この利用者を削除すると、元に戻すことはできません。</p>
       <form method="post" onsubmit="return confirm('この利用者を本当に削除しますか？\nこの操作は元に戻せません。');">
         <input type="hidden" name="action" value="delete">
         <button type="submit" class="btn btn-danger btn-icon">
-          <span>🗑️</span> この利用者を削除する
+          <span class="material-symbols-outlined">delete</span> この利用者を削除する
         </button>
       </form>
     </div>

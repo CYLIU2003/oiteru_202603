@@ -1,17 +1,26 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="usage-info">
+<div class="card-action">
+  <span class="material-symbols-outlined" style="font-size: 2.8rem; color: var(--md-primary); margin-bottom: 8px;">person_search</span>
   <h2>利用状況</h2>
-  <ul>
-    <li><strong>カードID:</strong> {{ cardid }}</li>
-    <li><strong>利用状況:</strong> {{ allow_text }}</li>
-    <li><strong>登録日:</strong> {{ entry_date }}</li>
-    <li><strong>残り利用回数:</strong> {{ stock }}</li>
+  <table class="modern-table" style="margin: 0 auto; max-width: 480px;">
+    <tr><th>カードID</th><td><code>{{ cardid }}</code></td></tr>
+    <tr><th>利用状況</th><td>{{ allow_text }}</td></tr>
+    <tr><th>登録日</th><td>{{ entry_date }}</td></tr>
+    <tr><th>残り利用回数</th><td><strong style="color: var(--md-primary); font-size: 1.2rem;">{{ stock }}</strong></td></tr>
     {% if days_until is not none %}
-      <li><strong>次の利用可能回数増加まで:</strong> {{ days_until }}日後</li>
+      <tr><th>次の利用可能回数増加まで</th><td>{{ days_until }}日後</td></tr>
     {% endif %}
-  </ul>
-  <a href="{{ url_for('usage') }}" class="btn">別のカードを確認</a>
-  <a href="{{ url_for('index') }}" class="btn btn-secondary">ホームに戻る</a>
+  </table>
+  <div class="btn-group">
+    <a href="{{ url_for('usage') }}" class="btn btn-primary">
+      <span class="material-symbols-outlined">credit_card</span>
+      別のカードを確認
+    </a>
+    <a href="{{ url_for('index') }}" class="btn btn-secondary">
+      <span class="material-symbols-outlined">home</span>
+      ホームに戻る
+    </a>
+  </div>
 </div>
 {% endblock %}
