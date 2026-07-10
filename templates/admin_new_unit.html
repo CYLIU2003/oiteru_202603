@@ -3,22 +3,22 @@
 <div class="admin-section">
   <div class="admin-card">
     <div class="admin-card-header">
-      <h2><span class="icon">➕</span>新規子機の登録</h2>
+      <h2><span class="material-symbols-outlined">add_circle</span> 新規子機の登録</h2>
     </div>
     
     <!-- 自動探知セクション -->
-    <div style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); padding: 24px; border-radius: 12px; margin-bottom: 30px;">
-      <h3 style="margin-top: 0; display: flex; align-items: center; gap: 10px; font-size: 1.2rem;">
-        <span>🔍</span>
-        <span>子機の自動探知</span>
+    <div class="info-card" style="margin-bottom: var(--md-space-xl);">
+      <h3 style="margin-top: 0; display: flex; align-items: center; gap: 10px; font-size: 1.1rem;">
+        <span class="material-symbols-outlined">search</span>
+        子機の自動探知
       </h3>
-      <p style="color: #555; margin-bottom: 16px; line-height: 1.6;">
+      <p style="color: var(--md-on-surface-variant); margin-bottom: 16px; line-height: 1.6;">
         ハートビートを送信している未登録の子機を自動的に検出します。<br>
         子機が起動してからこのボタンを押してください。
       </p>
       
       <button id="scanButton" class="btn btn-primary btn-icon" onclick="scanUnregisteredUnits()">
-        <span>📡</span> 自動探知を開始
+        <span class="material-symbols-outlined">radar</span> 自動探知を開始
       </button>
       
       <div id="scanResult" style="display: none; margin-top: 20px;">
@@ -26,44 +26,44 @@
         <div id="unregisteredList"></div>
       </div>
       
-      <div id="scanStatus" style="margin-top: 12px; font-style: italic; color: #666;"></div>
+      <div id="scanStatus" style="margin-top: 12px; font-style: italic; color: var(--md-on-surface-variant);"></div>
     </div>
 
     <!-- 手動登録セクション -->
-    <div class="section-divider">
-      <h3>✏️ 手動で登録</h3>
+    <div style="margin-bottom: var(--md-space-md);">
+      <h3><span class="material-symbols-outlined">edit</span> 手動で登録</h3>
     </div>
-    <p style="color: var(--muted-text); margin-bottom: 20px; font-size: 0.9rem;">
+    <p style="color: var(--md-on-surface-variant); margin-bottom: 20px; font-size: 0.9rem;">
       自動探知で見つからない場合や、事前に登録したい場合は手動で入力してください。
     </p>
     
     <form method="post" id="manualForm">
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px;">
         <div class="form-group">
-          <label for="name">子機名（システム識別子）</label>
-          <input type="text" class="form-control" id="name" name="name" required 
+          <label class="form-label" for="name">子機名（システム識別子）</label>
+          <input type="text" class="form-input" id="name" name="name" required 
                  placeholder="例: unit_001">
-          <div class="form-hint">子機との通信に使用される識別子です</div>
+          <div class="form-help">子機との通信に使用される識別子です</div>
         </div>
         <div class="form-group">
-          <label for="password">パスワード</label>
-          <input type="password" class="form-control" id="password" name="password" required
+          <label class="form-label" for="password">パスワード</label>
+          <input type="password" class="form-input" id="password" name="password" required
                  placeholder="例: pass123">
-          <div class="form-hint">子機認証用のパスワード</div>
+          <div class="form-help">子機認証用のパスワード</div>
         </div>
         <div class="form-group">
-          <label for="stock">初期在庫数</label>
-          <input type="number" class="form-control" id="stock" name="stock" required
+          <label class="form-label" for="stock">初期在庫数</label>
+          <input type="number" class="form-input" id="stock" name="stock" required
                  value="100" min="0">
         </div>
       </div>
 
       <!-- 利用可能トグル -->
-      <div style="background:#f8f9fa;padding:20px;border-radius:12px;margin:24px 0;">
+      <div style="background:var(--md-surface-container-low);padding:20px;border-radius:var(--md-radius-sm);margin:24px 0;">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">
           <div>
             <strong style="font-size:1rem;">利用可能状態</strong>
-            <p style="margin:4px 0 0;color:var(--muted-text);font-size:0.85rem;">
+            <p style="margin:4px 0 0;color:var(--md-on-surface-variant);font-size:0.85rem;">
               有効にすると、登録後すぐに利用可能になります
             </p>
           </div>
@@ -81,10 +81,10 @@
 
       <div class="btn-group">
         <button type="submit" class="btn btn-primary btn-icon">
-          <span>✅</span> 手動登録
+          <span class="material-symbols-outlined">check</span> 手動登録
         </button>
         <a href="{{ url_for('admin_units') }}" class="btn btn-secondary btn-icon">
-          <span>←</span> キャンセル
+          <span class="material-symbols-outlined">cancel</span> キャンセル
         </a>
       </div>
     </form>
@@ -93,9 +93,9 @@
 
 <style>
 .unit-discovery-card {
-  background: white;
-  border: 2px solid var(--success-color);
-  border-radius: 12px;
+  background: var(--md-surface);
+  border: 2px solid var(--md-success);
+  border-radius: var(--md-radius-sm);
   padding: 18px;
   margin-bottom: 12px;
   display: flex;
@@ -103,13 +103,13 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 16px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: var(--md-elevation-2);
+  transition: transform var(--md-transition-medium), box-shadow var(--md-transition-medium);
 }
 
 .unit-discovery-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+  box-shadow: var(--md-elevation-3);
 }
 
 .unit-info {
@@ -120,7 +120,7 @@
 .unit-name {
   font-size: 1.15rem;
   font-weight: bold;
-  color: var(--primary-color);
+  color: var(--md-primary);
   margin-bottom: 8px;
   display: flex;
   align-items: center;
@@ -129,7 +129,7 @@
 
 .unit-details {
   font-size: 0.85rem;
-  color: var(--muted-text);
+  color: var(--md-on-surface-variant);
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
@@ -139,33 +139,34 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  background: #f1f5f9;
+  background: var(--md-surface-container-high);
   padding: 4px 10px;
   border-radius: 6px;
 }
 
 .register-btn {
-  background: var(--success-color);
-  color: white;
+  background: var(--md-success);
+  color: var(--md-on-success);
   border: none;
   padding: 12px 24px;
-  border-radius: 8px;
+  border-radius: var(--md-radius-full);
   cursor: pointer;
   font-size: 0.95rem;
   font-weight: 600;
-  transition: background 0.2s ease, transform 0.2s ease;
+  font-family: var(--md-font);
+  transition: background var(--md-transition-short), transform var(--md-transition-short);
   display: inline-flex;
   align-items: center;
   gap: 8px;
 }
 
 .register-btn:hover {
-  background: #45a049;
+  background: #1B5E20;
   transform: translateY(-1px);
 }
 
 .register-btn:disabled {
-  background: #ccc;
+  background: var(--md-outline-variant);
   cursor: not-allowed;
   transform: none;
 }
@@ -173,10 +174,10 @@
 .no-units-message {
   text-align: center;
   padding: 30px;
-  color: var(--muted-text);
+  color: var(--md-on-surface-variant);
   font-style: italic;
-  background: #f8f9fa;
-  border-radius: 8px;
+  background: var(--md-surface-container-low);
+  border-radius: var(--md-radius-sm);
 }
 </style>
 

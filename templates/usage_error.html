@@ -1,9 +1,19 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="card-action">
-  <h2 style="color: #F44336;">ICカードが読み取れません</h2>
+  <span class="material-symbols-outlined" style="font-size: 2.8rem; color: var(--md-error); margin-bottom: 8px;">credit_card_off</span>
+  <h2 style="color: var(--md-error);">ICカードが読み取れません</h2>
   <p>ホーム画面に戻ります。</p>
+  <div style="margin-top: 16px;">
+    <span class="material-symbols-outlined" style="animation: spin 1s linear infinite; color: var(--md-on-surface-variant);">progress_activity</span>
+  </div>
 </div>
+<style>
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+</style>
 <script>
   setTimeout(function() {
     window.location.href = "{{ url_for('index') }}";

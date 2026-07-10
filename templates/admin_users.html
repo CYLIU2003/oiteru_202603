@@ -3,7 +3,7 @@
 <div class="admin-section">
   <div class="admin-card">
     <div class="admin-card-header">
-      <h2><span class="icon">👥</span>利用者一覧</h2>
+      <h2><span class="material-symbols-outlined">group</span> 利用者一覧</h2>
     </div>
     
     <table class="modern-table">
@@ -22,7 +22,7 @@
         {% for u in users %}
         <tr data-user-id="{{ u['id'] }}">
           <td><strong>{{ u['id'] }}</strong></td>
-          <td><code style="background:#f1f5f9;padding:4px 8px;border-radius:4px;">{{ u['card_id'] }}</code></td>
+          <td><code>{{ u['card_id'] }}</code></td>
           <td>
             <div class="toggle-status">
               <label class="toggle-switch" title="クリックで切り替え">
@@ -37,11 +37,11 @@
             </div>
           </td>
           <td>{{ u['entry'] }}</td>
-          <td><strong style="color:var(--primary-color);">{{ u['stock'] }}</strong></td>
+          <td><strong style="color:var(--md-primary);">{{ u['stock'] }}</strong></td>
           <td>{{ u['total'] }}回</td>
           <td>
             <a href="{{ url_for('admin_user_detail', uid=u['id']) }}" class="btn btn-secondary btn-sm btn-icon">
-              <span>📝</span> 詳細
+              <span class="material-symbols-outlined">visibility</span> 詳細
             </a>
           </td>
         </tr>
@@ -50,16 +50,16 @@
     </table>
     
     {% if not users %}
-    <div style="text-align:center;padding:40px;color:var(--muted-text);">
-      <p style="font-size:2rem;margin-bottom:10px;">👥</p>
+    <div class="empty-state">
+      <span class="material-symbols-outlined">group</span>
       <p>登録されている利用者がいません</p>
     </div>
     {% endif %}
   </div>
 
-  <div class="btn-group" style="margin-top:20px;">
+  <div class="btn-group">
     <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary btn-icon">
-      <span>←</span> 管理者メニューに戻る
+      <span class="material-symbols-outlined">arrow_back</span> 管理者メニューに戻る
     </a>
   </div>
 </div>

@@ -1,22 +1,34 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="card-action">
+  <span class="material-symbols-outlined" style="font-size: 2.8rem; color: var(--md-primary); margin-bottom: 8px;">app_registration</span>
   <h2>学生証の登録</h2>
 
   {% if not reader_connected %}
-    <div style="color: red; margin-bottom: 1em;">
-      ICカードリーダーが接続されていません。サーバーPCのUSB接続を確認してください。
+    <div class="info-card error" style="text-align: left; margin-bottom: var(--md-space-lg);">
+      <p style="margin:0;">ICカードリーダーが接続されていません。サーバーPCのUSB接続を確認してください。</p>
     </div>
     <form method="get">
-      <button type="submit" class="btn">再確認</button>
+      <button type="submit" class="btn btn-outline">
+        <span class="material-symbols-outlined">refresh</span>
+        再確認
+      </button>
     </form>
   {% else %}
     <p>カードリーダーに学生証を置いて、以下のボタンを押してください。</p>
     <form method="post">
-      <button type="submit" class="btn">ICカードを登録</button>
+      <button type="submit" class="btn btn-primary btn-lg">
+        <span class="material-symbols-outlined">credit_card</span>
+        ICカードを登録
+      </button>
     </form>
   {% endif %}
 
-  <a href="{{ url_for('index') }}" class="btn btn-secondary">ホームに戻る</a>
+  <div class="btn-group">
+    <a href="{{ url_for('index') }}" class="btn btn-secondary">
+      <span class="material-symbols-outlined">home</span>
+      ホームに戻る
+    </a>
+  </div>
 </div>
 {% endblock %}

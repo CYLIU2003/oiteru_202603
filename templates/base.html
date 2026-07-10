@@ -3,8 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>オイテルシステム | 都市大 x 東急</title>
+  <title>OITERU | 東京都市大学 × 東急グループ</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style20250506.css') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -15,29 +17,29 @@
           <img src="{{ url_for('static', filename='img/logo20250506.png') }}" alt="東京都市大学 美しい時代へ 東急グループ">
           <div class="brand-text">
             <span class="brand-subtitle">東京都市大学 × 東急グループ</span>
-            <h1>オイテル登録システム</h1>
+            <h1>OITERU システム</h1>
           </div>
         </div>
-        
-        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+
+        <div class="header-status-row">
           <!-- 親機PC接続のNFCリーダー -->
           <div class="status-card" id="local-reader-status" role="status" aria-live="polite">
-            <span class="status-light" id="local-reader-light" aria-hidden="true"></span>
+            <span class="status-light checking" id="local-reader-light" aria-hidden="true"></span>
             <div class="status-copy">
               <span class="status-label">親機NFCリーダー</span>
               <span class="status-value" id="local-reader-text">確認中...</span>
             </div>
           </div>
-          
+
           <!-- 子機の接続状態 -->
           <div class="status-card" id="units-status" role="status" aria-live="polite">
-            <span class="status-light" id="units-light" aria-hidden="true"></span>
+            <span class="status-light checking" id="units-light" aria-hidden="true"></span>
             <div class="status-copy">
               <span class="status-label">接続中の子機</span>
               <span class="status-value" id="units-text">確認中...</span>
             </div>
           </div>
-          
+
           <!-- 現在時刻表示 -->
           <div class="clock-display" role="status" aria-live="off">
             <div class="clock-time" id="clock-time">--:--:--</div>
@@ -52,7 +54,12 @@
         <div class="flash-messages">
           <div class="container">
             {% for category, message in messages %}
-              <div class="flash flash-{{ category }}">{{ message }}</div>
+              <div class="flash flash-{{ category }}">
+                <span class="material-symbols-outlined">
+                  {% if category == 'success' %}check_circle{% elif category == 'warning' %}warning{% elif category == 'error' %}error{% else %}info{% endif %}
+                </span>
+                {{ message }}
+              </div>
             {% endfor %}
           </div>
         </div>
@@ -67,7 +74,7 @@
 
     <footer class="site-footer">
       <div class="container">
-        <p>© 2025 Tokyo City University / Tokyu Group</p>
+        <p>&copy; 2025-2026 Tokyo City University / Tokyu Group</p>
       </div>
     </footer>
   </div>
@@ -82,11 +89,10 @@
         const unitsLight = document.getElementById("units-light");
         const unitsText = document.getElementById("units-text");
 
-        // 初期状態（確認中）
-        localReaderLight.style.backgroundColor = "#FFB300";
-        localReaderLight.style.boxShadow = "0 0 0 6px rgba(255, 179, 0, 0.22)";
-        unitsLight.style.backgroundColor = "#FFB300";
-        unitsLight.style.boxShadow = "0 0 0 6px rgba(255, 179, 0, 0.22)";
+        // ステータスライトのクラス切り替え関数
+        function setLightStatus(light, status) {
+            light.className = "status-light " + status;
+        }
 
         // 親機PC接続のNFCリーダー状態を確認
         function checkLocalNFCReader() {
@@ -94,19 +100,16 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.connected) {
-                        localReaderLight.style.backgroundColor = "#4CAF50"; // Green
-                        localReaderLight.style.boxShadow = "0 0 0 6px rgba(76, 175, 80, 0.18)";
+                        setLightStatus(localReaderLight, "online");
                 localReaderText.textContent = data.message || data.device || "接続中";
                     } else {
-                        localReaderLight.style.backgroundColor = "#9E9E9E"; // Gray
-                        localReaderLight.style.boxShadow = "0 0 0 6px rgba(158, 158, 158, 0.18)";
+                        setLightStatus(localReaderLight, "offline");
                 localReaderText.textContent = data.error || data.message || "未接続";
                     }
                 })
                 .catch(error => {
                     console.error("親機NFCリーダー確認エラー:", error);
-                    localReaderLight.style.backgroundColor = "#9E9E9E";
-                    localReaderLight.style.boxShadow = "0 0 0 6px rgba(158, 158, 158, 0.18)";
+                    setLightStatus(localReaderLight, "offline");
                     localReaderText.textContent = "未接続";
                 });
         }
@@ -117,22 +120,19 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.connected && data.active_units && data.active_units.length > 0) {
-                        unitsLight.style.backgroundColor = "#4CAF50"; // Green
-                        unitsLight.style.boxShadow = "0 0 0 6px rgba(76, 175, 80, 0.18)";
-                        
+                        setLightStatus(unitsLight, "online");
+
                         const count = data.active_units.length;
                         const names = data.active_units.map(u => u.unit_name).join(", ");
                         unitsText.textContent = `${count}台 (${names})`;
                     } else {
-                        unitsLight.style.backgroundColor = "#F44336"; // Red
-                        unitsLight.style.boxShadow = "0 0 0 6px rgba(244, 67, 54, 0.18)";
+                        setLightStatus(unitsLight, "offline");
                         unitsText.textContent = "子機未接続";
                     }
                 })
                 .catch(error => {
                     console.error("子機状態確認エラー:", error);
-                    unitsLight.style.backgroundColor = "#F44336";
-                    unitsLight.style.boxShadow = "0 0 0 6px rgba(244, 67, 54, 0.18)";
+                    setLightStatus(unitsLight, "offline");
                     unitsText.textContent = "確認エラー";
                 });
         }

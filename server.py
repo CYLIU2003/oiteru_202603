@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from __future__ import annotations
 """
 =========================================
 OITELU 親機 / 従親機 (Webサーバー)
@@ -30,6 +31,7 @@ import subprocess
 import threading
 import time
 import traceback
+from collections import deque
 
 import pandas as pd
 import requests
@@ -49,6 +51,10 @@ from flask import (
     send_file,
 )
 from db_adapter import db, get_connection, DatabaseError
+
+# --- New app module imports ---
+from app.logger import get_logger as _get_logger
+logger = _get_logger(__name__)
 
 
 def load_env_file(env_path: str):
@@ -89,7 +95,17 @@ app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "oiteru.sqlite3")
 
 if "FLASK_SECRET_KEY" not in os.environ:
-    print("警告: FLASK_SECRET_KEY が未設定です。再起動ごとに一時キーを生成します。")
+    logger.warning("FLASK_SECRET_KEY が未設定です。再起動ごとに一時キーを生成します。")
+
+# --- Blueprint registration ---
+from app.api.health import health_bp
+from app.api.dispense import dispense_bp
+from app.api.units import unit_bp
+
+app.register_blueprint(health_bp)
+app.register_blueprint(dispense_bp)
+app.register_blueprint(unit_bp)
+logger.info("Registered API blueprints: health, dispense, unit")
 
 # ========================================
 # サーバー設定
@@ -123,6 +139,7 @@ unit_diagnostics = {}
 
 # 子機からのログ保存用（メモリ内）
 unit_logs = {}
+UNIT_LOG_LIMIT = int(os.getenv("UNIT_LOG_LIMIT", "100"))
 
 # 子機設定の保存用（メモリ内、ハートビートで同期）
 unit_configs = {}
@@ -167,6 +184,9 @@ def parse_env_bool(name: str, default: bool = False) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+DEBUG_HEARTBEAT = parse_env_bool("OITERU_DEBUG_HEARTBEAT", False)
+
+
 def validate_runtime_security():
     """起動前に最低限のセキュリティ設定を検証する。"""
     strict_security = parse_env_bool(
@@ -202,7 +222,7 @@ def validate_runtime_security():
             errors.append("MYSQL_PASSWORD に既定値/弱い値は使用できません。")
 
     for warning in warnings:
-        print(f"警告: {warning}")
+        logger.warning(warning)
 
     if errors:
         raise RuntimeError(
@@ -359,14 +379,14 @@ def ensure_admin_password():
             )
 
     if generated_password:
-        print("管理者アカウントを初期化しました。")
-        print(f"管理者パスワード: {generated_password}")
+        logger.info("管理者アカウントを初期化しました。")
+        logger.info("管理者パスワード: %s", generated_password)
         if not configured_password:
-            print("OITERU_ADMIN_PASSWORD を設定して恒久値へ更新してください。")
+            logger.info("OITERU_ADMIN_PASSWORD を設定して恒久値へ更新してください。")
     if updated_password:
-        print("管理者パスワードを環境変数の値へ同期しました。")
+        logger.info("管理者パスワードを環境変数の値へ同期しました。")
     if warning_message:
-        print(f"警告: {warning_message}")
+        logger.warning(warning_message)
 
 
 # ========================================
@@ -395,15 +415,15 @@ def load_settings_from_db():
                     settings_row.get("limit_period", "day") or "day"
                 )
                 settings_version = int(settings_row.get("version", 0))
-                print(
-                    f"[DEBUG] 設定をDBから読み込み: auto_register_mode={server_settings['auto_register_mode']}, version={settings_version}"
+                logger.info(
+                    "設定をDBから読み込み: auto_register_mode=%s, version=%d",
+                    server_settings['auto_register_mode'],
+                    settings_version,
                 )
             else:
-                print(
-                    f"[DEBUG] settingsテーブルにデータがありません。デフォルト設定を使用します。"
-                )
+                logger.info("settingsテーブルにデータがありません。デフォルト設定を使用します。")
     except Exception as e:
-        print(f"設定読み込みエラー（テーブルが未作成の可能性）: {e}")
+        logger.warning("設定読み込みエラー（テーブルが未作成の可能性）: %s", e)
 
 
 def save_settings_to_db():
@@ -452,10 +472,10 @@ def save_settings_to_db():
                         datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     ),
                 )
-        print(f"設定をDBに保存しました (version: {settings_version})")
+        logger.info("設定をDBに保存しました (version: %d)", settings_version)
         return True
     except Exception as e:
-        print(f"設定保存エラー: {e}")
+        logger.error("設定保存エラー: %s", e)
         return False
 
 
@@ -1168,9 +1188,8 @@ def admin_dashboard():
     valid_start_datetime = datetime(2026, 1, 22, 19, 20, 0)
 
     with get_connection() as conn:
-        users = db.fetchall(conn, "SELECT * FROM users")
-        units = db.fetchall(conn, "SELECT * FROM units")
-        history = db.fetchall(conn, "SELECT * FROM history ORDER BY id DESC")
+        users_row = db.fetchone(conn, "SELECT COUNT(*) as total FROM users")
+        units_row = db.fetchone(conn, "SELECT COUNT(*) as total FROM units")
         # 実際の排出数を履歴テーブルのsuccessレコード数でカウント（valid_start_datetime以降）
         dispensed_row = db.fetchone(
             conn,
@@ -1182,6 +1201,8 @@ def admin_dashboard():
             if dispensed_row and dispensed_row["total"]
             else 0
         )
+        user_count = int(users_row["total"]) if users_row and users_row["total"] else 0
+        unit_count = int(units_row["total"]) if units_row and units_row["total"] else 0
 
     server_info = {
         "name": SERVER_NAME,
@@ -1196,9 +1217,7 @@ def admin_dashboard():
 
     return render_template(
         "admin_dashboard.html",
-        users=users,
-        units=units,
-        history=history,
+        stats={"user_count": user_count, "unit_count": unit_count},
         total_dispensed=total_dispensed,
         server_info=server_info,
     )
@@ -1818,13 +1837,10 @@ def api_add_log():
 
         # unit_logsにも保存（最新100件まで）
         if unit_name not in unit_logs:
-            unit_logs[unit_name] = []
+            unit_logs[unit_name] = deque(maxlen=UNIT_LOG_LIMIT)
         unit_logs[unit_name].append(
             {"time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "message": message}
         )
-        # 最新100件に制限
-        if len(unit_logs[unit_name]) > 100:
-            unit_logs[unit_name] = unit_logs[unit_name][-100:]
 
         return jsonify({"success": True}), 200
     return jsonify({"success": False, "error": "Message not provided"}), 400
@@ -1837,7 +1853,7 @@ def api_get_unit_logs(unit_name):
     if auth_error:
         return auth_error
 
-    logs = unit_logs.get(unit_name, [])
+    logs = list(unit_logs.get(unit_name, []))
     return jsonify({"logs": logs, "count": len(logs)})
 
 
@@ -1978,6 +1994,93 @@ def parse_bool(value) -> bool:
     if isinstance(value, str):
         return value.strip().lower() in ("1", "true", "yes", "y", "on")
     return False
+
+
+def parse_number_list(value, default):
+    if value in (None, ""):
+        return list(default)
+    if isinstance(value, str):
+        values = [item.strip() for item in value.split(",") if item.strip()]
+    else:
+        values = value
+    try:
+        return [int(item) for item in values]
+    except (TypeError, ValueError):
+        return list(default)
+
+
+def clamp_int(value, default, minimum=None, maximum=None):
+    try:
+        result = int(value)
+    except (TypeError, ValueError):
+        result = default
+    if minimum is not None:
+        result = max(minimum, result)
+    if maximum is not None:
+        result = min(maximum, result)
+    return result
+
+
+def clamp_float(value, default, minimum=None, maximum=None):
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        result = default
+    if minimum is not None:
+        result = max(minimum, result)
+    if maximum is not None:
+        result = min(maximum, result)
+    return result
+
+
+def normalize_unit_config(config: dict) -> dict:
+    """子機へ送る設定をホワイトリスト化し、型をそろえる。"""
+    config = dict(config or {})
+    motor_type = str(config.get("MOTOR_TYPE", "STEPPER")).upper()
+    if motor_type not in ("SERVO", "STEPPER"):
+        motor_type = "STEPPER"
+    control_method = str(config.get("CONTROL_METHOD", "RASPI_DIRECT")).upper()
+    if control_method not in ("RASPI_DIRECT", "ARDUINO_SERIAL"):
+        control_method = "RASPI_DIRECT"
+
+    drive_mode = str(config.get("STEPPER_DRIVE_MODE", "half")).lower()
+    if drive_mode not in ("full", "half", "wave"):
+        drive_mode = "half"
+    backend = str(config.get("STEPPER_BACKEND", "auto")).lower()
+    if backend not in ("auto", "pigpio", "library", "gpio"):
+        backend = "auto"
+
+    stepper_pins = parse_number_list(config.get("STEPPER_PINS"), [21, 17, 27, 22])
+    if len(stepper_pins) != 4:
+        stepper_pins = [21, 17, 27, 22]
+    phase_order = parse_number_list(config.get("STEPPER_PHASE_ORDER"), [0, 1, 2, 3])
+    if sorted(phase_order) != [0, 1, 2, 3]:
+        phase_order = [0, 1, 2, 3]
+
+    return {
+        "MOTOR_TYPE": motor_type,
+        "CONTROL_METHOD": control_method,
+        "MOTOR_SPEED": clamp_int(config.get("MOTOR_SPEED"), 80, 1, 100),
+        "MOTOR_DURATION": clamp_float(config.get("MOTOR_DURATION"), 2.0, 0.1, 60.0),
+        "MOTOR_REVERSE": parse_bool(config.get("MOTOR_REVERSE")),
+        "USE_SENSOR": parse_bool(config.get("USE_SENSOR")),
+        "SENSOR_GPIO_PIN": clamp_int(config.get("SENSOR_GPIO_PIN"), 22, 0, 40),
+        "SENSOR_TIMEOUT": clamp_float(config.get("SENSOR_TIMEOUT"), 5.0, 0.1, 120.0),
+        "SENSOR_CHECK_PRE": parse_bool(config.get("SENSOR_CHECK_PRE", True)),
+        "SENSOR_CHECK_POST": parse_bool(config.get("SENSOR_CHECK_POST", True)),
+        "JAM_CLEAR_ATTEMPTS": clamp_int(config.get("JAM_CLEAR_ATTEMPTS"), 3, 0, 10),
+        "HEARTBEAT_INTERVAL": clamp_int(config.get("HEARTBEAT_INTERVAL"), 30, 5, 300),
+        "ARDUINO_PORT": str(config.get("ARDUINO_PORT") or "/dev/ttyUSB0"),
+        "PCA9685_CHANNEL": clamp_int(config.get("PCA9685_CHANNEL"), 15, 0, 15),
+        "STEPPER_PINS": stepper_pins,
+        "STEPPER_PHASE_ORDER": phase_order,
+        "STEPPER_STEP_DELAY": clamp_float(config.get("STEPPER_STEP_DELAY"), 0.01, 0.001, 1.0),
+        "STEPPER_DRIVE_MODE": drive_mode,
+        "STEPPER_STEPS": clamp_int(config.get("STEPPER_STEPS"), 0, 0, 200000),
+        "STEPPER_STEPS_PER_REV": 2048,
+        "STEPPER_TEST_STEPS": clamp_int(config.get("STEPPER_TEST_STEPS"), 2048, 1, 200000),
+        "STEPPER_BACKEND": backend,
+    }
 
 
 def auto_register_user(conn, card_id, unit_name=None):
@@ -2243,11 +2346,12 @@ def api_unit_heartbeat():
     """子機からの生存確認を受け取る"""
     data = request.json
 
-    # デバッグ: 受信データをログ出力
-    print(f"[DEBUG] Heartbeat received: {data}")
+    if DEBUG_HEARTBEAT:
+        print(f"[DEBUG] Heartbeat received: {data}")
 
     if data is None:
-        print("[DEBUG] No JSON data received")
+        if DEBUG_HEARTBEAT:
+            print("[DEBUG] No JSON data received")
         return jsonify({"error": "No JSON data received"}), 400
 
     unit_name = data.get("unit_name") or data.get("name")  # 両方のキーに対応
@@ -2264,9 +2368,10 @@ def api_unit_heartbeat():
         }
 
     if not all([unit_name, unit_password]):
-        print(
-            f"[DEBUG] Missing fields - unit_name: {unit_name}, password: {'***' if unit_password else None}"
-        )
+        if DEBUG_HEARTBEAT:
+            print(
+                f"[DEBUG] Missing fields - unit_name: {unit_name}, password: {'***' if unit_password else None}"
+            )
         return jsonify({"error": "Unit name and password required"}), 400
 
     with get_connection() as conn:
@@ -2301,7 +2406,8 @@ def api_unit_heartbeat():
             if unit_name in pending_unit_config_updates:
                 response_data["config_update"] = pending_unit_config_updates[unit_name]
                 del pending_unit_config_updates[unit_name]  # 送信したら削除
-                print(f"[DEBUG] Sending config update to {unit_name}")
+                if DEBUG_HEARTBEAT:
+                    print(f"[DEBUG] Sending config update to {unit_name}")
 
             return jsonify(response_data)
         else:
@@ -2378,6 +2484,7 @@ def api_update_unit_config(unit_name):
     new_config = request.json
     if not new_config:
         return jsonify({"error": "No config provided"}), 400
+    new_config = normalize_unit_config(new_config)
 
     # 保留中の設定変更として保存（heartbeatのバックアップとして）
     pending_unit_config_updates[unit_name] = new_config
@@ -2608,42 +2715,63 @@ def admin_settings():
 # メイン
 # ========================================
 if __name__ == "__main__":
-    print("\n" + "=" * 60)
-    print("OITELU 親機/従親機 を起動しています...")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("OITELU 親機/従親機 を起動しています...")
+    logger.info("=" * 60)
 
     if db.db_type == "sqlite":
-        print("警告: server.py + SQLite は legacy 互換経路です。")
-        print("標準構成は db_server.py + MySQL を使用してください。")
-    try:
-        validate_runtime_security()
-    except RuntimeError as error:
-        print(str(error))
-        raise
+        logger.warning("server.py + SQLite は legacy 互換経路です。")
+        logger.warning("標準構成は db_server.py + MySQL を使用してください。")
 
-    print("\nデータベースを初期化中...")
+    # Security validation
+    from app.auth.auth_manager import validate_runtime_security
+    strict = db.db_type == "mysql"
+    issues = validate_runtime_security(db_type=db.db_type, strict=strict)
+    errors = [msg for sev, msg in issues if sev == "error"]
+    for sev, msg in issues:
+        if sev == "error":
+            logger.error(msg)
+        else:
+            logger.warning(msg)
+    if errors:
+        raise RuntimeError(
+            "セキュリティ設定エラーにより起動を停止しました:\n- " + "\n- ".join(errors)
+        )
+
+    logger.info("データベースを初期化中...")
     init_db()
-    migrate_db()
+
+    # Run migrations (new system)
+    from app.migrations import run_all_migrations
+    migrate_db()  # legacy inline migration (keep for backward compat)
+    run_all_migrations()
+
     ensure_admin_password()
 
-    print("設定をDBから読み込み中...")
+    logger.info("設定をDBから読み込み中...")
+    from app.services.settings_service import load_settings_from_db, server_settings as _svc_settings
+    import app.services.settings_service as _settings_svc
     load_settings_from_db()
 
-    print(f"\n設定:")
-    print(f"  データベース: {db.db_type.upper()}")
-    print(
-        f"  自動登録モード: {'有効' if server_settings['auto_register_mode'] else '無効'}"
+    logger.info("設定:")
+    logger.info("  データベース: %s", db.db_type.upper())
+    logger.info(
+        "  自動登録モード: %s",
+        "有効" if _settings_svc.server_settings["auto_register_mode"] else "無効",
     )
-    if server_settings["auto_register_mode"]:
-        print(f"  自動登録時の初期残数: {server_settings['auto_register_stock']}")
+    if _settings_svc.server_settings["auto_register_mode"]:
+        logger.info(
+            "  自動登録時の初期残数: %d",
+            _settings_svc.server_settings["auto_register_stock"],
+        )
 
-    print("\n子機向けブロードキャストスレッドを起動中...")
+    logger.info("子機向けブロードキャストスレッドを起動中...")
     heartbeat_thread = threading.Thread(target=broadcast_server_info, daemon=True)
     heartbeat_thread.start()
 
-    print("\n" + "=" * 60)
-    print("OITELU 親機/従親機の起動が完了しました！")
-    print(f"Webブラウザで http://localhost:{SERVER_PORT} にアクセスしてください")
-    print("=" * 60 + "\n")
+    logger.info("=" * 60)
+    logger.info("OITELU 親機/従親機の起動が完了しました！")
+    logger.info("Webブラウザで http://localhost:%d にアクセスしてください", SERVER_PORT)
+    logger.info("=" * 60)
 
     app.run(host="0.0.0.0", port=SERVER_PORT, debug=False)
