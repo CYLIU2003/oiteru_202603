@@ -25,7 +25,7 @@ def get_authenticated_unit_local(conn, unit_name, unit_password=None, unit_token
     unit = _unit_repo.find_by_name(conn, unit_name)
     if not unit:
         return None
-    if unit_token and validate_unit_token(unit_name, unit_token):
+    if unit_token and validate_unit_token(conn, unit_name, unit_token):
         return unit
     if unit_password and verify_secret(unit.password, unit_password):
         return unit

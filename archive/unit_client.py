@@ -4,12 +4,19 @@ import threading
 import json
 import os
 import hmac
-import hashlib
 import socket
 import subprocess # Tailscale対応のため追加
 import queue
 import getpass  # 安全なパスワード入力
 from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from unit.configuration import load_config as load_unit_config
+from unit.configuration import save_config as save_unit_config
+from unit.configuration import validate_gpio_config
 
 # --------------------------------------------------------------------------
 # --- 仮想環境の自動セットアップ ---
@@ -149,7 +156,7 @@ DEFAULT_CONFIG = {
     "UNIT_PASSWORD": "",  # 初回起動時は空、対話的に設定
     "MOTOR_TYPE": "STEPPER",
     "USE_SENSOR": True,
-    "GREEN_LED_PIN": 17, "RED_LED_PIN": 27, "SENSOR_PIN": 22,
+    "GREEN_LED_PIN": 5, "RED_LED_PIN": 6, "SENSOR_PIN": 13,
     "MOTOR_SPEED": 100, "MOTOR_DURATION": 2.0, "MOTOR_REVERSE": False,
     "SENSOR_CHECK_PRE": True,
     "SENSOR_CHECK_POST": True,
@@ -166,58 +173,22 @@ DEFAULT_CONFIG = {
 }
 
 
-def _hash_password_for_storage(password: str) -> str:
-    """SHA-256 hash password before storing to config file.
-    
-    Production deployments should use systemd credentials or a hardware
-    security module instead of config-file-based passwords.
-    """
-    if not password:
-        return ""
-    salt = hashlib.sha256(b"oiteru-unit-config-salt").digest()
-    return hashlib.pbkdf2_hmac(
-        "sha256", password.encode("utf-8"), salt, 100000, dklen=32
-    ).hex()
-
-
-def _masked_config_for_persistence(config: dict) -> dict:
-    """Return a copy of config safe for writing to disk.
-    
-    The UNIT_PASSWORD is replaced with a one-way hash for at-rest protection.
-    The live config dict retains the plaintext for API calls.
-    """
-    result = {}
-    for key, value in config.items():
-        if key.startswith("_"):
-            continue
-        if key == "UNIT_PASSWORD" and value:
-            result[key] = _hash_password_for_storage(str(value))
-        else:
-            result[key] = value
-    return result
-
-
 def save_config(config):
     try:
-        persisted_config = _masked_config_for_persistence(config)
-        with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
-            json.dump(persisted_config, f, indent=4, ensure_ascii=False)
+        save_unit_config(CONFIG_FILE, config)
         return True
-    except IOError:
+    except OSError:
         return False
 
 
 def load_config():
-    if os.path.exists(CONFIG_FILE):
-        try:
-            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
-                config = DEFAULT_CONFIG.copy()
-                loaded = json.load(f)
-                config.update(loaded)
-                return config
-        except (IOError, json.JSONDecodeError):
-            return DEFAULT_CONFIG.copy()
-    return DEFAULT_CONFIG.copy()
+    config = load_unit_config(CONFIG_FILE, DEFAULT_CONFIG)
+    if config.pop("_unit_secret_migration_required", False):
+        print(
+            "ERROR: 旧config.jsonのUNIT_PASSWORDは再利用できません。"
+            "安全な秘密鍵ファイルを再設定してください。"
+        )
+    return config
 
 
 def parse_int_list(value, default=None):
@@ -330,6 +301,8 @@ def apply_remote_config(remote_config, current_config):
         'MOTOR_REVERSE': 'MOTOR_REVERSE',
         'SENSOR_GPIO_PIN': 'SENSOR_PIN',
         'SENSOR_PIN': 'SENSOR_PIN',
+        'GREEN_LED_PIN': 'GREEN_LED_PIN',
+        'RED_LED_PIN': 'RED_LED_PIN',
         'PCA9685_CHANNEL': 'PCA9685_CHANNEL',
         'HEARTBEAT_INTERVAL': 'HEARTBEAT_INTERVAL',
         'SENSOR_TIMEOUT': 'SENSOR_TIMEOUT',
@@ -347,6 +320,16 @@ def apply_remote_config(remote_config, current_config):
     }
     
     remote_config = normalize_motor_config(remote_config)
+    candidate_config = dict(current_config)
+    for remote_key, local_key in key_mapping.items():
+        if remote_key in remote_config:
+            candidate_config[local_key] = remote_config[remote_key]
+    try:
+        validate_gpio_config(candidate_config)
+    except ValueError as exc:
+        print(f"[設定更新] 危険なGPIO設定を拒否しました: {exc}")
+        return False
+
     updated_keys = []
     for remote_key, local_key in key_mapping.items():
         if remote_key in remote_config:
@@ -370,6 +353,7 @@ def apply_remote_config(remote_config, current_config):
             print("[設定更新] config.json の保存に失敗しました")
     else:
         print("[設定更新] 変更なし")
+    return True
 
 
 # --------------------------------------------------------------------------
@@ -397,6 +381,10 @@ def start_flask_api_server(config, port=5001):
 
     def run_motor_test_from_api():
         test_config = normalize_motor_config(app.config['config_ref'])
+        try:
+            validate_gpio_config(test_config)
+        except ValueError as exc:
+            return {'ok': False, 'message': f'危険なGPIO設定: {exc}'}
 
         if PLATFORM != "RASPI":
             return {'ok': True, 'message': 'PCモードのためモーターは動作しません'}
@@ -424,7 +412,8 @@ def start_flask_api_server(config, port=5001):
             current_config = app.config['config_ref']
             
             # 設定を適用
-            apply_remote_config(new_config, current_config)
+            if not apply_remote_config(new_config, current_config):
+                return jsonify({'error': 'Invalid GPIO configuration'}), 400
             
             return jsonify({
                 'success': True,
@@ -1214,6 +1203,12 @@ def send_diagnostics_to_server(server_url, unit_name, diagnostics):
         print(f"  ⚠ 診断結果の送信に失敗: {e}")
 
 def run_client(config, stop_event, gui_queue):
+    try:
+        validate_gpio_config(config)
+    except ValueError as exc:
+        print(f"ERROR: 安全でないGPIO設定のため起動を中止します: {exc}")
+        return
+
     SERVER_URL = config.get('SERVER_URL')
     UNIT_NAME = config.get('UNIT_NAME')
     UNIT_PASSWORD = config.get('UNIT_PASSWORD')
@@ -1277,6 +1272,29 @@ def run_client(config, stop_event, gui_queue):
         
         return "unknown"
 
+    def add_unit_credentials(payload):
+        """Use either a short-lived token or the local secret, never both."""
+        token = config.get('_unit_api_token')
+        if token:
+            payload['unit_token'] = token
+            return True
+        payload['unit_password'] = UNIT_PASSWORD
+        return False
+
+    def post_to_parent(path, payload, timeout):
+        """Retry once with the local secret when an in-memory token expired."""
+        request_payload = dict(payload)
+        used_token = add_unit_credentials(request_payload)
+        response = requests.post(f"{SERVER_URL}{path}", json=request_payload, timeout=timeout)
+        if response.status_code == 401 and used_token:
+            config.pop('_unit_api_token', None)
+            fallback_payload = dict(payload)
+            add_unit_credentials(fallback_payload)
+            response = requests.post(
+                f"{SERVER_URL}{path}", json=fallback_payload, timeout=timeout
+            )
+        return response
+
     def refresh_runtime_settings():
         nonlocal MOTOR_TYPE, USE_SENSOR, MOTOR_SPEED, MOTOR_DURATION, MOTOR_REVERSE
         nonlocal SENSOR_PIN, SENSOR_CHECK_PRE, SENSOR_CHECK_POST, JAM_CLEAR_ATTEMPTS
@@ -1311,6 +1329,8 @@ def run_client(config, stop_event, gui_queue):
                     "MOTOR_DURATION": MOTOR_DURATION,
                     "MOTOR_REVERSE": MOTOR_REVERSE,
                     "SENSOR_GPIO_PIN": SENSOR_PIN,
+                    "GREEN_LED_PIN": GREEN_LED_PIN,
+                    "RED_LED_PIN": RED_LED_PIN,
                     "SENSOR_CHECK_PRE": SENSOR_CHECK_PRE,
                     "SENSOR_CHECK_POST": SENSOR_CHECK_POST,
                     "JAM_CLEAR_ATTEMPTS": JAM_CLEAR_ATTEMPTS,
@@ -1329,11 +1349,10 @@ def run_client(config, stop_event, gui_queue):
                 # サーバーにハートビートを送信（設定情報付き）
                 payload = {
                     "name": UNIT_NAME, 
-                    "password": UNIT_PASSWORD,
                     "ip_address": my_ip,
                     "config": current_config
                 }
-                response = requests.post(f"{SERVER_URL}/api/unit/heartbeat", json=payload, timeout=5)
+                response = post_to_parent("/api/unit/heartbeat", payload, timeout=5)
                 if response.status_code == 200:
                     data = response.json()
                     if data.get('unit_api_token'):
@@ -1366,10 +1385,7 @@ def run_client(config, stop_event, gui_queue):
     def send_log_to_server(message):
         try:
             payload = {"unit_name": UNIT_NAME, "message": message}
-            payload["unit_password"] = UNIT_PASSWORD
-            if config.get('_unit_api_token'):
-                payload["unit_token"] = config['_unit_api_token']
-            requests.post(f"{SERVER_URL}/api/log", json=payload, timeout=3)
+            post_to_parent("/api/log", payload, timeout=3)
         except requests.exceptions.RequestException: pass
 
     def indicate(status):
@@ -1463,10 +1479,7 @@ def run_client(config, stop_event, gui_queue):
         
         try:
             payload = {"card_id": card_id, "unit_name": UNIT_NAME}
-            payload["unit_password"] = UNIT_PASSWORD
-            if config.get('_unit_api_token'):
-                payload["unit_token"] = config['_unit_api_token']
-            response = requests.post(f"{SERVER_URL}/api/record_usage", json=payload, timeout=10)
+            response = post_to_parent("/api/record_usage", payload, timeout=10)
             
             if response.status_code == 200:
                 response_data = response.json()
@@ -1483,19 +1496,14 @@ def run_client(config, stop_event, gui_queue):
                     "unit_name": UNIT_NAME,
                     "success": dispense_ok,
                     "error_code": None if dispense_ok else "DISPENSE_FAILED_CLIENT",
-                    "unit_password": UNIT_PASSWORD,
                 }
-                if config.get('_unit_api_token'):
-                    result_payload["unit_token"] = config['_unit_api_token']
 
                 result_response = None
                 last_result_error = None
                 for _ in range(3):
                     try:
-                        result_response = requests.post(
-                            f"{SERVER_URL}/api/dispense_result",
-                            json=result_payload,
-                            timeout=10
+                        result_response = post_to_parent(
+                            "/api/dispense_result", result_payload, timeout=10
                         )
                         break
                     except requests.exceptions.RequestException as req_error:

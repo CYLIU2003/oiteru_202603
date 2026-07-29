@@ -51,6 +51,7 @@ from flask import (
     send_file,
 )
 from db_adapter import db, get_connection, DatabaseError
+from app.routing import assert_unique_routes
 
 # --- New app module imports ---
 from app.logger import get_logger as _get_logger
@@ -82,16 +83,26 @@ if __name__ == "__main__":
     print("WARNING: server.py is legacy. Use db_server.py for standard setup.")
 
 # --- Flaskアプリケーションの初期化 ---
-app = Flask(__name__, template_folder="templates", static_folder="static")
-app.secret_key = os.getenv("FLASK_SECRET_KEY") or secrets.token_hex(32)
-app.config["SESSION_COOKIE_HTTPONLY"] = True
-app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-app.config["SESSION_COOKIE_SECURE"] = (
-    os.getenv("SESSION_COOKIE_SECURE", "false").lower() == "true"
-)
-app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(
-    minutes=int(os.getenv("ADMIN_SESSION_MINUTES", "30"))
-)
+def create_app() -> Flask:
+    """Create the OITERU parent Flask application.
+
+    Routes are still declared below for incremental legacy migration, but all
+    entry points now share this single application factory.
+    """
+    flask_app = Flask(__name__, template_folder="templates", static_folder="static")
+    flask_app.secret_key = os.getenv("FLASK_SECRET_KEY") or secrets.token_hex(32)
+    flask_app.config["SESSION_COOKIE_HTTPONLY"] = True
+    flask_app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+    flask_app.config["SESSION_COOKIE_SECURE"] = (
+        os.getenv("SESSION_COOKIE_SECURE", "false").lower() == "true"
+    )
+    flask_app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(
+        minutes=int(os.getenv("ADMIN_SESSION_MINUTES", "30"))
+    )
+    return flask_app
+
+
+app = create_app()
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "oiteru.sqlite3")
 
 if "FLASK_SECRET_KEY" not in os.environ:
@@ -1528,7 +1539,6 @@ def admin_visuals():
 # ========================================
 # API エンドポイント
 # ========================================
-@app.route("/api/health", methods=["GET"])
 def api_health():
     """子機からの親機探知用ヘルスチェックエンドポイント"""
     return jsonify({"status": "ok", "server": "oiteru"})
@@ -1817,7 +1827,6 @@ def api_get_user_by_card(card_id):
     return jsonify({"error": "User not found"}), 404
 
 
-@app.route("/api/log", methods=["POST"])
 def api_add_log():
     """子機からのログを受け取る"""
     data = request.json or {}
@@ -1857,7 +1866,6 @@ def api_get_unit_logs(unit_name):
     return jsonify({"logs": logs, "count": len(logs)})
 
 
-@app.route("/api/record_usage", methods=["POST"])
 def api_record_usage():
     """
     子機からの利用認可API（在庫減算はまだ行わない）
@@ -2155,7 +2163,6 @@ def open_local_nfc_frontend():
     return None
 
 
-@app.route("/api/dispense_result", methods=["POST"])
 def api_dispense_result():
     """子機からの物理排出結果を受け取り、在庫を確定更新する"""
     data = request.json or {}
@@ -2341,7 +2348,6 @@ def api_dispense_result():
         return jsonify({"error": f"Database error: {e}"}), 500
 
 
-@app.route("/api/unit/heartbeat", methods=["POST"])
 def api_unit_heartbeat():
     """子機からの生存確認を受け取る"""
     data = request.json
@@ -2456,7 +2462,6 @@ def api_register_pending_unit(unit_name):
         return jsonify({"error": "Unit name already exists"}), 400
 
 
-@app.route("/api/unit/<string:unit_name>/config", methods=["GET"])
 def api_get_unit_config(unit_name):
     """子機の設定情報を取得"""
     if not session.get("admin_logged_in"):
@@ -2475,7 +2480,6 @@ def api_get_unit_config(unit_name):
         ), 404
 
 
-@app.route("/api/unit/<string:unit_name>/config", methods=["POST"])
 def api_update_unit_config(unit_name):
     """子機の設定を更新し、即座に子機に送信"""
     if not session.get("admin_logged_in"):
@@ -2565,7 +2569,6 @@ def api_update_unit_config(unit_name):
     )
 
 
-@app.route("/api/unit/<unit_name>/command", methods=["POST"])
 def api_send_unit_command(unit_name):
     """子機にコマンドを送信（デバッグ用）"""
     if not session.get("admin_logged_in"):
@@ -2714,6 +2717,9 @@ def admin_settings():
 # ========================================
 # メイン
 # ========================================
+assert_unique_routes(app)
+
+
 if __name__ == "__main__":
     logger.info("=" * 60)
     logger.info("OITELU 親機/従親機 を起動しています...")

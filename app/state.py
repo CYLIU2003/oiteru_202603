@@ -8,6 +8,8 @@ Replaces in-memory dicts with database-backed stores for:
 
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -49,6 +51,30 @@ def ensure_state_tables(conn):
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        _db.execute(conn, """
+            CREATE TABLE IF NOT EXISTS device_sessions (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                unit_name VARCHAR(255) NOT NULL,
+                token_hash CHAR(64) UNIQUE NOT NULL,
+                issued_at DATETIME NOT NULL,
+                expires_at DATETIME NOT NULL,
+                revoked_at DATETIME NULL,
+                last_used_at DATETIME NULL,
+                INDEX idx_device_sessions_unit_active (unit_name, expires_at),
+                FOREIGN KEY (unit_name) REFERENCES units(name) ON DELETE CASCADE
+            )
+        """)
+        _db.execute(conn, """
+            CREATE TABLE IF NOT EXISTS device_status_logs (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                unit_name VARCHAR(255) NOT NULL,
+                status VARCHAR(64) NOT NULL,
+                detail VARCHAR(255) NULL,
+                created_at DATETIME NOT NULL,
+                INDEX idx_device_status_logs_unit_created (unit_name, created_at),
+                FOREIGN KEY (unit_name) REFERENCES units(name) ON DELETE CASCADE
+            )
+        """)
     else:
         _db.execute(conn, """
             CREATE TABLE IF NOT EXISTS pending_units (
@@ -76,6 +102,28 @@ def ensure_state_tables(conn):
                 unit_name TEXT UNIQUE NOT NULL,
                 config_json TEXT NOT NULL,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        _db.execute(conn, """
+            CREATE TABLE IF NOT EXISTS device_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                unit_name TEXT NOT NULL,
+                token_hash TEXT UNIQUE NOT NULL,
+                issued_at TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                revoked_at TEXT,
+                last_used_at TEXT,
+                FOREIGN KEY (unit_name) REFERENCES units(name) ON DELETE CASCADE
+            )
+        """)
+        _db.execute(conn, """
+            CREATE TABLE IF NOT EXISTS device_status_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                unit_name TEXT NOT NULL,
+                status TEXT NOT NULL,
+                detail TEXT,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (unit_name) REFERENCES units(name) ON DELETE CASCADE
             )
         """)
 
@@ -224,3 +272,64 @@ def delete_pending_config_update(conn, unit_name: str) -> None:
     _db.execute(
         conn, "DELETE FROM pending_config_updates WHERE unit_name = ?", (unit_name,)
     )
+
+
+# ---------------------------------------------------------------------------
+# Device sessions and status logs
+# ---------------------------------------------------------------------------
+
+def create_device_session(
+    conn, unit_name: str, token: str, expires_at: str, issued_at: str
+) -> None:
+    """Store only a hash of a short-lived device session token."""
+    token_hash = _hash_token(token)
+    _db.execute(
+        conn,
+        "UPDATE device_sessions SET revoked_at = ? WHERE unit_name = ? AND revoked_at IS NULL",
+        (issued_at, unit_name),
+    )
+    _db.execute(
+        conn,
+        "INSERT INTO device_sessions (unit_name, token_hash, issued_at, expires_at) "
+        "VALUES (?, ?, ?, ?)",
+        (unit_name, token_hash, issued_at, expires_at),
+    )
+
+
+def validate_device_session(conn, unit_name: str, token: str, now: str) -> bool:
+    """Validate and touch a non-revoked, non-expired device session."""
+    if not token:
+        return False
+    row = _db.fetchone(
+        conn,
+        "SELECT id FROM device_sessions WHERE unit_name = ? AND token_hash = ? "
+        "AND revoked_at IS NULL AND expires_at > ?",
+        (unit_name, _hash_token(token), now),
+    )
+    if not row:
+        return False
+    _db.execute(
+        conn,
+        "UPDATE device_sessions SET last_used_at = ? WHERE id = ?",
+        (now, row["id"]),
+    )
+    return True
+
+
+def record_device_status(
+    conn, unit_name: str, status: str, detail: str | None = None
+) -> None:
+    _db.execute(
+        conn,
+        "INSERT INTO device_status_logs (unit_name, status, detail, created_at) "
+        "VALUES (?, ?, ?, ?)",
+        (unit_name, status, detail, _now()),
+    )
+
+
+def _hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _now() -> str:
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")

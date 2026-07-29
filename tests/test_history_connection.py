@@ -124,3 +124,28 @@ def test_unit_log_endpoint_records_history_in_authenticated_connection(monkeypat
 
     assert response.status_code == 200
     assert history_calls == [(connection, "[unit-01] ready", "usage")]
+
+
+def test_unit_config_endpoint_rejects_gpio_conflicts_before_database_access():
+    app = Flask(__name__)
+    app.secret_key = "test-secret"
+    app.register_blueprint(unit_api.unit_bp)
+    client = app.test_client()
+    with client.session_transaction() as session:
+        session["admin_logged_in"] = True
+
+    response = client.post(
+        "/api/unit/unit-01/config",
+        json={
+            "MOTOR_TYPE": "STEPPER",
+            "CONTROL_METHOD": "RASPI_DIRECT",
+            "USE_SENSOR": True,
+            "GREEN_LED_PIN": 5,
+            "RED_LED_PIN": 6,
+            "SENSOR_GPIO_PIN": 13,
+            "STEPPER_PINS": [21, 5, 6, 13],
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json["error"] == "Invalid GPIO configuration"

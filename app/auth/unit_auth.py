@@ -2,33 +2,30 @@
 
 from __future__ import annotations
 
-import hmac
 import secrets
-from typing import Dict, Optional
+from datetime import datetime, timedelta
+
+from app import state
 
 
-_unit_session_tokens: Dict[str, str] = {}
-
-
-def issue_unit_session_token(unit_name: str) -> str:
-    token = secrets.token_urlsafe(24)
-    _unit_session_tokens[unit_name] = token
+def issue_unit_session_token(conn, unit_name: str, ttl_seconds: int = 900) -> str:
+    """Issue a persisted, revocable short-lived token for one child device."""
+    token = secrets.token_urlsafe(32)
+    issued_at = datetime.now()
+    state.create_device_session(
+        conn,
+        unit_name,
+        token,
+        (issued_at + timedelta(seconds=ttl_seconds)).strftime("%Y-%m-%d %H:%M:%S"),
+        issued_at.strftime("%Y-%m-%d %H:%M:%S"),
+    )
     return token
 
 
-def validate_unit_token(unit_name: str, provided_token: str) -> bool:
-    expected = _unit_session_tokens.get(unit_name)
-    return bool(expected and provided_token) and hmac.compare_digest(
-        expected, provided_token
+def validate_unit_token(conn, unit_name: str, provided_token: str) -> bool:
+    return state.validate_device_session(
+        conn,
+        unit_name,
+        provided_token,
+        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     )
-
-
-def get_push_headers(unit_name: str) -> dict:
-    token = _unit_session_tokens.get(unit_name)
-    if not token:
-        return {}
-    return {"X-Oiteru-Unit-Auth": token}
-
-
-def get_unit_session_tokens() -> Dict[str, str]:
-    return dict(_unit_session_tokens)

@@ -14,6 +14,7 @@ MIGRATIONS = [
     "004_add_users_last_reset_date",
     "005_add_card_id_hash",
     "006_add_state_tables",
+    "007_add_device_sessions_and_status_logs",
 ]
 
 
@@ -73,6 +74,8 @@ def _apply_migration(conn, name: str):
         _migration_005(conn)
     elif name == "006_add_state_tables":
         _migration_006(conn)
+    elif name == "007_add_device_sessions_and_status_logs":
+        _migration_007(conn)
 
 
 def _migration_001(conn):
@@ -144,6 +147,12 @@ def _migration_005(conn):
 
 def _migration_006(conn):
     """Create state tables for pending units, config snapshots, pending updates."""
+    from app.state import ensure_state_tables
+    ensure_state_tables(conn)
+
+
+def _migration_007(conn):
+    """Add persistent session and device status storage to existing installs."""
     from app.state import ensure_state_tables
     ensure_state_tables(conn)
 
