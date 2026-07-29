@@ -86,7 +86,7 @@ class UnitRepository(BaseRepository):
         available: int = UnitAvailableStatus.AVAILABLE,
         ip_address: Optional[str] = None,
     ) -> int:
-        return self.insert(
+        return super().insert(
             conn,
             "INSERT INTO units (name, password, stock, initial_stock, connect, available, ip_address) "
             "VALUES (?, ?, ?, ?, ?, ?, ?)",

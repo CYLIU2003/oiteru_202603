@@ -84,6 +84,7 @@ def check_and_reset_user_stock(
         )
         if history_repo:
             history_repo.insert(
+                conn,
                 f"[自動リセット] {period_name}が変わったため、カードID {card_id} の残数を {reset_stock} にリセットしました",
                 "system",
             )

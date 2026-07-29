@@ -118,11 +118,16 @@ systemctl status mysql
 ## 動作確認
 
 ```bash
-python -m unittest
+python3 -m pip install -r requirements-dev.txt
+make lint
+make test
 scripts/tmux_oiteru.sh status
 curl http://localhost:5000
 mysql -u oiteru_user -p oiteru -e "SELECT 1;"
 ```
+
+テストランナーは `pytest` を標準とします。`python -m unittest` は、pytest
+形式で書かれたテストを収集しないため、開発・CIでは使用しません。
 
 実機が必要な確認は、作業メモに「実機未確認」または「実機確認済み」と残してください。
 

@@ -213,13 +213,15 @@ def api_add_log():
 
     with get_connection() as conn:
         unit = get_authenticated_unit(conn, unit_name, unit_password, unit_token)
-    if not unit:
-        return jsonify({"success": False, "error": "Invalid unit credentials"}), 401
+        if not unit:
+            return jsonify({"success": False, "error": "Invalid unit credentials"}), 401
+
+        if message:
+            from app.repositories.history_repository import HistoryRepository
+            HistoryRepository().insert(conn, f"[{unit_name}] {message}")
 
     if message:
         logger.info("[%s] %s", unit_name, message)
-        from app.repositories.history_repository import HistoryRepository
-        HistoryRepository().insert(f"[{unit_name}] {message}")
 
         if unit_name not in unit_logs:
             unit_logs[unit_name] = deque(maxlen=UNIT_LOG_LIMIT)

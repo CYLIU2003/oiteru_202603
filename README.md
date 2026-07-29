@@ -886,6 +886,17 @@ chmod +x scripts/tmux_oiteru.sh
 2. 小さい修正から始める（README の修正、スクリプトの改善など）
 3. 1 つの PR（Pull Request）には 1 つの目的だけ入れる
 
+変更前後の品質確認は、開発用依存関係を入れたうえで行います。
+
+```bash
+python3 -m pip install -r requirements-dev.txt
+make lint
+make test
+```
+
+`pytest` は `tests/` だけを収集するため、Raspberry Pi 実機診断用の
+`tools/test_*.py` を開発PCやCIで誤実行しません。
+
 ### どこを触ればいい？
 
 | やりたいこと | 主なファイル |

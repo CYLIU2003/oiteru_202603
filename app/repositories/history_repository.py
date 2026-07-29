@@ -14,8 +14,7 @@ class HistoryRepository(BaseRepository):
 
     def insert(self, conn, message: str, hist_type: str = "usage") -> int:
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        return BaseRepository.insert(
-            self,
+        return super().insert(
             conn,
             "INSERT INTO history (txt, type, created_at) VALUES (?, ?, ?)",
             (message, hist_type, now),

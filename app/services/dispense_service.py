@@ -103,6 +103,7 @@ def authorize_dispense(
     # 1. Unit stock & availability
     if unit.stock <= 0 or unit.available == UnitAvailableStatus.UNAVAILABLE:
         _history_repo.insert(
+            conn,
             f"[{unit_name}] 在庫不足のため利用不可 (カードID: {card_id})",
             "usage",
         )
@@ -121,6 +122,7 @@ def authorize_dispense(
         user = auto_register_user(conn, card_id, unit_name=unit_name)
         if not user:
             _history_repo.insert(
+                conn,
                 f"[{unit_name}] 未登録カード (カードID: {card_id})",
                 "usage",
             )
@@ -136,6 +138,7 @@ def authorize_dispense(
     # 3. User deny check
     if user.allow == UserAllowStatus.DENIED:
         _history_repo.insert(
+            conn,
             f"[{unit_name}] 利用不許可 (カードID: {card_id})",
             "usage",
         )
@@ -154,6 +157,7 @@ def authorize_dispense(
     # 5. User stock check
     if user.stock <= 0:
         _history_repo.insert(
+            conn,
             f"[{unit_name}] 残数不足 (カードID: {card_id})",
             "usage",
         )
@@ -172,6 +176,7 @@ def authorize_dispense(
     if usage_count >= usage_limit:
         period_name = get_period_display_name(period)
         _history_repo.insert(
+            conn,
             f"[{unit_name}] {period_name}の上限({usage_limit}個)に達しています (カードID: {card_id})",
             "usage",
         )
@@ -190,6 +195,7 @@ def authorize_dispense(
     # Authorized
     _event_repo.update_status(conn, event_id, DispenseStatus.AUTHORIZED)
     _history_repo.insert(
+        conn,
         f"[{unit_name}] 排出認可 (event_id: {event_id}, カードID: {card_id})",
         "usage",
     )
@@ -248,6 +254,7 @@ def record_dispense_result(
         fail_code = error_code or DispenseErrorCode.DISPENSE_FAILED
         _event_repo.update_status(conn, event_id, DispenseStatus.FAILED, fail_code)
         _history_repo.insert(
+            conn,
             f"[{unit_name}] 排出失敗 (event_id: {event_id}, カードID: {event.card_id}, code: {fail_code})",
             "usage",
         )
@@ -324,10 +331,11 @@ def record_dispense_result(
 
     if new_unit_stock <= 0:
         _unit_repo.set_available(conn, unit_name, UnitAvailableStatus.UNAVAILABLE)
-        _history_repo.insert(f"[{unit_name}] 在庫0のため排出停止", "system")
+        _history_repo.insert(conn, f"[{unit_name}] 在庫0のため排出停止", "system")
 
     _event_repo.update_status(conn, event_id, DispenseStatus.RECORDED)
     _history_repo.insert(
+        conn,
         f"[{unit_name}] 利用成功 (event_id: {event_id}, カードID: {event.card_id}, 残数: {new_user_stock})",
         "success",
     )

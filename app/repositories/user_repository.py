@@ -41,7 +41,7 @@ class UserRepository(BaseRepository):
         card_id_hash: str = "",
         last_reset_date: Optional[str] = None,
     ) -> int:
-        return self.insert(
+        return super().insert(
             conn,
             "INSERT INTO users (card_id, card_id_hash, entry, stock, allow, last_reset_date) "
             "VALUES (?, ?, ?, ?, ?, ?)",

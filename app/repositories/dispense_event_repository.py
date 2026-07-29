@@ -29,7 +29,7 @@ class DispenseEventRepository(BaseRepository):
         error_code: Optional[str] = None,
     ) -> int:
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        return self.insert(
+        return super().insert(
             conn,
             "INSERT INTO dispense_events (event_id, unit_name, card_id, status, error_code, created_at, updated_at) "
             "VALUES (?, ?, ?, ?, ?, ?, ?)",
