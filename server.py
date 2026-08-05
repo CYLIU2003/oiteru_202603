@@ -865,6 +865,24 @@ def init_db():
             """,
             )
 
+            # settingsテーブル
+            # (既存DB用の分岐にのみあったため、新規作成時に欠落し
+            #  migration 002 が失敗する不具合を修正)
+            db.execute(
+                conn,
+                """
+                CREATE TABLE settings (
+                    id INTEGER PRIMARY KEY,
+                    auto_register_mode INTEGER DEFAULT 0,
+                    auto_register_stock INTEGER DEFAULT 2,
+                    usage_limit INTEGER DEFAULT 2,
+                    limit_period TEXT DEFAULT 'day',
+                    version INTEGER DEFAULT 0,
+                    updated_at TEXT
+                )
+            """,
+            )
+
             # infoテーブル
             db.execute(
                 conn,
@@ -1073,8 +1091,11 @@ def index():
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
-    """手動登録ページ（自動登録モードでは使用頻度低）"""
-    if not session.get("admin_logged_in"):
+    """手動登録ページ（自動登録モードでは使用頻度低）
+
+    閲覧(GET)は誰でも可能。登録操作(POST)は管理者のみ許可。
+    """
+    if request.method == "POST" and not session.get("admin_logged_in"):
         return redirect(url_for("admin_login"))
     if request.method == "POST":
         card_id = request.form.get("card_id", "").strip()
@@ -1138,8 +1159,11 @@ def register():
 
 @app.route("/usage", methods=["GET", "POST"])
 def usage():
-    """利用確認ページ"""
-    if not session.get("admin_logged_in"):
+    """利用確認ページ
+
+    閲覧(GET)は誰でも可能。利用操作(POST)は管理者のみ許可。
+    """
+    if request.method == "POST" and not session.get("admin_logged_in"):
         return redirect(url_for("admin_login"))
     if request.method == "POST":
         card_id = request.form.get("card_id", "").strip()
