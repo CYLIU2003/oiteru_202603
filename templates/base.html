@@ -81,6 +81,27 @@
 
   <script>
     document.addEventListener("DOMContentLoaded", function() {
+        const csrfToken = "{{ csrf_token() }}";
+        document.querySelectorAll('form[method="post"], form[method="POST"]').forEach((form) => {
+            if (!form.querySelector('input[name="csrf_token"]')) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'csrf_token';
+                input.value = csrfToken;
+                form.appendChild(input);
+            }
+        });
+        const originalFetch = window.fetch.bind(window);
+        window.fetch = (input, init = {}) => {
+            const method = String(init.method || 'GET').toUpperCase();
+            if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+                const headers = new Headers(init.headers || {});
+                headers.set('X-CSRF-Token', csrfToken);
+                init = {...init, headers};
+            }
+            return originalFetch(input, init);
+        };
+
         // 親機PC接続のNFCリーダー状態
         const localReaderLight = document.getElementById("local-reader-light");
         const localReaderText = document.getElementById("local-reader-text");

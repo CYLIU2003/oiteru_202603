@@ -411,7 +411,8 @@ nano .env
 | 変数名 | 何の設定？ | 変更後の例 |
 |--------|-----------|-----------|
 | `FLASK_SECRET_KEY` | セッション暗号化の鍵。32文字以上の適当な文字列 | `a1b2c3d4e5f6...（適当に長く打つ）` |
-| `OITERU_ADMIN_PASSWORD` | 管理画面にログインするときのパスワード | `my-password-2026` |
+| `OITERU_ADMIN_USERNAME` | 初期管理者アカウント名 | `administrator` |
+| `OITERU_ADMIN_PASSWORD` | 初期管理者アカウントのパスワード | `my-password-2026` |
 | `MYSQL_PASSWORD` | データベース接続用パスワード | `my-db-password` |
 | `MYSQL_ROOT_PASSWORD` | データベース管理者パスワード | `my-root-password` |
 
@@ -529,7 +530,7 @@ http://localhost:5000/admin
 **別の PC から見る場合：**
 
 ```
-http://<親機のIPアドレス>:5000/admin
+https://<親機のホスト名>/admin
 ```
 
 > **IP アドレスの調べ方：**
@@ -543,7 +544,8 @@ http://<親機のIPアドレス>:5000/admin
 ![管理画面ログイン](docs/img/admin-login.png)
 <!-- TODO: 実際のログイン画面のスクリーンショットに差し替えてください -->
 
-パスワードは `.env` に書いた `OITERU_ADMIN_PASSWORD` です。
+ユーザー名とパスワードは `.env` の `OITERU_ADMIN_USERNAME` と
+`OITERU_ADMIN_PASSWORD` です。MySQL標準構成では HTTPS 終端を必須にします。
 
 ---
 
@@ -584,13 +586,25 @@ code config.json
 | `config.example.json` | コンフィグ エグザンプル | 「子機設定のテンプレート」 | プロジェクトに最初から入っている見本 |
 | `config.json` | コンフィグ ジェイソン | 「自分用の設定ファイル」 | **GitHub に絶対上げない** |
 
-**編集する内容：** 以下の 3 項目を必ず変更してください。
+**編集する内容：** `config.json` では以下の公開設定だけを変更します。
 
 | キー | 何の設定？ | 変更後の例 |
 |------|-----------|-----------|
-| `SERVER_URL` | 親機の URL。子機が「親機どこ？」と探すときの住所 | `http://192.168.1.10:5000` |
+| `SERVER_URL` | 親機の URL。子機が接続する先 | `https://oiteru-parent.example` |
 | `UNIT_NAME` | この子機の名前。管理画面に表示される | `unit-01`（子機ごとに変える） |
-| `UNIT_PASSWORD` | 親機と子機の間の認証パスワード | `change-this` |
+| `UNIT_SECRET_FILE` | 子機の秘密情報を置くファイル | `/etc/oiteru/unit-secret` |
+
+`config.json` に `UNIT_PASSWORD` を書いてはいけません。次に、秘密情報を
+別ファイルへ安全に作成します。
+
+```bash
+sudo scripts/provision_unit.sh
+```
+
+このコマンドは秘密情報を非表示で入力させ、`/etc/oiteru/unit-secret` を
+`0600` で作成します。作成後は `stat -c '%a %n' /etc/oiteru/unit-secret`
+が `600` を表示することを確認してください。秘密情報・`config.json`・`.env`
+は Git に追加しないでください。
 
 > **うまくいくと…**
 > 保存できれば OK です。VS Code なら `Ctrl + S`。
@@ -648,7 +662,7 @@ scripts/tmux_oiteru.sh attach unit
 
 | 確認したいこと | どこを見る？ |
 |-------------|------------|
-| ログインできるか | ログイン画面。パスワードは `.env` の `OITERU_ADMIN_PASSWORD` |
+| ログインできるか | ログイン画面。初期認証情報は `.env` の `OITERU_ADMIN_USERNAME` / `OITERU_ADMIN_PASSWORD` |
 | 子機が一覧にいるか | 子機一覧画面。`unit-01` などが表示されていれば OK |
 | 子機の最終接続時刻が動いているか | 子機詳細画面。数分以内の時刻なら heartbeat が届いている証拠 |
 | 在庫数が正しいか | 子機詳細画面 |
@@ -841,7 +855,9 @@ python3 -m venv .venv
 .venv/bin/pip install -r requirements-client.txt
 ```
 
-通常は `./venv-start.sh unit` が自動でやってくれます。そちらを使ってください。
+依存関係はセットアップ時に `.venv/bin/pip install -r requirements-client.txt`
+で導入してください。実行時の子機プログラムは pip install や sudo 再実行を
+行いません。
 
 ---
 
@@ -996,7 +1012,7 @@ scripts/tmux_oiteru.sh start parent
 scripts/tmux_oiteru.sh attach parent
 ```
 
-Open `http://<parent-IP>:5000/admin` in your browser. Login password is the `OITERU_ADMIN_PASSWORD` you set in `.env`.
+Open `https://<parent-host>/admin` in your browser. Sign in with the `OITERU_ADMIN_USERNAME` and `OITERU_ADMIN_PASSWORD` set in `.env`.
 
 ### Quick start (child unit — Raspberry Pi)
 

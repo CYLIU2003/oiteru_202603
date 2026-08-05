@@ -7,7 +7,13 @@ import os
 
 import pytest
 
-from unit.configuration import find_gpio_conflicts, load_config, save_config, validate_gpio_config
+from unit.configuration import (
+    find_gpio_conflicts,
+    load_config,
+    save_config,
+    validate_gpio_config,
+    validate_parent_url,
+)
 
 
 DEFAULTS = {
@@ -68,3 +74,10 @@ def test_non_overlapping_gpio_config_is_accepted():
 def test_out_of_range_gpio_config_is_rejected():
     with pytest.raises(ValueError, match="BCM values"):
         validate_gpio_config({**DEFAULTS, "SENSOR_PIN": 28})
+
+
+def test_strict_mode_rejects_plaintext_remote_parent_url():
+    with pytest.raises(ValueError, match="HTTPS"):
+        validate_parent_url("http://192.0.2.10:5000", strict=True)
+    validate_parent_url("https://oiteru-parent.example", strict=True)
+    validate_parent_url("http://127.0.0.1:5000", strict=True)

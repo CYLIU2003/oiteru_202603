@@ -11,7 +11,7 @@ from app.services.dispense_service import (
     record_dispense_result,
 )
 from app.repositories.unit_repository import UnitRepository
-from app.auth.auth_manager import verify_secret
+from app.auth.auth_manager import hash_card_uid, verify_secret
 from app.auth.unit_auth import validate_unit_token
 from db_adapter import get_connection
 
@@ -63,7 +63,9 @@ def api_record_usage():
                     {"error": "Invalid unit credentials", "event_id": None}
                 ), 401
 
-            result = authorize_dispense(conn, card_id, unit_name, unit)
+            # Raw UID is accepted only at this HTTPS-protected API boundary.
+            # All service/database/history processing below uses the card ref.
+            result = authorize_dispense(conn, hash_card_uid(str(card_id)), unit_name, unit)
 
             if result.authorized:
                 return jsonify({
@@ -85,7 +87,7 @@ def api_record_usage():
 
     except Exception as exc:
         logger.error("Dispense auth error: %s", exc, exc_info=True)
-        return jsonify({"error": f"Database error: {exc}"}), 500
+        return jsonify({"error": {"code": "INTERNAL_ERROR"}}), 500
 
 
 @dispense_bp.route("/api/dispense_result", methods=["POST"])
@@ -126,4 +128,4 @@ def api_dispense_result():
 
     except Exception as exc:
         logger.error("Dispense result error: %s", exc, exc_info=True)
-        return jsonify({"error": f"Database error: {exc}"}), 500
+        return jsonify({"error": {"code": "INTERNAL_ERROR"}}), 500

@@ -20,6 +20,7 @@ def heartbeat_update(
     unit_name: str,
     ip_address: str,
     config: Optional[Dict[str, Any]] = None,
+    config_ack: Optional[Dict[str, Any]] = None,
 ) -> tuple:
     """Process a unit heartbeat. Returns (unit_record or None, response_dict)."""
     unit = _unit_repo.find_by_name(conn, unit_name)
@@ -29,7 +30,24 @@ def heartbeat_update(
             state.upsert_unit_config_snapshot(conn, unit_name, config, ip_address)
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         _unit_repo.update_heartbeat(conn, unit_name, now, ip_address)
-        state.record_device_status(conn, unit_name, "heartbeat")
+        if not unit.connect:
+            state.record_device_status(conn, unit_name, "online")
+
+        if config_ack:
+            acknowledged = state.acknowledge_config_update(
+                conn,
+                unit_name,
+                str(config_ack.get("config_update_id") or ""),
+                int(config_ack.get("config_version") or 0),
+                bool(config_ack.get("applied")),
+                str(config_ack.get("error") or ""),
+            )
+            if acknowledged:
+                state.record_device_status(
+                    conn,
+                    unit_name,
+                    "config_applied" if config_ack.get("applied") else "config_failed",
+                )
 
         response = {
             "success": True,
@@ -42,7 +60,7 @@ def heartbeat_update(
             "settings_version": settings_service.settings_version,
         }
 
-        pending_config = state.pop_pending_config_update(conn, unit_name)
+        pending_config = state.get_config_update_for_delivery(conn, unit_name)
         if pending_config:
             response["config_update"] = pending_config
 

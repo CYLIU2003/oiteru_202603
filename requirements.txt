@@ -5,3 +5,4 @@ numpy>=1.26.0
 nfcpy>=1.0.4
 requests>=2.32.0
 PyMySQL>=1.1.0          # MySQL接続 (db_server.py / db_adapter.py)
+gunicorn>=23.0.0        # Linux production WSGI server

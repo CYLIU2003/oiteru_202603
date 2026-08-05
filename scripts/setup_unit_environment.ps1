@@ -62,7 +62,8 @@ if (-not (Test-Path "config.json")) {
         Write-Host "⚠️  重要: config.jsonを編集して、以下を設定してください:" -ForegroundColor Yellow
         Write-Host "   - SERVER_URL: 親機のURL" -ForegroundColor Gray
         Write-Host "   - UNIT_NAME: この子機の名前" -ForegroundColor Gray
-        Write-Host "   - UNIT_PASSWORD: この子機のパスワード" -ForegroundColor Gray
+        Write-Host "   - UNIT_SECRET_FILE: /etc/oiteru/unit-secret" -ForegroundColor Gray
+        Write-Host "   - 次に sudo scripts/provision_unit.sh を実行" -ForegroundColor Gray
     } else {
         Write-Host "⚠️  config.jsonとテンプレートが見つかりません" -ForegroundColor Yellow
     }

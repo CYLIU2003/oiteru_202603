@@ -66,7 +66,7 @@ if "%TYPE%"=="unit" (
         echo {
         echo     "SERVER_URL": "http://%SERVER_IP%:5000",
         echo     "UNIT_NAME": "%NAME%",
-        echo     "UNIT_PASSWORD": "%PASSWORD%",
+        echo     "UNIT_SECRET_FILE": "/etc/oiteru/unit-secret",
         echo     "UNIT_LOCATION": "%LOCATION%",
         echo     "IS_SECONDARY": false,
         echo     "MOTOR_TYPE": "STEPPER",
@@ -110,8 +110,8 @@ echo.
 
 if "%TYPE%"=="unit" (
     echo Next steps:
-    echo   1. Register unit at: http://%SERVER_IP%:5000/admin/units/new
-    echo   2. Start unit: scripts\start_unit.bat
+    echo   1. On Raspberry Pi, run: sudo scripts/provision_unit.sh
+    echo   2. Ask an administrator to approve the unit, then start it
 ) else (
     echo Next steps:
     echo   1. Start sub-parent: scripts\start_sub_parent.bat

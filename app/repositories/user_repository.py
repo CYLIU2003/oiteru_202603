@@ -18,6 +18,13 @@ class UserRepository(BaseRepository):
         )
         return UserRecord.from_row(row) if row else None
 
+    def find_by_card_ref(self, conn, card_ref: str) -> Optional[UserRecord]:
+        """Find a user through the pseudonymous card reference only."""
+        row = self.fetch_one(
+            conn, "SELECT * FROM users WHERE card_id_hash = ?", (card_ref,)
+        )
+        return UserRecord.from_row(row) if row else None
+
     def find_by_id(self, conn, uid: int) -> Optional[UserRecord]:
         row = self.fetch_one(
             conn, "SELECT * FROM users WHERE id = ?", (uid,)
@@ -69,6 +76,23 @@ class UserRepository(BaseRepository):
             conn,
             "UPDATE users SET stock = ?, total = ? WHERE card_id = ?",
             (stock, total, card_id),
+        )
+
+    def decrement_stock_and_total_if_available(self, conn, card_id: str) -> int:
+        """Atomically reserve one user allowance without a read-modify-write race."""
+        return self.update(
+            conn,
+            """UPDATE users
+                  SET stock = stock - 1, total = total + 1
+                WHERE card_id = ? AND stock > 0 AND allow = 1""",
+            (card_id,),
+        )
+
+    def restore_stock_and_total(self, conn, card_id: str) -> int:
+        return self.update(
+            conn,
+            "UPDATE users SET stock = stock + 1, total = MAX(total - 1, 0) WHERE card_id = ?",
+            (card_id,),
         )
 
     def update_last_reset_date(

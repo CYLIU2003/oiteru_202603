@@ -33,7 +33,7 @@ def test_authorize_dispense_passes_connection_to_history(monkeypatch):
 
     assert not result.authorized
     assert history_calls == [
-        (connection, "[unit-01] 在庫不足のため利用不可 (カードID: TEST-CARD-0001)", "usage")
+        (connection, "[unit-01] 在庫不足のため利用不可 (card_ref: TEST-CARD-00)", "usage")
     ]
 
 

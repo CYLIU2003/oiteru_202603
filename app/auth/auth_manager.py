@@ -47,6 +47,12 @@ INSECURE_MYSQL_PASSWORDS: Set[str] = {
     "oiteru_password_2025",
 }
 
+INSECURE_CARD_UID_HMAC_KEYS: Set[str] = {
+    "change-this-card-uid-hmac-key",
+    "change-this-secret-key",
+    "",
+}
+
 DEFAULT_ADMIN_HASHES: Set[str] = {
     hashlib.sha256("admin".encode()).hexdigest(),
     hashlib.sha256("change-this-admin-password".encode()).hexdigest(),
@@ -107,10 +113,13 @@ def generate_session_token() -> str:
 def hash_card_uid(card_id: str) -> str:
     """Return a one-way hash of a card UID for pseudonymous storage.
 
-    Uses HMAC-SHA256 keyed with ``FLASK_SECRET_KEY`` so that the mapping is
-    deterministic within a deployment but cannot be reversed without the key.
+    Uses a key dedicated to card pseudonymization.  It must never share the
+    Flask session key because their rotation and access policies differ.
     """
-    key = (os.getenv("FLASK_SECRET_KEY") or "change-this-secret-key").encode()
+    key = (
+        os.getenv("CARD_UID_HMAC_KEY")
+        or "development-only-card-uid-hmac-key-not-for-production"
+    ).encode()
     return hmac.new(key, card_id.encode("utf-8"), hashlib.sha256).hexdigest()
 
 
@@ -188,11 +197,19 @@ def validate_runtime_security(
         msg = "OITERU_ADMIN_PASSWORD は12文字以上を推奨します。"
         issues.append(("error" if strict else "warning", msg))
 
+    if strict and os.getenv("SESSION_COOKIE_SECURE", "false").lower() != "true":
+        issues.append(("error", "OITERU_STRICT_SECURITY では SESSION_COOKIE_SECURE=true が必要です。"))
+
     if db_type == "mysql":
         mysql_password = (os.getenv("MYSQL_PASSWORD") or "").strip()
         if not mysql_password:
             issues.append(("error", "MYSQL_PASSWORD が未設定です。"))
         elif mysql_password in INSECURE_MYSQL_PASSWORDS:
             issues.append(("error", "MYSQL_PASSWORD に既定値/弱い値は使用できません。"))
+
+    card_key = (os.getenv("CARD_UID_HMAC_KEY") or "").strip()
+    if not card_key or card_key in INSECURE_CARD_UID_HMAC_KEYS or len(card_key) < 32:
+        msg = "CARD_UID_HMAC_KEY が未設定・既定値・短すぎる値です（32文字以上必須）。"
+        issues.append(("error" if strict else "warning", msg))
 
     return issues

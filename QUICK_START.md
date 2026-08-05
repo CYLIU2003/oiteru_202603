@@ -44,7 +44,7 @@ scripts/tmux_oiteru.sh attach parent
 管理画面:
 
 ```text
-http://<親機IP>:5000/admin
+https://<親機ホスト名>/admin
 ```
 
 ## 3. 子機
@@ -57,12 +57,14 @@ sudo apt update
 sudo apt install -y git tmux python3-full python3-venv python3-pip curl
 
 cp config.example.json config.json
-nano config.json
+sudo scripts/provision_unit.sh
 
 scripts/tmux_oiteru.sh start unit
 scripts/tmux_oiteru.sh attach unit
 ```
 
+Provisioning 時に親機 URL と子機名を入力します。秘密情報は
+`/etc/oiteru/unit-secret` にだけ保存され、`config.json` には保存されません。
 ステッピングモーターの子機では、`config.json` の `MOTOR_TYPE=STEPPER`、`CONTROL_METHOD=RASPI_DIRECT`、`STEPPER_PINS`、`STEPPER_BACKEND` を確認してください。サーボ子機へ流用する場合は `MOTOR_TYPE=SERVO` にします。
 
 ## 4. tmux 操作

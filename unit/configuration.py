@@ -7,6 +7,7 @@ import os
 import tempfile
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 
 def get_unit_secret_path(config_path: str | Path, config: dict[str, Any]) -> Path:
@@ -113,6 +114,17 @@ def validate_gpio_config(config: dict[str, Any]) -> None:
             for pin, purposes in sorted(conflicts.items())
         )
         raise ValueError(f"GPIO pin conflict: {detail}")
+
+
+def validate_parent_url(server_url: str, *, strict: bool) -> None:
+    """Reject ambiguous URLs and plaintext remote parent connections."""
+    parsed = urlparse(str(server_url or ""))
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise ValueError("SERVER_URL must be an absolute http(s) URL")
+    if strict and parsed.scheme != "https" and parsed.hostname not in {
+        "localhost", "127.0.0.1", "::1",
+    }:
+        raise ValueError("strict security requires HTTPS for a non-local parent URL")
 
 
 def _atomic_write(path: Path, content: str, mode: int) -> None:

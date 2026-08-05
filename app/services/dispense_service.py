@@ -91,20 +91,20 @@ class DispenseResult:
 
 def authorize_dispense(
     conn,
-    card_id: str,
+    card_ref: str,
     unit_name: str,
     unit: UnitRecord,
 ) -> DispenseAuthResult:
     """Authorize a dispense request.  Returns a DispenseAuthResult."""
     event_id = generate_event_id()
 
-    _event_repo.insert(conn, event_id, unit_name, card_id, DispenseStatus.REQUESTED)
+    _event_repo.insert(conn, event_id, unit_name, card_ref, DispenseStatus.REQUESTED)
 
     # 1. Unit stock & availability
     if unit.stock <= 0 or unit.available == UnitAvailableStatus.UNAVAILABLE:
         _history_repo.insert(
             conn,
-            f"[{unit_name}] 在庫不足のため利用不可 (カードID: {card_id})",
+            f"[{unit_name}] 在庫不足のため利用不可 (card_ref: {_card_label(card_ref)})",
             "usage",
         )
         _event_repo.update_status(conn, event_id, DispenseStatus.FAILED, DispenseErrorCode.UNIT_STOCK_EMPTY)
@@ -116,14 +116,14 @@ def authorize_dispense(
         )
 
     # 2. User lookup (with auto-register)
-    user = _user_repo.find_by_card_id(conn, card_id)
+    user = _user_repo.find_by_card_ref(conn, card_ref)
 
     if not user:
-        user = auto_register_user(conn, card_id, unit_name=unit_name)
+        user = auto_register_user(conn, card_ref, unit_name=unit_name)
         if not user:
             _history_repo.insert(
                 conn,
-                f"[{unit_name}] 未登録カード (カードID: {card_id})",
+                f"[{unit_name}] 未登録カード (card_ref: {_card_label(card_ref)})",
                 "usage",
             )
             _event_repo.update_status(conn, event_id, DispenseStatus.FAILED, DispenseErrorCode.USER_NOT_FOUND)
@@ -139,7 +139,7 @@ def authorize_dispense(
     if user.allow == UserAllowStatus.DENIED:
         _history_repo.insert(
             conn,
-            f"[{unit_name}] 利用不許可 (カードID: {card_id})",
+            f"[{unit_name}] 利用不許可 (card_ref: {_card_label(card_ref)})",
             "usage",
         )
         _event_repo.update_status(conn, event_id, DispenseStatus.FAILED, DispenseErrorCode.USER_DENIED)
@@ -158,7 +158,7 @@ def authorize_dispense(
     if user.stock <= 0:
         _history_repo.insert(
             conn,
-            f"[{unit_name}] 残数不足 (カードID: {card_id})",
+            f"[{unit_name}] 残数不足 (card_ref: {_card_label(card_ref)})",
             "usage",
         )
         _event_repo.update_status(conn, event_id, DispenseStatus.FAILED, DispenseErrorCode.USER_STOCK_EMPTY)
@@ -171,13 +171,13 @@ def authorize_dispense(
 
     # 6. Period limit check
     usage_limit = settings_service.server_settings["usage_limit"]
-    usage_count = get_usage_count_in_period(conn, card_id, period)
+    usage_count = get_usage_count_in_period(conn, card_ref, period)
 
     if usage_count >= usage_limit:
         period_name = get_period_display_name(period)
         _history_repo.insert(
             conn,
-            f"[{unit_name}] {period_name}の上限({usage_limit}個)に達しています (カードID: {card_id})",
+            f"[{unit_name}] {period_name}の上限({usage_limit}個)に達しています (card_ref: {_card_label(card_ref)})",
             "usage",
         )
         _event_repo.update_status(conn, event_id, DispenseStatus.FAILED, DispenseErrorCode.PERIOD_LIMIT_EXCEEDED)
@@ -196,7 +196,7 @@ def authorize_dispense(
     _event_repo.update_status(conn, event_id, DispenseStatus.AUTHORIZED)
     _history_repo.insert(
         conn,
-        f"[{unit_name}] 排出認可 (event_id: {event_id}, カードID: {card_id})",
+        f"[{unit_name}] 排出認可 (event_id: {event_id}, card_ref: {_card_label(card_ref)})",
         "usage",
     )
     return DispenseAuthResult(
@@ -255,7 +255,7 @@ def record_dispense_result(
         _event_repo.update_status(conn, event_id, DispenseStatus.FAILED, fail_code)
         _history_repo.insert(
             conn,
-            f"[{unit_name}] 排出失敗 (event_id: {event_id}, カードID: {event.card_id}, code: {fail_code})",
+            f"[{unit_name}] 排出失敗 (event_id: {event_id}, card_ref: {_card_label(event.card_id)}, code: {fail_code})",
             "usage",
         )
         return DispenseResult(
@@ -288,7 +288,7 @@ def record_dispense_result(
         )
 
     # Re-check all constraints
-    user = _user_repo.find_by_card_id(conn, event.card_id)
+    user = _user_repo.find_by_card_ref(conn, event.card_id)
     if not user:
         _event_repo.update_status(conn, event_id, DispenseStatus.FAILED, DispenseErrorCode.USER_NOT_FOUND)
         return DispenseResult(event_id=event_id, error="User not found", http_status=404)
@@ -321,13 +321,21 @@ def record_dispense_result(
             http_status=429,
         )
 
-    # Decrement stocks
-    new_user_stock = user.stock - 1
-    new_total = user.total + 1
-    _user_repo.update_stock_and_total(conn, event.card_id, new_user_stock, new_total)
+    # Atomic conditional updates prevent a stale read from consuming the same
+    # remaining allowance or inventory twice under concurrent result reports.
+    if _user_repo.decrement_stock_and_total_if_available(conn, user.card_id) != 1:
+        _event_repo.update_status(conn, event_id, DispenseStatus.FAILED, DispenseErrorCode.USER_STOCK_EMPTY)
+        return DispenseResult(event_id=event_id, error="User stock changed concurrently", http_status=409)
 
-    new_unit_stock = latest_unit.stock - 1
-    _unit_repo.update_stock(conn, unit_name, new_unit_stock)
+    if _unit_repo.decrement_stock_if_available(conn, unit_name) != 1:
+        _user_repo.restore_stock_and_total(conn, user.card_id)
+        _event_repo.update_status(conn, event_id, DispenseStatus.FAILED, DispenseErrorCode.UNIT_STOCK_EMPTY)
+        return DispenseResult(event_id=event_id, error="Unit stock changed concurrently", http_status=409)
+
+    updated_user = _user_repo.find_by_id(conn, user.id)
+    updated_unit = _unit_repo.find_by_name(conn, unit_name)
+    new_user_stock = updated_user.stock if updated_user else 0
+    new_unit_stock = updated_unit.stock if updated_unit else 0
 
     if new_unit_stock <= 0:
         _unit_repo.set_available(conn, unit_name, UnitAvailableStatus.UNAVAILABLE)
@@ -336,7 +344,7 @@ def record_dispense_result(
     _event_repo.update_status(conn, event_id, DispenseStatus.RECORDED)
     _history_repo.insert(
         conn,
-        f"[{unit_name}] 利用成功 (event_id: {event_id}, カードID: {event.card_id}, 残数: {new_user_stock})",
+        f"[{unit_name}] 利用成功 (event_id: {event_id}, card_ref: {_card_label(event.card_id)}, 残数: {new_user_stock})",
         "success",
     )
 
@@ -347,3 +355,8 @@ def record_dispense_result(
         user_stock=new_user_stock,
         unit_stock=new_unit_stock,
     )
+
+
+def _card_label(card_ref: str) -> str:
+    """Use only a short pseudonymous reference in operator-visible records."""
+    return str(card_ref)[:12]

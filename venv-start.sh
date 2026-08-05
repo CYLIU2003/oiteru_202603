@@ -27,7 +27,7 @@ case "$MODE" in
             exit 1
         fi
 
-        $PYTHON_PATH db_server.py
+        exec $PYTHON_PATH -m gunicorn --config gunicorn.conf.py wsgi:app
         ;;
     parent-sqlite)
         echo "親機 (SQLite) を起動します..."
@@ -64,13 +64,9 @@ for module_name in ("RPi.GPIO", "Adafruit_PCA9685", "serial"):
     importlib.import_module(module_name)
 PY
         then
-            if [ -f "./requirements-client.txt" ]; then
-                echo "子機用依存関係をインストール中..."
-                $PYTHON_PATH -m pip install -r ./requirements-client.txt
-            elif [ -f "./docker/requirements-client.txt" ]; then
-                echo "子機用依存関係をインストール中..."
-                $PYTHON_PATH -m pip install -r ./docker/requirements-client.txt
-            fi
+            echo "エラー: 子機用依存関係が不足しています。" >&2
+            echo "セットアップ時に $PYTHON_PATH -m pip install -r requirements-client.txt を実行してください。" >&2
+            exit 1
         fi
         shift
         $PYTHON_PATH unit.py "$@"

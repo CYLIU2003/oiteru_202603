@@ -9,10 +9,10 @@ Requires=oiteru-card-reader.service
 Type=simple
 User=hirameki-3
 WorkingDirectory=/home/hirameki-3/デスクトップ/oiteru_202603
-Environment=SERVER_PORT=5001
+Environment=SERVER_PORT=5000
 PermissionsStartOnly=true
 ExecStartPre=/bin/bash /home/hirameki-3/デスクトップ/oiteru_202603/scripts/init_card_reader.sh
-ExecStart=/bin/bash /home/hirameki-3/デスクトップ/oiteru_202603/venv-start.sh parent-mysql
+ExecStart=/home/hirameki-3/デスクトップ/oiteru_202603/.venv/bin/gunicorn --config /home/hirameki-3/デスクトップ/oiteru_202603/gunicorn.conf.py wsgi:app
 Restart=always
 RestartSec=10
 StandardOutput=journal

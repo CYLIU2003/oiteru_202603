@@ -100,7 +100,8 @@ if [ ! -f "config.json" ]; then
         echo "⚠️  重要: config.jsonを編集して、以下を設定してください:"
         echo "   - SERVER_URL: 親機のURL"
         echo "   - UNIT_NAME: この子機の名前"
-        echo "   - UNIT_PASSWORD: この子機のパスワード"
+        echo "   - UNIT_SECRET_FILE: /etc/oiteru/unit-secret"
+        echo "   - 次に sudo scripts/provision_unit.sh を実行"
     else
         echo "⚠️  config.jsonとテンプレートが見つかりません"
     fi

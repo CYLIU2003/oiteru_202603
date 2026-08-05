@@ -27,6 +27,11 @@ config.local.json
 config.*.local.json
 *.runtime.json
 *.secrets.json
+*.secret
+config*.secret
+unit-secret
+backups/
+*.sql.gz.enc
 
 # Virtual environments
 .venv/

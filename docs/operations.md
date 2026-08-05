@@ -19,7 +19,7 @@ Docker は当面の標準運用では使いません。MySQL は OS の `mysql` 
 - 補充前に管理画面で対象子機の在庫と最終接続時刻を確認する
 - 補充後は `初期在庫数` と `現在の残り在庫` を更新する
 - 子機設定を変えた場合は、設定送信後に heartbeat 同期完了を確認する
-- 管理画面の認証情報は `.env` 管理とし、共有チャットに平文で貼らない
+- 管理画面の初期認証情報は `.env` の `OITERU_ADMIN_USERNAME` / `OITERU_ADMIN_PASSWORD` で管理し、共有チャットに平文で貼らない
 - 運用ログやカード UID を画面共有・資料貼り付けに使わない
 
 ## 起動・停止
@@ -55,11 +55,24 @@ scripts/tmux_oiteru.sh stop parent
 scripts/tmux_oiteru.sh stop unit
 ```
 
+## バックアップと復元
+
+Excel出力は管理用の集計に限定し、復旧用には MySQL 全体の暗号化 dump を使います。
+バックアップ鍵は `.env` に保存せず、保護された環境変数から渡します。
+
+```bash
+OITERU_BACKUP_KEY='十分に長いバックアップ鍵' scripts/backup_mysql.sh
+OITERU_BACKUP_KEY='同じ鍵' scripts/restore_mysql.sh backups/oiteru-<UTC時刻>.sql.gz.enc
+```
+
+復元はメンテナンス時間中にのみ実施し、復元後には親機 bootstrap・管理者ログイン・
+子機 heartbeat・架空カードでの排出状態遷移を確認してください。
+
 ## 障害時の一次対応
 
 ### 管理画面に入れない
 
-- `.env` の `OITERU_ADMIN_PASSWORD` が正しいか確認する
+- `.env` の `OITERU_ADMIN_USERNAME` と `OITERU_ADMIN_PASSWORD` が正しいか確認する
 - 親機再起動後に `FLASK_SECRET_KEY` が変わっていないか確認する
 - ログイン試行上限に達した場合は、待機後に再試行する
 - 親機が起動しているか `scripts/tmux_oiteru.sh status parent` で確認する
@@ -70,7 +83,7 @@ scripts/tmux_oiteru.sh stop unit
 - 管理画面で `最終接続` を確認する
 - 子機側で `scripts/tmux_oiteru.sh status unit` を確認する
 - `config.json` の `SERVER_URL` が親機 IP を指しているか確認する
-- 子機から `curl http://<親機IP>:5000` を実行する
+- 子機から `curl https://<親機ホスト名>/api/health` を実行する
 
 ### 排出されない
 

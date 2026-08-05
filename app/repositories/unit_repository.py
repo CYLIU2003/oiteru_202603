@@ -29,34 +29,21 @@ class UnitRepository(BaseRepository):
         return [UnitRecord.from_row(r) for r in rows]
 
     def find_recently_active(self, conn, seconds: int = 60) -> List[UnitRecord]:
-        if hasattr(self, "_db_type") and getattr(self, "_db_type", None) == "mysql":
-            from db_adapter import DB_TYPE
-            if DB_TYPE == "mysql":
-                rows = self.fetch_all(
-                    conn,
-                    """
-                    SELECT name, last_seen, stock, connect,
-                           TIMESTAMPDIFF(SECOND, last_seen, NOW()) as seconds_ago
-                    FROM units
-                    WHERE last_seen IS NOT NULL
-                      AND TIMESTAMPDIFF(SECOND, last_seen, NOW()) < ?
-                    ORDER BY last_seen DESC
-                    """,
-                    (seconds,),
-                )
-            else:
-                rows = self.fetch_all(
-                    conn,
-                    """
-                    SELECT name, last_seen, stock, connect,
-                           (julianday('now') - julianday(last_seen)) * 86400.0 as seconds_ago
-                    FROM units
-                    WHERE last_seen IS NOT NULL
-                      AND (julianday('now') - julianday(last_seen)) * 86400.0 < ?
-                    ORDER BY last_seen DESC
-                    """,
-                    (seconds,),
-                )
+        from db_adapter import db
+
+        if db.db_type == "mysql":
+            rows = self.fetch_all(
+                conn,
+                """
+                SELECT name, last_seen, stock, connect,
+                       TIMESTAMPDIFF(SECOND, last_seen, NOW()) as seconds_ago
+                FROM units
+                WHERE last_seen IS NOT NULL
+                  AND TIMESTAMPDIFF(SECOND, last_seen, NOW()) < ?
+                ORDER BY last_seen DESC
+                """,
+                (seconds,),
+            )
         else:
             rows = self.fetch_all(
                 conn,
@@ -114,6 +101,16 @@ class UnitRepository(BaseRepository):
     def update_stock(self, conn, name: str, stock: int) -> int:
         return self.update(
             conn, "UPDATE units SET stock = ? WHERE name = ?", (stock, name)
+        )
+
+    def decrement_stock_if_available(self, conn, name: str) -> int:
+        """Atomically consume one unit item only when inventory is available."""
+        return self.update(
+            conn,
+            """UPDATE units
+                  SET stock = stock - 1
+                WHERE name = ? AND stock > 0 AND available = 1""",
+            (name,),
         )
 
     def set_available(self, conn, name: str, available: int) -> int:

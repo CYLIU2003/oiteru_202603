@@ -50,16 +50,10 @@ from flask import (
     g,
     send_file,
 )
-from db_adapter import db, get_connection, DatabaseError
-from app.routing import assert_unique_routes
-
-# --- New app module imports ---
-from app.logger import get_logger as _get_logger
-logger = _get_logger(__name__)
-
-
-def load_env_file(env_path: str):
+def load_environment(env_path: str | None = None) -> None:
     """.env を読み込み、未設定の環境変数だけを補完する。"""
+    if env_path is None:
+        env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
     if not os.path.exists(env_path):
         return
     with open(env_path, encoding="utf-8") as env_file:
@@ -77,7 +71,20 @@ def load_env_file(env_path: str):
             os.environ.setdefault(key, value)
 
 
-load_env_file(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
+load_environment()
+
+# db_adapter selects its backend at import time.  Load the environment before
+# importing it so db_server.py, Gunicorn, and direct development starts agree.
+from db_adapter import db, get_connection, DatabaseError
+from app.routing import assert_unique_routes
+
+# --- New app module imports ---
+from app.logger import get_logger as _get_logger
+from app.services import settings_service
+from app.repositories.admin_user_repository import AdminUserRepository
+logger = _get_logger(__name__)
+
+_admin_user_repo = AdminUserRepository()
 
 if __name__ == "__main__":
     print("WARNING: server.py is legacy. Use db_server.py for standard setup.")
@@ -105,6 +112,37 @@ def create_app() -> Flask:
 app = create_app()
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "oiteru.sqlite3")
 
+
+def get_csrf_token() -> str:
+    """Return the per-session token used for authenticated state changes."""
+    token = session.get("csrf_token")
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session["csrf_token"] = token
+    return token
+
+
+@app.context_processor
+def inject_csrf_token():
+    return {"csrf_token": get_csrf_token}
+
+
+@app.before_request
+def enforce_admin_csrf():
+    """Require CSRF validation for every authenticated unsafe request."""
+    if request.method not in {"POST", "PUT", "PATCH", "DELETE"}:
+        return None
+    if not session.get("admin_logged_in") or request.endpoint == "admin_login":
+        return None
+    supplied = request.headers.get("X-CSRF-Token") or request.form.get("csrf_token")
+    if not supplied and request.is_json:
+        payload = request.get_json(silent=True) or {}
+        supplied = payload.get("csrf_token")
+    expected = session.get("csrf_token")
+    if not expected or not supplied or not hmac.compare_digest(expected, supplied):
+        return jsonify({"error": "CSRF validation failed"}), 400
+    return None
+
 if "FLASK_SECRET_KEY" not in os.environ:
     logger.warning("FLASK_SECRET_KEY が未設定です。再起動ごとに一時キーを生成します。")
 
@@ -129,18 +167,10 @@ SERVER_PORT = int(os.getenv("SERVER_PORT", "5000"))
 # ========================================
 # グローバル設定（DBから読み込み・同期される）
 # ========================================
-# 初期値は環境変数から取得、その後DBから上書き
-server_settings = {
-    "auto_register_mode": os.getenv("AUTO_REGISTER_MODE", "false").lower() == "true",
-    "auto_register_stock": int(os.getenv("AUTO_REGISTER_STOCK", "2")),
-    "usage_limit": int(os.getenv("USAGE_LIMIT", "2")),  # 期間あたりの取得上限
-    "limit_period": os.getenv("LIMIT_PERIOD", "day"),  # 上限期間: day, week, month
-    "server_name": SERVER_NAME,
-    "server_location": SERVER_LOCATION,
-}
-
-# 設定バージョン（変更時にインクリメント）
-settings_version = 0
+# settings_service owns the only mutable settings snapshot.  The alias keeps
+# unported legacy routes and templates in sync with the service layer.
+server_settings = settings_service.server_settings
+settings_version = settings_service.settings_version
 
 # 未登録子機の一時保存用（メモリ内）
 unregistered_units = {}
@@ -391,103 +421,64 @@ def ensure_admin_password():
 
     if generated_password:
         logger.info("管理者アカウントを初期化しました。")
-        logger.info("管理者パスワード: %s", generated_password)
         if not configured_password:
-            logger.info("OITERU_ADMIN_PASSWORD を設定して恒久値へ更新してください。")
+            logger.warning(
+                "OITERU_ADMIN_PASSWORD が未設定です。生成値はログ出力しません。"
+                "環境変数を設定して再起動してください。"
+            )
     if updated_password:
         logger.info("管理者パスワードを環境変数の値へ同期しました。")
     if warning_message:
         logger.warning(warning_message)
+
+    # New installations authenticate individual administrators.  The old
+    # ``info`` row is retained only for one-way migration compatibility.
+    admin_username = os.getenv("OITERU_ADMIN_USERNAME", "administrator").strip()
+    bootstrap_password = configured_password or generated_password
+    if bootstrap_password:
+        with get_connection() as conn:
+            _admin_user_repo.upsert_bootstrap_user(
+                conn,
+                admin_username,
+                hash_secret(bootstrap_password),
+                role="administrator",
+            )
+        logger.info("管理者アカウントを同期しました: username=%s", admin_username)
 
 
 # ========================================
 # 設定管理関数
 # ========================================
 def load_settings_from_db():
-    """データベースから設定を読み込む"""
-    global server_settings, settings_version
-    try:
-        with get_connection() as conn:
-            # settingsテーブルが存在するか確認
-            settings_row = db.fetchone(conn, "SELECT * FROM settings WHERE id = 1")
-            if settings_row:
-                server_settings["auto_register_mode"] = bool(
-                    settings_row.get("auto_register_mode", 0)
-                )
-                server_settings["auto_register_stock"] = int(
-                    settings_row.get("auto_register_stock", 2)
-                )
-                # daily_limit を usage_limit に移行（後方互換）
-                server_settings["usage_limit"] = int(
-                    settings_row.get("usage_limit")
-                    or settings_row.get("daily_limit", 2)
-                )
-                server_settings["limit_period"] = (
-                    settings_row.get("limit_period", "day") or "day"
-                )
-                settings_version = int(settings_row.get("version", 0))
-                logger.info(
-                    "設定をDBから読み込み: auto_register_mode=%s, version=%d",
-                    server_settings['auto_register_mode'],
-                    settings_version,
-                )
-            else:
-                logger.info("settingsテーブルにデータがありません。デフォルト設定を使用します。")
-    except Exception as e:
-        logger.warning("設定読み込みエラー（テーブルが未作成の可能性）: %s", e)
+    """Load the settings-service snapshot for legacy routes too."""
+    global settings_version
+    settings_service.load_settings_from_db()
+    settings_version = settings_service.settings_version
 
 
 def save_settings_to_db():
-    """設定をデータベースに保存する"""
+    """Persist the service snapshot and update the legacy version alias."""
     global settings_version
-    settings_version += 1
-    try:
-        with get_connection() as conn:
-            # UPSERT (存在すれば更新、なければ挿入)
-            existing = db.fetchone(conn, "SELECT id FROM settings WHERE id = 1")
-            if existing:
-                db.execute(
-                    conn,
-                    """
-                    UPDATE settings SET 
-                        auto_register_mode = ?,
-                        auto_register_stock = ?,
-                        usage_limit = ?,
-                        limit_period = ?,
-                        version = ?,
-                        updated_at = ?
-                    WHERE id = 1
-                """,
-                    (
-                        1 if server_settings["auto_register_mode"] else 0,
-                        server_settings["auto_register_stock"],
-                        server_settings["usage_limit"],
-                        server_settings["limit_period"],
-                        settings_version,
-                        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    ),
-                )
-            else:
-                db.execute(
-                    conn,
-                    """
-                    INSERT INTO settings (id, auto_register_mode, auto_register_stock, usage_limit, limit_period, version, updated_at)
-                    VALUES (1, ?, ?, ?, ?, ?, ?)
-                """,
-                    (
-                        1 if server_settings["auto_register_mode"] else 0,
-                        server_settings["auto_register_stock"],
-                        server_settings["usage_limit"],
-                        server_settings["limit_period"],
-                        settings_version,
-                        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    ),
-                )
-        logger.info("設定をDBに保存しました (version: %d)", settings_version)
-        return True
-    except Exception as e:
-        logger.error("設定保存エラー: %s", e)
-        return False
+    saved = settings_service.save_settings_to_db()
+    settings_version = settings_service.settings_version
+    return saved
+
+
+def update_server_settings(updates: dict) -> bool:
+    """Validate and persist settings through the single service owner."""
+    global settings_version
+    saved = settings_service.update_settings(updates)
+    settings_version = settings_service.settings_version
+    return saved
+
+
+def record_admin_audit(action: str, target_type: str | None = None, target_id: str | None = None) -> None:
+    """Persist a minimal, non-sensitive audit event for an admin mutation."""
+    admin_user_id = session.get("admin_user_id")
+    if not admin_user_id:
+        return
+    with get_connection() as conn:
+        _admin_user_repo.record_audit(conn, admin_user_id, action, target_type, target_id)
 
 
 # --- データベース接続ヘルパー ---
@@ -761,8 +752,9 @@ def init_db():
                     )
                 """,
                 )
-        except Exception as e:
-            print(f"MySQL初期化エラー: {e}")
+        except Exception:
+            logger.exception("MySQL 初期化に失敗しました")
+            raise
         return
 
     if os.path.exists(DB_PATH):
@@ -1012,8 +1004,9 @@ def migrate_db():
                     )
                 except Exception:
                     pass
-    except Exception as e:
-        print(f"マイグレーションエラー: {e}")
+    except Exception:
+        logger.exception("legacy migration に失敗しました")
+        raise
 
 
 # ========================================
@@ -1054,7 +1047,12 @@ def broadcast_server_info():
 
     while True:
         message = json.dumps(
-            {"type": "oiteru_server_heartbeat", "server_ip": server_ip, "port": SERVER_PORT}
+            {
+                "type": "oiteru_parent_heartbeat",
+                "api_version": "1",
+                "server_ip": server_ip,
+                "port": SERVER_PORT,
+            }
         ).encode("utf-8")
 
         try:
@@ -1076,6 +1074,8 @@ def index():
 @app.route("/register", methods=["GET", "POST"])
 def register():
     """手動登録ページ（自動登録モードでは使用頻度低）"""
+    if not session.get("admin_logged_in"):
+        return redirect(url_for("admin_login"))
     if request.method == "POST":
         card_id = request.form.get("card_id", "").strip()
 
@@ -1139,6 +1139,8 @@ def register():
 @app.route("/usage", methods=["GET", "POST"])
 def usage():
     """利用確認ページ"""
+    if not session.get("admin_logged_in"):
+        return redirect(url_for("admin_login"))
     if request.method == "POST":
         card_id = request.form.get("card_id", "").strip()
         if card_id:
@@ -1165,10 +1167,6 @@ def usage():
 # ========================================
 @app.route("/admin", methods=["GET", "POST"])
 def admin_login():
-    if "logout" in request.args:
-        session.pop("admin_logged_in", None)
-        flash("ログアウトしました。", "success")
-        return redirect(url_for("admin_login"))
     if request.method == "POST":
         request_ip = get_request_ip()
         if is_login_blocked(request_ip):
@@ -1178,16 +1176,39 @@ def admin_login():
             )
             return render_template("admin_login.html")
 
+        username = request.form.get("username", "").strip()
         entered_pass = request.form.get("password", "")
-        if check_password(entered_pass):
+        with get_connection() as conn:
+            admin_user = _admin_user_repo.find_by_username(conn, username)
+            authenticated = bool(
+                admin_user and verify_secret(admin_user["password_hash"], entered_pass)
+            )
+            if authenticated:
+                _admin_user_repo.record_login(conn, admin_user["id"])
+                _admin_user_repo.record_audit(
+                    conn, admin_user["id"], "admin_login", "admin_user", str(admin_user["id"])
+                )
+        if authenticated:
+            session.clear()
             session["admin_logged_in"] = True
+            session["admin_user_id"] = admin_user["id"]
+            session["admin_role"] = admin_user["role"]
             session.permanent = True
+            get_csrf_token()
             clear_login_failures(request_ip)
             return redirect(url_for("admin_dashboard"))
         else:
             record_login_failure(request_ip)
             flash("パスワードが違います。", "error")
     return render_template("admin_login.html")
+
+
+@app.route("/admin/logout", methods=["POST"])
+def admin_logout():
+    if session.get("admin_logged_in"):
+        session.clear()
+        flash("ログアウトしました。", "success")
+    return redirect(url_for("admin_login"))
 
 
 @app.route("/admin/dashboard")
@@ -1280,10 +1301,12 @@ def admin_user_detail(uid):
 def admin_units():
     if not session.get("admin_logged_in"):
         return redirect(url_for("admin_login"))
+    from app import state
     with get_connection() as conn:
         units = db.fetchall(conn, "SELECT * FROM units")
+        pending_units = state.get_pending_units(conn)
     return render_template(
-        "admin_units.html", units=units, unregistered_units=unregistered_units
+        "admin_units.html", units=units, unregistered_units=pending_units
     )
 
 
@@ -1320,11 +1343,18 @@ def admin_unit_detail(uid):
         flash("指定された子機は見つかりません。", "error")
         return redirect(url_for("admin_units"))
 
-    # 子機の設定情報を取得
+    # 子機の設定情報をDB上のreported/desired状態から取得
+    from app import state
     unit_name = unit["name"]
-    unit_config = unit_configs.get(unit_name, {}).get("config", None)
-    config_last_updated = unit_configs.get(unit_name, {}).get("last_updated", None)
-    has_pending_config = unit_name in pending_unit_config_updates
+    with get_connection() as conn:
+        reported_config = state.get_unit_config_snapshot(conn, unit_name)
+        desired_config = state.get_desired_unit_config(conn, unit_name)
+    unit_config = reported_config.get("config") if reported_config else None
+    config_last_updated = reported_config.get("last_updated") if reported_config else None
+    has_pending_config = bool(
+        desired_config
+        and (not reported_config or desired_config["config"] != reported_config["config"])
+    )
 
     return render_template(
         "admin_unit_detail.html",
@@ -1637,6 +1667,9 @@ def api_read_card():
     NFCカードを読み取ってカードIDを返す
     タイムアウト: 10秒
     """
+    auth_error = require_admin_api()
+    if auth_error:
+        return auth_error
     try:
         clf = open_local_nfc_frontend()
         if not clf:
@@ -1686,9 +1719,13 @@ def api_unregistered_units():
     if auth_error:
         return auth_error
 
+    from app import state
     now = datetime.now()
     units = []
-    for name, info in unregistered_units.items():
+    with get_connection() as conn:
+        pending_units = state.get_pending_units(conn)
+    for info in pending_units:
+        name = info["unit_name"]
         # 最終通信からの秒数を計算
         try:
             last_seen_dt = datetime.strptime(info["last_seen"], "%Y-%m-%d %H:%M:%S")
@@ -1704,6 +1741,7 @@ def api_unregistered_units():
                 "last_seen": info.get("last_seen", ""),
                 "seconds_ago": round(seconds_ago, 1),
                 "heartbeat_count": info.get("heartbeat_count", 0),
+                "credential_conflict": bool(info.get("credential_conflict")),
             }
         )
 
@@ -1723,30 +1761,37 @@ def api_register_unit():
     if not unit_name:
         return jsonify({"success": False, "error": "子機名が指定されていません"}), 400
 
-    if unit_name not in unregistered_units:
-        return jsonify({"success": False, "error": "未登録子機が見つかりません"}), 404
-
-    pending_unit = unregistered_units[unit_name]
+    from app import state
+    from app.repositories.history_repository import HistoryRepository
+    from app.repositories.unit_repository import UnitRepository
 
     try:
         with get_connection() as conn:
-            db.execute(
+            pending_unit = state.get_pending_unit(conn, unit_name)
+            if not pending_unit:
+                return jsonify({"success": False, "error": "未登録子機が見つかりません"}), 404
+            if pending_unit.get("credential_conflict"):
+                return jsonify({"success": False, "error": "認証情報の競合を解消してください"}), 409
+            if UnitRepository().find_by_name(conn, unit_name):
+                return jsonify({"success": False, "error": "子機は既に登録されています"}), 409
+            stock = int(server_settings.get("auto_register_stock", 0))
+            UnitRepository().insert(
                 conn,
-                "INSERT INTO units (name, password, stock, connect, available, ip_address) VALUES (?, ?, ?, 1, 1, ?)",
-                (
-                    unit_name,
-                    pending_unit["password_hash"],
-                    server_settings.get("auto_register_stock", 5),
-                    pending_unit.get("ip_address", ""),
-                ),
+                unit_name,
+                pending_unit["password_hash"],
+                stock=stock,
+                initial_stock=stock,
+                connect=0,
+                available=1,
+                ip_address=pending_unit.get("ip_address"),
             )
-        del unregistered_units[unit_name]
-        add_history(f"子機登録: {unit_name}", "system")
-        return jsonify(
-            {"success": True, "message": f"子機「{unit_name}」を登録しました"}
-        )
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+            state.delete_pending_unit(conn, unit_name)
+            state.record_device_status(conn, unit_name, "approved")
+            HistoryRepository().insert(conn, f"子機を承認: {unit_name}", "system")
+        return jsonify({"success": True, "message": f"子機「{unit_name}」を登録しました"})
+    except Exception:
+        logger.exception("Pending unit approval failed: unit_name=%s", unit_name)
+        return jsonify({"success": False, "error": "子機の承認に失敗しました"}), 500
 
 
 @app.route("/api/unit/<int:uid>/toggle_available", methods=["POST"])
@@ -2437,29 +2482,11 @@ def api_unit_heartbeat():
 
 @app.route("/api/unit/register_pending/<string:unit_name>", methods=["POST"])
 def api_register_pending_unit(unit_name):
-    """未登録子機を正式登録"""
-    if not session.get("admin_logged_in"):
-        return jsonify({"error": "Unauthorized"}), 401
-
-    if unit_name not in unregistered_units:
-        return jsonify({"error": "Pending unit not found"}), 404
-
-    pending_unit = unregistered_units[unit_name]
-
-    try:
-        with get_connection() as conn:
-            db.execute(
-                conn,
-                "INSERT INTO units (name, password, stock, connect, ip_address) VALUES (?, ?, 0, 1, ?)",
-                (unit_name, pending_unit["password_hash"], pending_unit["ip_address"]),
-            )
-
-        del unregistered_units[unit_name]
-        add_history(f"子機を登録 ({unit_name})", "system")
-
-        return jsonify({"success": True, "message": f"{unit_name} registered"})
-    except DatabaseError:
-        return jsonify({"error": "Unit name already exists"}), 400
+    """Retired in-memory pairing route; use the DB-backed v1 API instead."""
+    return jsonify({
+        "error": "Use POST /api/v1/admin/pending-devices/<name>/approve",
+        "code": "ENDPOINT_RETIRED",
+    }), 410
 
 
 def api_get_unit_config(unit_name):
@@ -2645,18 +2672,23 @@ def api_update_settings():
     if not session.get("admin_logged_in"):
         return jsonify({"error": "Unauthorized"}), 401
 
-    data = request.json
+    data = request.get_json(silent=True) or {}
+    try:
+        updates = {}
+        if "auto_register_mode" in data:
+            updates["auto_register_mode"] = parse_bool(data["auto_register_mode"])
+        if "auto_register_stock" in data:
+            updates["auto_register_stock"] = int(data["auto_register_stock"])
+        if "usage_limit" in data:
+            updates["usage_limit"] = int(data["usage_limit"])
+        if "limit_period" in data:
+            updates["limit_period"] = str(data["limit_period"])
+        saved = update_server_settings(updates)
+    except (TypeError, ValueError) as exc:
+        return jsonify({"error": "Invalid settings", "detail": str(exc)}), 400
 
-    if "auto_register_mode" in data:
-        server_settings["auto_register_mode"] = parse_bool(data["auto_register_mode"])
-    if "auto_register_stock" in data:
-        server_settings["auto_register_stock"] = int(data["auto_register_stock"])
-    if "usage_limit" in data:
-        server_settings["usage_limit"] = int(data["usage_limit"])
-    if "limit_period" in data:
-        server_settings["limit_period"] = data["limit_period"]
-
-    if save_settings_to_db():
+    if saved:
+        record_admin_audit("settings_updated", "settings", "1")
         add_history(
             f"設定を変更 (自動登録: {'有効' if server_settings['auto_register_mode'] else '無効'}, 初期残数: {server_settings['auto_register_stock']})",
             "system",
@@ -2682,21 +2714,20 @@ def admin_settings():
         return redirect(url_for("admin_login"))
 
     if request.method == "POST":
-        # フォームから設定を更新
-        server_settings["auto_register_mode"] = (
-            request.form.get("auto_register_mode") == "on"
-        )
-        server_settings["auto_register_stock"] = int(
-            request.form.get("auto_register_stock", 2)
-        )
-        server_settings["usage_limit"] = int(request.form.get("usage_limit", 2))
-        server_settings["limit_period"] = request.form.get("limit_period", "day")
+        try:
+            updates = {
+                "auto_register_mode": request.form.get("auto_register_mode") == "on",
+                "auto_register_stock": int(request.form.get("auto_register_stock", 2)),
+                "usage_limit": int(request.form.get("usage_limit", 2)),
+                "limit_period": request.form.get("limit_period", "day"),
+            }
+            saved = update_server_settings(updates)
+        except (TypeError, ValueError) as exc:
+            flash(f"設定値が不正です: {exc}", "error")
+            return redirect(url_for("admin_settings"))
 
-        print(
-            f"[DEBUG] 設定を更新: auto_register_mode={server_settings['auto_register_mode']}"
-        )
-
-        if save_settings_to_db():
+        if saved:
+            record_admin_audit("settings_updated", "settings", "1")
             add_history(
                 f"設定を変更 (自動登録: {'有効' if server_settings['auto_register_mode'] else '無効'})",
                 "system",
@@ -2715,6 +2746,54 @@ def admin_settings():
 
 
 # ========================================
+# 共通親機ブートストラップ
+# ========================================
+_background_services_started = False
+
+
+def bootstrap_parent(*, start_background: bool = False) -> None:
+    """Initialize the parent consistently for every supported entry point.
+
+    The routine intentionally runs migrations before sessions, state tables,
+    settings, or request handlers can touch them.  It is idempotent and is
+    used by db_server.py, direct development starts, and the WSGI entry point.
+    """
+    load_environment()
+    from app.auth.auth_manager import validate_runtime_security as validate_security
+    from app.migrations import run_all_migrations
+
+    strict = db.db_type == "mysql"
+    issues = validate_security(db_type=db.db_type, strict=strict)
+    errors = [message for severity, message in issues if severity == "error"]
+    for severity, message in issues:
+        (logger.error if severity == "error" else logger.warning)(message)
+    if errors:
+        raise RuntimeError(
+            "セキュリティ設定エラーにより起動を停止しました:\n- "
+            + "\n- ".join(errors)
+        )
+
+    logger.info("データベースを初期化中 (backend=%s)", db.db_type)
+    init_db()
+    run_all_migrations()
+    ensure_admin_password()
+    load_settings_from_db()
+
+    if start_background:
+        start_background_services()
+
+
+def start_background_services() -> None:
+    """Start process-local background services at most once."""
+    global _background_services_started
+    if _background_services_started:
+        return
+    _background_services_started = True
+    threading.Thread(target=broadcast_server_info, daemon=True).start()
+    logger.info("子機向けブロードキャストスレッドを起動しました")
+
+
+# ========================================
 # メイン
 # ========================================
 assert_unique_routes(app)
@@ -2724,60 +2803,10 @@ if __name__ == "__main__":
     logger.info("=" * 60)
     logger.info("OITELU 親機/従親機 を起動しています...")
     logger.info("=" * 60)
-
     if db.db_type == "sqlite":
         logger.warning("server.py + SQLite は legacy 互換経路です。")
         logger.warning("標準構成は db_server.py + MySQL を使用してください。")
 
-    # Security validation
-    from app.auth.auth_manager import validate_runtime_security
-    strict = db.db_type == "mysql"
-    issues = validate_runtime_security(db_type=db.db_type, strict=strict)
-    errors = [msg for sev, msg in issues if sev == "error"]
-    for sev, msg in issues:
-        if sev == "error":
-            logger.error(msg)
-        else:
-            logger.warning(msg)
-    if errors:
-        raise RuntimeError(
-            "セキュリティ設定エラーにより起動を停止しました:\n- " + "\n- ".join(errors)
-        )
-
-    logger.info("データベースを初期化中...")
-    init_db()
-
-    # Run migrations (new system)
-    from app.migrations import run_all_migrations
-    migrate_db()  # legacy inline migration (keep for backward compat)
-    run_all_migrations()
-
-    ensure_admin_password()
-
-    logger.info("設定をDBから読み込み中...")
-    from app.services.settings_service import load_settings_from_db, server_settings as _svc_settings
-    import app.services.settings_service as _settings_svc
-    load_settings_from_db()
-
-    logger.info("設定:")
-    logger.info("  データベース: %s", db.db_type.upper())
-    logger.info(
-        "  自動登録モード: %s",
-        "有効" if _settings_svc.server_settings["auto_register_mode"] else "無効",
-    )
-    if _settings_svc.server_settings["auto_register_mode"]:
-        logger.info(
-            "  自動登録時の初期残数: %d",
-            _settings_svc.server_settings["auto_register_stock"],
-        )
-
-    logger.info("子機向けブロードキャストスレッドを起動中...")
-    heartbeat_thread = threading.Thread(target=broadcast_server_info, daemon=True)
-    heartbeat_thread.start()
-
-    logger.info("=" * 60)
-    logger.info("OITELU 親機/従親機の起動が完了しました！")
-    logger.info("Webブラウザで http://localhost:%d にアクセスしてください", SERVER_PORT)
-    logger.info("=" * 60)
-
+    bootstrap_parent(start_background=True)
+    logger.info("親機の起動が完了しました。http://localhost:%d", SERVER_PORT)
     app.run(host="0.0.0.0", port=SERVER_PORT, debug=False)

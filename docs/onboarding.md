@@ -58,7 +58,7 @@ scripts/tmux_oiteru.sh attach parent
 
 ```bash
 cp config.example.json config.json
-nano config.json
+sudo scripts/provision_unit.sh
 
 scripts/tmux_oiteru.sh start unit
 scripts/tmux_oiteru.sh attach unit
@@ -97,6 +97,7 @@ systemctl status mysql
 | 禁止 | 理由 |
 |---|---|
 | `.env` や `config.json` をコミットする | パスワードや設置情報が入る |
+| `config.json` に `UNIT_PASSWORD` を書く | 子機秘密情報は `/etc/oiteru/unit-secret` に 0600 で保存する |
 | 平文パスワードをコードに書く | 実証運用で漏えいリスクになる |
 | `print()` だけで運用ログを増やす | 障害時に追いにくい |
 | route handler に直接 SQL を増やす | 責務分離しにくくなる |
