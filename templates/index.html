@@ -14,7 +14,11 @@
         利用状況を確認する
       </a>
     </div>
+    {% if session.get('admin_logged_in') %}
+    <p class="hero-note">管理者メニューは <a href="{{ url_for('admin_dashboard') }}">ダッシュボード</a> から</p>
+    {% else %}
     <p class="hero-note">管理者の方は <a href="{{ url_for('admin_login') }}">こちらからログイン</a></p>
+    {% endif %}
   </div>
   <div class="hero-visual" aria-hidden="true">
     <div class="hero-card">
