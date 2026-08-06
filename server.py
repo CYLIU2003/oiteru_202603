@@ -1091,12 +1091,7 @@ def index():
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
-    """手動登録ページ（自動登録モードでは使用頻度低）
-
-    閲覧(GET)は誰でも可能。登録操作(POST)は管理者のみ許可。
-    """
-    if request.method == "POST" and not session.get("admin_logged_in"):
-        return redirect(url_for("admin_login"))
+    """手動登録ページ（自動登録モードでは使用頻度低）"""
     if request.method == "POST":
         card_id = request.form.get("card_id", "").strip()
 
@@ -1159,12 +1154,7 @@ def register():
 
 @app.route("/usage", methods=["GET", "POST"])
 def usage():
-    """利用確認ページ
-
-    閲覧(GET)は誰でも可能。利用操作(POST)は管理者のみ許可。
-    """
-    if request.method == "POST" and not session.get("admin_logged_in"):
-        return redirect(url_for("admin_login"))
+    """利用確認ページ"""
     if request.method == "POST":
         card_id = request.form.get("card_id", "").strip()
         if card_id:
@@ -1691,9 +1681,6 @@ def api_read_card():
     NFCカードを読み取ってカードIDを返す
     タイムアウト: 10秒
     """
-    auth_error = require_admin_api()
-    if auth_error:
-        return auth_error
     try:
         clf = open_local_nfc_frontend()
         if not clf:
