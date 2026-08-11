@@ -87,3 +87,38 @@ class HistoryType:
     USAGE = "usage"
     SYSTEM = "system"
     SUCCESS = "success"
+
+
+class StockMovementType:
+    RESTOCK = "restock"
+    ADJUSTMENT = "adjustment"
+    DISPOSAL = "disposal"
+
+    ALL = frozenset({RESTOCK, ADJUSTMENT, DISPOSAL})
+
+
+class MaintenanceTicketCategory:
+    EMPTY = "empty"
+    JAM = "jam"
+    HARDWARE = "hardware"
+    NETWORK = "network"
+    OTHER = "other"
+
+    ALL = frozenset({EMPTY, JAM, HARDWARE, NETWORK, OTHER})
+
+
+class MaintenanceTicketStatus:
+    OPEN = "open"
+    IN_PROGRESS = "in_progress"
+    RESOLVED = "resolved"
+    CLOSED = "closed"
+
+    ALL = frozenset({OPEN, IN_PROGRESS, RESOLVED, CLOSED})
+    ACTIVE = frozenset({OPEN, IN_PROGRESS})
+
+
+class MaintenanceTicketSource:
+    ADMIN = "admin"
+    ANONYMOUS = "anonymous"
+
+    ALL = frozenset({ADMIN, ANONYMOUS})

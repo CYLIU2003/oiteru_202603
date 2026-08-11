@@ -87,13 +87,23 @@
           <label class="form-label" for="stock">現在の残り在庫</label>
           <input type="number" class="form-input" id="stock" name="stock" 
                  value="{{ unit['stock'] }}">
+          <div class="form-help">値を変更する場合は、下の理由を必ず入力してください。</div>
         </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="stock_change_reason">在庫変更の理由</label>
+        <input type="text" class="form-input" id="stock_change_reason" name="stock_change_reason"
+               maxlength="255">
+        <div class="form-help">補充・棚卸差異・廃棄などを記録します。利用者の氏名やカード UID は入力しないでください。</div>
       </div>
 
       <div class="btn-group">
         <button type="submit" class="btn btn-primary btn-icon">
           <span class="material-symbols-outlined">save</span> 更新する
         </button>
+        <a href="{{ url_for('operations.admin_operations', unit_id=unit['id']) }}" class="btn btn-secondary btn-icon">
+          <span class="material-symbols-outlined">assignment</span> 補充・故障を管理
+        </a>
         <a href="{{ url_for('admin_units') }}" class="btn btn-secondary btn-icon">
           <span class="material-symbols-outlined">arrow_back</span> 一覧に戻る
         </a>
@@ -409,8 +419,8 @@
     <!-- 危険ゾーン -->
     <div class="danger-zone">
       <h4>⚠️ 危険ゾーン</h4>
-      <p>この子機を削除すると、元に戻すことはできません。関連するログは残りますが、子機情報は完全に削除されます。</p>
-      <form method="post" onsubmit="return confirm('この子機を本当に削除しますか？\n関連するログは残りますが、子機情報は完全に削除されます。');">
+      <p>この子機を削除すると元に戻せません。補充・故障の運用履歴がある子機は削除できないため、利用停止にして履歴を保持してください。</p>
+      <form method="post" onsubmit="return confirm('この子機を本当に削除しますか？\n運用履歴がある子機は削除できません。履歴を保持する場合は利用停止にしてください。');">
         <input type="hidden" name="action" value="delete">
         <button type="submit" class="btn btn-danger btn-icon">
           <span>🗑️</span> この子機を削除する
