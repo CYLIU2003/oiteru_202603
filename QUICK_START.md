@@ -41,7 +41,16 @@ scripts/tmux_oiteru.sh start parent
 scripts/tmux_oiteru.sh attach parent
 ```
 
-管理画面:
+利用者画面（ログイン不要）:
+
+~~~text
+https://<親機ホスト名>/
+~~~
+
+- 学生証の登録: <code>/register</code>
+- 利用状況の確認: <code>/usage</code>
+
+管理画面（管理者のみ）:
 
 ```text
 https://<親機ホスト名>/admin
@@ -98,4 +107,4 @@ curl http://localhost:5000
 | `取説書/README.md` | 取説書の目次 |
 | `docs/operations.md` | 運用・障害対応 |
 
-最終更新: 2026-06-17
+最終更新: 2026-08-11
