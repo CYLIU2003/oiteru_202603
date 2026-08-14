@@ -2801,7 +2801,12 @@ def bootstrap_parent(*, start_background: bool = False) -> None:
     from app.auth.auth_manager import validate_runtime_security as validate_security
     from app.migrations import run_all_migrations
 
-    strict = db.db_type == "mysql"
+    # HTTP/Tailscale 内運用では OITERU_STRICT_SECURITY=false で起動できるように
+    # する（MySQL のときデフォルト strict は維持）。
+    strict = parse_env_bool(
+        "OITERU_STRICT_SECURITY",
+        default=(db.db_type == "mysql"),
+    )
     issues = validate_security(db_type=db.db_type, strict=strict)
     errors = [message for severity, message in issues if severity == "error"]
     for severity, message in issues:

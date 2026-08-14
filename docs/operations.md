@@ -48,13 +48,50 @@ tmux ls
 systemctl status mysql
 ```
 
-停止:
+## ラズパイ子機の systemd サービス運用（2026-08-14 実績: rpi1)
 
-```bash
-scripts/tmux_oiteru.sh stop parent
-scripts/tmux_oiteru.sh stop unit
+学内実証で SSH が切れても子機が動き続けるようにするため、systemd サービス化を推奨します。
+`rpi1`（Raspberry Pi 5 / Debian 13 trixie）では以下の構成で稼働確認済みです。
+
+### サービス定義 `/etc/systemd/system/oiteru-unit.service` の要点
+
+- `User=rpi1` **必須**: `unit_client.py` は root 実行を拒否する設計（`PLATFORM == "RASPI"` かつ `geteuid() == 0` で exit 1）
+- `Environment=OITERU_STRICT_SECURITY=false`: 親機 URL が HTTP の場合に必要（HTTPS 化すれば不要にできる）
+- `Environment=LANG=C.UTF-8 LC_ALL=C.UTF-8 PYTHONIOENCODING=utf-8 PYTHONUNBUFFERED=1` + `ExecStart=... python -X utf8 ...`: systemd 環境では LANG 未設定だと Python 出力が euc_jp になり、絵文字を含む print で UnicodeEncodeError になるため
+- `Restart=always`: 異常終了時は自動再起動
+
+```ini
+[Service]
+Type=simple
+User=rpi1
+Group=rpi1
+WorkingDirectory=/home/rpi1/Desktop/oiteru_202603
+Environment=OITERU_STRICT_SECURITY=false
+Environment=LANG=C.UTF-8 LC_ALL=C.UTF-8 PYTHONIOENCODING=utf-8 PYTHONUNBUFFERED=1
+ExecStart=/home/rpi1/Desktop/oiteru_202603/.venv/bin/python -X utf8 /home/rpi1/Desktop/oiteru_202603/unit.py
+Restart=always
+RestartSec=10s
 ```
 
+### 運用コマンド
+
+```bash
+sudo systemctl enable --now oiteru-unit.service   # 有効化・起動
+sudo systemctl restart oiteru-unit.service        # 再起動
+sudo systemctl status oiteru-unit.service         # 状態確認
+sudo journalctl -u oiteru-unit.service -f         # ログ確認（制御文字が混ざる場合は --output=cat | sed 's/\x1b\[[0-9;]*m//g'）
+```
+
+### 注意点
+
+- `Restart=always` で 5 回以上連続失敗すると systemd が再起動をブロックする（`Start request repeated too quickly`）。
+  設定変更後は必ず `sudo systemctl reset-failed oiteru-unit.service` を実行してから `restart` すること。
+- NFC リーダー（Sony RC-S380）を一般ユーザーで使うには udev ルールが必要:
+  `/etc/udev/rules.d/99-sony-rcs380.rules` に
+  `SUBSYSTEM=="usb", ATTRS{idVendor}=="054c", ATTRS{idProduct}=="06c1", MODE="0666", GROUP="plugdev"`
+  ※ idProduct は実機の lsusb で確認（rpi1 は 06c1）。既存のデバイスノードには反映されないため、
+  接続中の場合は `sudo chmod 666 /dev/bus/usb/001/007` で即時適用する。
+- 子機の `OITERU_STRICT_SECURITY` は `unit_client.py` が環境変数から直接読む（`.env` は子機では読み込まれない）。
 ## バックアップと復元
 
 Excel出力は管理用の集計に限定し、復旧用には MySQL 全体の暗号化 dump を使います。
