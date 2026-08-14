@@ -17,6 +17,7 @@ MIGRATIONS = [
     "007_add_device_sessions_and_status_logs",
     "008_add_device_configuration_delivery",
     "009_add_admin_users_and_audit_logs",
+    "010_add_operations_management",
 ]
 
 
@@ -82,6 +83,8 @@ def _apply_migration(conn, name: str):
         _migration_008(conn)
     elif name == "009_add_admin_users_and_audit_logs":
         _migration_009(conn)
+    elif name == "010_add_operations_management":
+        _migration_010(conn)
 
 
 def _migration_001(conn):
@@ -224,6 +227,107 @@ def _migration_009(conn):
                 created_at TEXT NOT NULL
             )
         """)
+
+
+def _migration_010(conn):
+    """Create durable inventory and maintenance records for daily operations."""
+    if _db.db_type == "mysql":
+        _db.execute(conn, """
+            CREATE TABLE IF NOT EXISTS stock_movements (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                unit_id INT NOT NULL,
+                movement_type VARCHAR(32) NOT NULL,
+                quantity_delta INT NOT NULL,
+                stock_before INT NOT NULL,
+                stock_after INT NOT NULL,
+                reason VARCHAR(255) NOT NULL,
+                admin_user_id INT NULL,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL,
+                INDEX idx_stock_movements_unit_created (unit_id, created_at),
+                INDEX idx_stock_movements_admin_created (admin_user_id, created_at),
+                FOREIGN KEY (unit_id) REFERENCES units(id) ON DELETE RESTRICT,
+                FOREIGN KEY (admin_user_id) REFERENCES admin_users(id) ON DELETE SET NULL
+            )
+        """)
+        _db.execute(conn, """
+            CREATE TABLE IF NOT EXISTS maintenance_tickets (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                unit_id INT NOT NULL,
+                category VARCHAR(32) NOT NULL,
+                status VARCHAR(32) NOT NULL,
+                source VARCHAR(32) NOT NULL,
+                description VARCHAR(500) NOT NULL,
+                opened_by_admin_user_id INT NULL,
+                assigned_to_admin_user_id INT NULL,
+                resolution_note VARCHAR(500) NULL,
+                resolved_by_admin_user_id INT NULL,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL,
+                resolved_at DATETIME NULL,
+                INDEX idx_maintenance_tickets_unit_status (unit_id, status),
+                INDEX idx_maintenance_tickets_status_updated (status, updated_at),
+                FOREIGN KEY (unit_id) REFERENCES units(id) ON DELETE RESTRICT,
+                FOREIGN KEY (opened_by_admin_user_id) REFERENCES admin_users(id) ON DELETE SET NULL,
+                FOREIGN KEY (assigned_to_admin_user_id) REFERENCES admin_users(id) ON DELETE SET NULL,
+                FOREIGN KEY (resolved_by_admin_user_id) REFERENCES admin_users(id) ON DELETE SET NULL
+            )
+        """)
+        return
+
+    _db.execute(conn, """
+        CREATE TABLE IF NOT EXISTS stock_movements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            unit_id INTEGER NOT NULL,
+            movement_type TEXT NOT NULL,
+            quantity_delta INTEGER NOT NULL,
+            stock_before INTEGER NOT NULL,
+            stock_after INTEGER NOT NULL,
+            reason TEXT NOT NULL,
+            admin_user_id INTEGER,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (unit_id) REFERENCES units(id) ON DELETE RESTRICT,
+            FOREIGN KEY (admin_user_id) REFERENCES admin_users(id) ON DELETE SET NULL
+        )
+    """)
+    _db.execute(conn, """
+        CREATE INDEX IF NOT EXISTS idx_stock_movements_unit_created
+        ON stock_movements (unit_id, created_at)
+    """)
+    _db.execute(conn, """
+        CREATE INDEX IF NOT EXISTS idx_stock_movements_admin_created
+        ON stock_movements (admin_user_id, created_at)
+    """)
+    _db.execute(conn, """
+        CREATE TABLE IF NOT EXISTS maintenance_tickets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            unit_id INTEGER NOT NULL,
+            category TEXT NOT NULL,
+            status TEXT NOT NULL,
+            source TEXT NOT NULL,
+            description TEXT NOT NULL,
+            opened_by_admin_user_id INTEGER,
+            assigned_to_admin_user_id INTEGER,
+            resolution_note TEXT,
+            resolved_by_admin_user_id INTEGER,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            resolved_at TEXT,
+            FOREIGN KEY (unit_id) REFERENCES units(id) ON DELETE RESTRICT,
+            FOREIGN KEY (opened_by_admin_user_id) REFERENCES admin_users(id) ON DELETE SET NULL,
+            FOREIGN KEY (assigned_to_admin_user_id) REFERENCES admin_users(id) ON DELETE SET NULL,
+            FOREIGN KEY (resolved_by_admin_user_id) REFERENCES admin_users(id) ON DELETE SET NULL
+        )
+    """)
+    _db.execute(conn, """
+        CREATE INDEX IF NOT EXISTS idx_maintenance_tickets_unit_status
+        ON maintenance_tickets (unit_id, status)
+    """)
+    _db.execute(conn, """
+        CREATE INDEX IF NOT EXISTS idx_maintenance_tickets_status_updated
+        ON maintenance_tickets (status, updated_at)
+    """)
 
 
 def _safe_add_column(conn, table: str, column: str, col_type: str):

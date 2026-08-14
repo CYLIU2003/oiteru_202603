@@ -38,3 +38,22 @@ def test_authenticated_state_change_requires_csrf_token():
 
     assert response.status_code == 400
     assert response.json["error"] == "CSRF validation failed"
+
+
+def test_operations_api_state_change_requires_csrf_token():
+    client = server.app.test_client()
+    with client.session_transaction() as session:
+        session["admin_logged_in"] = True
+        session["admin_user_id"] = 1
+
+    response = client.post(
+        "/api/v1/admin/operations/units/1/stock-movements",
+        json={
+            "movement_type": "restock",
+            "quantity_delta": 1,
+            "reason": "test",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json["error"] == "CSRF validation failed"

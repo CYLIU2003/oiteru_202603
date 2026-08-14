@@ -150,11 +150,13 @@ if "FLASK_SECRET_KEY" not in os.environ:
 from app.api.health import health_bp
 from app.api.dispense import dispense_bp
 from app.api.units import unit_bp
+from app.api.operations import operations_bp
 
 app.register_blueprint(health_bp)
 app.register_blueprint(dispense_bp)
 app.register_blueprint(unit_bp)
-logger.info("Registered API blueprints: health, dispense, unit")
+app.register_blueprint(operations_bp)
+logger.info("Registered API blueprints: health, dispense, unit, operations")
 
 # ========================================
 # サーバー設定
@@ -1091,12 +1093,7 @@ def index():
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
-    """手動登録ページ（自動登録モードでは使用頻度低）
-
-    閲覧(GET)は誰でも可能。登録操作(POST)は管理者のみ許可。
-    """
-    if request.method == "POST" and not session.get("admin_logged_in"):
-        return redirect(url_for("admin_login"))
+    """手動登録ページ（自動登録モードでは使用頻度低）"""
     if request.method == "POST":
         card_id = request.form.get("card_id", "").strip()
 
@@ -1159,12 +1156,7 @@ def register():
 
 @app.route("/usage", methods=["GET", "POST"])
 def usage():
-    """利用確認ページ
-
-    閲覧(GET)は誰でも可能。利用操作(POST)は管理者のみ許可。
-    """
-    if request.method == "POST" and not session.get("admin_logged_in"):
-        return redirect(url_for("admin_login"))
+    """利用確認ページ"""
     if request.method == "POST":
         card_id = request.form.get("card_id", "").strip()
         if card_id:
@@ -1339,33 +1331,59 @@ def admin_unit_detail(uid):
     if not session.get("admin_logged_in"):
         return redirect(url_for("admin_login"))
 
-    if request.method == "POST":
-        with get_connection() as conn:
-            if request.form.get("action") == "delete":
-                db.execute(conn, "DELETE FROM units WHERE id = ?", (uid,))
-                add_history(f"子機を削除 (ID:{uid})", "system")
-                flash(f"子機(ID:{uid})を削除しました。", "success")
-                return redirect(url_for("admin_units"))
+    from dataclasses import asdict
 
-            # 名前はDBに反映しない（表示名のみ）
-            # name = request.form.get("name")
-            stock = request.form.get("stock")
-            initial_stock = request.form.get("initial_stock")
-            available = request.form.get("available")
-            db.execute(
-                conn,
-                "UPDATE units SET stock = ?, initial_stock = ?, available = ? WHERE id = ?",
-                (stock, initial_stock, available, uid),
-            )
+    from app.repositories.unit_repository import UnitRepository
+    from app.services import operations_service
+
+    unit_repo = UnitRepository()
+
+    if request.method == "POST":
+        if request.form.get("action") == "delete":
+            try:
+                with get_connection() as conn:
+                    operations_service.delete_unit_without_operations_history(
+                        conn,
+                        unit_id=uid,
+                        admin_user_id=session.get("admin_user_id"),
+                    )
+            except operations_service.OperationsError as exc:
+                flash(str(exc), "error")
+                return redirect(url_for("admin_unit_detail", uid=uid))
+            except DatabaseError:
+                flash(
+                    "子機に関連する記録があるため削除できません。利用停止にして履歴を保持してください。",
+                    "error",
+                )
+                return redirect(url_for("admin_unit_detail", uid=uid))
+            add_history(f"子機を削除 (ID:{uid})", "system")
+            flash(f"子機(ID:{uid})を削除しました。", "success")
+            return redirect(url_for("admin_units"))
+
+        try:
+            with get_connection() as conn:
+                operations_service.update_unit_operational_state(
+                    conn,
+                    unit_id=uid,
+                    target_stock=request.form.get("stock"),
+                    initial_stock=request.form.get("initial_stock"),
+                    available=request.form.get("available"),
+                    stock_change_reason=request.form.get("stock_change_reason"),
+                    admin_user_id=session.get("admin_user_id"),
+                )
+        except operations_service.OperationsError as exc:
+            flash(str(exc), "error")
+            return redirect(url_for("admin_unit_detail", uid=uid))
         add_history(f"子機情報を更新 (ID:{uid})", "system")
         flash(f"子機(ID:{uid})の情報を更新しました。", "success")
         return redirect(url_for("admin_unit_detail", uid=uid))
 
     with get_connection() as conn:
-        unit = db.fetchone(conn, "SELECT * FROM units WHERE id = ?", (uid,))
-    if not unit:
+        unit_record = unit_repo.find_by_id(conn, uid)
+    if not unit_record:
         flash("指定された子機は見つかりません。", "error")
         return redirect(url_for("admin_units"))
+    unit = asdict(unit_record)
 
     # 子機の設定情報をDB上のreported/desired状態から取得
     from app import state
@@ -1691,9 +1709,6 @@ def api_read_card():
     NFCカードを読み取ってカードIDを返す
     タイムアウト: 10秒
     """
-    auth_error = require_admin_api()
-    if auth_error:
-        return auth_error
     try:
         clf = open_local_nfc_frontend()
         if not clf:

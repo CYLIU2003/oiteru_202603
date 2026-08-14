@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="admin-dashboard">
+  <h2><span class="material-symbols-outlined">assignment</span> 運用管理</h2>
+  <p>補充・在庫修正・廃棄・故障対応を、利用者情報を表示せずに記録します。</p>
+
+  <div class="stats-grid">
+    <div class="stat-card">
+      <span class="material-symbols-outlined">inventory_2</span>
+      <div class="stat-value">{{ out_of_stock_units|length }}</div>
+      <div class="stat-label">補充必須（在庫 0）</div>
+    </div>
+    <div class="stat-card">
+      <span class="material-symbols-outlined">signal_wifi_off</span>
+      <div class="stat-value">{{ heartbeat_overdue_units|length }}</div>
+      <div class="stat-label">heartbeat 超過（{{ heartbeat_timeout_seconds }} 秒）</div>
+    </div>
+    <div class="stat-card">
+      <span class="material-symbols-outlined">build</span>
+      <div class="stat-value">{{ active_tickets|length }}</div>
+      <div class="stat-label">対応中・復旧確認のチケット</div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px;margin-top:24px;">
+    <section class="info-card">
+      <h3><span class="material-symbols-outlined">add_box</span> 在庫操作を記録</h3>
+      <p class="form-help">補充・修正・廃棄は必ず理由とともに記録します。</p>
+      <form method="post" action="{{ url_for('operations.admin_create_stock_movement') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+          <label class="form-label" for="stock-unit">対象子機</label>
+          <select class="form-select" id="stock-unit" name="unit_id" required>
+            <option value="">選択してください</option>
+            {% for unit in units %}
+              <option value="{{ unit.id }}" {% if selected_unit_id == unit.id %}selected{% endif %}>
+                {{ unit.name }}（現在 {{ unit.stock }}）
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="movement-type">操作</label>
+          <select class="form-select" id="movement-type" name="movement_type" required>
+            <option value="restock">補充</option>
+            <option value="adjustment">在庫修正</option>
+            <option value="disposal">廃棄</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="movement-quantity">数量</label>
+          <input class="form-input" id="movement-quantity" name="quantity" type="number" required>
+          <div class="form-help">補充・廃棄は正数、在庫修正は増減を符号付きで入力します。</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="movement-reason">理由</label>
+          <input class="form-input" id="movement-reason" name="reason" maxlength="255" required>
+          <div class="form-help">カード UID・氏名など利用者情報は入力しないでください。</div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-icon">
+          <span class="material-symbols-outlined">save</span> 在庫操作を登録
+        </button>
+      </form>
+    </section>
+
+    <section class="info-card">
+      <h3><span class="material-symbols-outlined">report_problem</span> 故障を登録</h3>
+      <p class="form-help">「出ない」「詰まり」「空」「通信不良」などを端末単位で記録します。</p>
+      <form method="post" action="{{ url_for('operations.admin_create_maintenance_ticket') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+          <label class="form-label" for="ticket-unit">対象子機</label>
+          <select class="form-select" id="ticket-unit" name="unit_id" required>
+            <option value="">選択してください</option>
+            {% for unit in units %}
+              <option value="{{ unit.id }}" {% if selected_unit_id == unit.id %}selected{% endif %}>
+                {{ unit.name }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="ticket-category">分類</label>
+          <select class="form-select" id="ticket-category" name="category" required>
+            <option value="empty">在庫切れ</option>
+            <option value="jam">詰まり</option>
+            <option value="hardware">機器故障</option>
+            <option value="network">通信不良</option>
+            <option value="other">その他</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="ticket-assignee">担当者</label>
+          <select class="form-select" id="ticket-assignee" name="assigned_to_admin_user_id">
+            <option value="">未割当</option>
+            {% for operator in operators %}
+              <option value="{{ operator.id }}">{{ operator.username }}（{{ operator.role }}）</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="ticket-description">状況</label>
+          <textarea class="form-textarea" id="ticket-description" name="description" maxlength="500" required></textarea>
+          <div class="form-help">利用者の氏名・カード UID・連絡先は記録しないでください。</div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-icon">
+          <span class="material-symbols-outlined">add_task</span> 故障チケットを登録
+        </button>
+      </form>
+    </section>
+  </div>
+
+  <section class="info-card" style="margin-top:24px;">
+    <h3><span class="material-symbols-outlined">build_circle</span> 対応中・復旧確認の故障チケット</h3>
+    {% if active_tickets %}
+      <div style="display:grid;gap:16px;">
+        {% for ticket in active_tickets %}
+          <article style="padding:16px;border:1px solid var(--md-outline-variant);border-radius:var(--md-radius-sm);">
+            <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;">
+              <div>
+                <strong>#{{ ticket.id }} {{ ticket.unit_name or ('子機 ID ' ~ ticket.unit_id) }}</strong>
+                <div class="form-help">{{ ticket.category }} / {{ ticket.status }} / 登録: {{ ticket.created_at }}</div>
+              </div>
+              {% if active_ticket_count_by_unit_id.get(ticket.unit_id, 0) > 1 %}
+                <span class="status-badge">同一端末の作業中・復旧確認 {{ active_ticket_count_by_unit_id.get(ticket.unit_id) }} 件</span>
+              {% endif %}
+            </div>
+            <p style="white-space:pre-wrap;">{{ ticket.description }}</p>
+            <form method="post" action="{{ url_for('operations.admin_update_maintenance_ticket', ticket_id=ticket.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="unit_id" value="{{ ticket.unit_id }}">
+              <div style="display:grid;grid-template-columns:minmax(140px,1fr) minmax(160px,1fr) minmax(220px,2fr) auto;gap:12px;align-items:end;">
+                <div class="form-group" style="margin:0;">
+                  <label class="form-label" for="ticket-status-{{ ticket.id }}">状態</label>
+                  <select class="form-select" id="ticket-status-{{ ticket.id }}" name="status">
+                    {% if ticket.status == 'open' %}
+                      <option value="open" selected>受付</option>
+                      <option value="in_progress">対応中</option>
+                      <option value="resolved">復旧確認</option>
+                    {% elif ticket.status == 'in_progress' %}
+                      <option value="in_progress" selected>対応中</option>
+                      <option value="open">受付へ戻す</option>
+                      <option value="resolved">復旧確認</option>
+                    {% else %}
+                      <option value="resolved" selected>復旧確認</option>
+                      <option value="in_progress">対応を再開</option>
+                      <option value="closed">完了</option>
+                    {% endif %}
+                  </select>
+                </div>
+                <div class="form-group" style="margin:0;">
+                  <label class="form-label" for="ticket-assignee-{{ ticket.id }}">担当者</label>
+                  <select class="form-select" id="ticket-assignee-{{ ticket.id }}" name="assigned_to_admin_user_id">
+                    <option value="" {% if not ticket.assigned_to_admin_user_id %}selected{% endif %}>未割当</option>
+                    {% if ticket.assigned_to_admin_user_id and ticket.assigned_to_admin_user_id not in active_operator_ids %}
+                      <option value="{{ ticket.assigned_to_admin_user_id }}" selected>
+                        {{ ticket.assigned_to_username or ('管理者 ID ' ~ ticket.assigned_to_admin_user_id) }}（無効化済み・現状保持）
+                      </option>
+                    {% endif %}
+                    {% for operator in operators %}
+                      <option value="{{ operator.id }}" {% if ticket.assigned_to_admin_user_id == operator.id %}selected{% endif %}>
+                        {{ operator.username }}（{{ operator.role }}）
+                      </option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="form-group" style="margin:0;">
+                  <label class="form-label" for="resolution-note-{{ ticket.id }}">復旧・対応メモ</label>
+                  <input class="form-input" id="resolution-note-{{ ticket.id }}" name="resolution_note" maxlength="500" value="{{ ticket.resolution_note or '' }}">
+                </div>
+                <button type="submit" class="btn btn-secondary">更新</button>
+              </div>
+            </form>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p>対応中・復旧確認の故障チケットはありません。</p>
+    {% endif %}
+  </section>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px;margin-top:24px;">
+    <section class="info-card">
+      <h3><span class="material-symbols-outlined">inventory_2</span> 補充必須</h3>
+      {% if out_of_stock_units %}
+        <ul>
+          {% for unit in out_of_stock_units %}
+            <li><a href="{{ url_for('operations.admin_operations', unit_id=unit.id) }}">{{ unit.name }}</a>（在庫 {{ unit.stock }}）</li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p>在庫 0 の子機はありません。</p>
+      {% endif %}
+    </section>
+
+    <section class="info-card">
+      <h3><span class="material-symbols-outlined">signal_wifi_off</span> heartbeat 超過</h3>
+      {% if heartbeat_overdue_units %}
+        <ul>
+          {% for unit in heartbeat_overdue_units %}
+            <li>{{ unit.name }}（最終通信: {{ unit.last_seen or '未受信' }}）</li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p>{{ heartbeat_timeout_seconds }} 秒を超過した子機はありません。</p>
+      {% endif %}
+    </section>
+  </div>
+
+  <section class="info-card" style="margin-top:24px;">
+    <h3><span class="material-symbols-outlined">history</span> 直近の在庫操作</h3>
+    {% if recent_stock_movements %}
+      <div style="overflow-x:auto;">
+        <table class="data-table">
+          <thead>
+            <tr><th>日時</th><th>子機</th><th>操作</th><th>増減</th><th>在庫</th><th>理由</th></tr>
+          </thead>
+          <tbody>
+            {% for movement in recent_stock_movements %}
+              <tr>
+                <td>{{ movement.created_at }}</td>
+                <td>{{ movement.unit_name or ('子機 ID ' ~ movement.unit_id) }}</td>
+                <td>{{ movement.movement_type }}</td>
+                <td>{{ '%+d'|format(movement.quantity_delta) }}</td>
+                <td>{{ movement.stock_before }} → {{ movement.stock_after }}</td>
+                <td>{{ movement.reason }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p>まだ在庫操作の記録はありません。</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

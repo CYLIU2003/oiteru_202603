@@ -3,13 +3,31 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
 
 from app.repositories.base import BaseRepository
 
 
 class AdminUserRepository(BaseRepository):
-    def find_by_username(self, conn, username: str) -> Optional[dict]:
+    def list_active(self, conn) -> list[dict]:
+        """Return assignable administrators without password hashes."""
+        return self.fetch_all(
+            conn,
+            """SELECT id, username, role
+                 FROM admin_users
+                WHERE is_active = 1
+                ORDER BY username ASC""",
+        )
+
+    def find_active_by_id(self, conn, user_id: int) -> dict | None:
+        return self.fetch_one(
+            conn,
+            """SELECT id, username, role
+                 FROM admin_users
+                WHERE id = ? AND is_active = 1""",
+            (user_id,),
+        )
+
+    def find_by_username(self, conn, username: str) -> dict | None:
         return self.fetch_one(
             conn,
             "SELECT * FROM admin_users WHERE username = ? AND is_active = 1",
@@ -64,4 +82,4 @@ class AdminUserRepository(BaseRepository):
 
 
 def _now() -> str:
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # noqa: DTZ005 - legacy DB timestamps are local and naive
