@@ -241,4 +241,4 @@ EOF
 esac
 
 echo ""
-echo -e "${BLUE}詳細は取説書/MULTI_SERVER.md をご覧ください${NC}"
+echo -e "${BLUE}詳細は docs/operations.md をご覧ください${NC}"

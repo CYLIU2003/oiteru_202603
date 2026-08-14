@@ -165,7 +165,7 @@ scripts/tmux_oiteru.sh status unit
 
 | ファイル | 内容 |
 |---|---|
-| `../取説書/QUICKSTART.md` | 全体的なクイックスタート |
+| `../docs/quick_start.md` | 全体的なクイックスタート |
 | `../docs/onboarding.md` | 新規参加者向け |
 | `../docs/operations.md` | 運用・障害対応 |
 | `../config_templates/README.md` | 設定ファイルの詳細 |

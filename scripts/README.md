@@ -83,7 +83,7 @@ scripts/tmux_oiteru.sh stop unit
 |---|---|
 | `../README.md` | 全体像 |
 | `../docs/onboarding.md` | 新規参加者向け |
-| `../取説書/QUICKSTART.md` | 詳細な起動手順 |
+| `../docs/quick_start.md` | 標準の起動手順 |
 | `../docs/operations.md` | 運用・障害対応 |
 | `../config_templates/README.md` | 設定ファイルの詳細 |
 

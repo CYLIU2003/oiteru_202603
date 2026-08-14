@@ -54,12 +54,12 @@ libusb をブロックする問題への対処。
 
 ## 2. 必要なもの
 
-- `tools/zadig-2.9.exe`（このリポジトリに同梱済み。公式: https://zadig.akeo.ie/）
+- Zadig（公式配布元: https://zadig.akeo.ie/）
 - 管理者権限
 
 ## 3. ドライバ置き換え手順（Zadig）
 
-1. `tools/zadig-2.9.exe` を**右クリック → 「管理者として実行」**。
+1. 公式配布元からダウンロードした Zadig を**右クリック → 「管理者として実行」**。
 2. メニュー **Options → List All Devices** にチェックを入れる。
 3. 上部プルダウンで **Sony NFC Port/PaSoRi 100 USB**（または
    `USB\VID_054C&PID_06C3` を含む項目）を選択。
