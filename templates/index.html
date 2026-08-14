@@ -14,10 +14,11 @@
         利用状況を確認する
       </a>
     </div>
+    <p class="hero-note"><strong>利用者の方:</strong> 上の「学生証を登録する」「利用状況を確認する」は、ログイン不要で利用できます。</p>
     {% if session.get('admin_logged_in') %}
-    <p class="hero-note">管理者メニューは <a href="{{ url_for('admin_dashboard') }}">ダッシュボード</a> から</p>
+    <p class="hero-note"><strong>管理者の方:</strong> 管理者メニューは <a href="{{ url_for('admin_dashboard') }}">ダッシュボード</a> から</p>
     {% else %}
-    <p class="hero-note">管理者の方は <a href="{{ url_for('admin_login') }}">こちらからログイン</a></p>
+    <p class="hero-note"><strong>管理者の方のみ:</strong> <a href="{{ url_for('admin_login') }}">こちらからログイン</a></p>
     {% endif %}
   </div>
   <div class="hero-visual" aria-hidden="true">
