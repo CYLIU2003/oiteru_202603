@@ -1,203 +1,264 @@
 # OITERU クイックスタート
 
-このガイドでは、OITERU を構成する**親機**と**子機**を最短で起動します。親機は
-Linux + MySQL 8、子機は Raspberry Pi を標準環境とします。短時間の確認は前景で起動し、
-SSH 切断後も動かす常駐運用では tmux を使用します。
+このガイドでは、OITERU の親機と子機をセットアップし、tmux で常駐起動するまでを
+説明します。親機は Linux + MySQL 8、子機は Raspberry Pi を標準環境とします。
 
-> Windows はローカル開発と RC-S380 の利用に対応していますが、学内実証の標準運用
-> ホストではありません。
+## 最初に確認すること
 
-## 全体の流れ
+親機と子機は通常、別のホストで動かします。各ホストへ SSH 接続し、それぞれの
+プロジェクトルートでコマンドを実行してください。
 
-1. 親機で MySQL と親機サービスを起動する
-2. 管理画面へログインできることを確認する
-3. Raspberry Pi 子機をセットアップし、親機の URL と子機用シークレットを登録する
-4. 子機を起動し、管理者が承認する
+起動方法は次の順で説明します。
 
-親機と子機は通常は別ホストで動かします。同一ホストで検証する場合も、tmux セッションが
-分かれるため同時起動できます。
+1. **常駐用 tmux 起動**: 通常はこちらを使用します。SSH を切断しても動作を継続します。
+2. **一時確認用の前景起動**: 短時間の動作確認に使用し、`Ctrl-c` で終了します。
 
-| 役割 | 実行するホスト | 常駐時の tmux セッション | 起動コマンド |
-|---|---|---|---|
-| 親機 | Linux サーバー | `oiteru-parent` | `scripts/tmux_oiteru.sh start parent` |
-| 子機 | Raspberry Pi | `oiteru-unit` | `scripts/tmux_oiteru.sh start unit` |
+| 役割 | 標準ホスト | 常駐時の tmux セッション |
+|---|---|---|
+| 親機 | Linux サーバー | `oiteru-parent` |
+| 子機 | Raspberry Pi | `oiteru-unit` |
 
-## 1. 親機を起動する（Linux）
+Windows はローカル開発と RC-S380 の確認には使用できますが、学内実証の標準運用
+ホストではありません。
 
-### 1-1. 必要なもの
+## 1. 親機を準備する
+
+### 1-1. 必要なソフトウェア
 
 - Git
 - Python 3.10 以上
 - MySQL 8
 - tmux
 
-プロジェクトの配置先は任意です。以降はプロジェクトのルートディレクトリで実行します。
+プロジェクトの配置先は任意です。次の例では `~/oiteru_202603` を使用します。
 
 ```bash
 cd ~/oiteru_202603
 cp .env.example .env
-chmod +x venv-start.sh scripts/*.sh
+chmod +x venv-start.sh scripts/setup_local_mysql.sh scripts/tmux_oiteru.sh
 ```
 
 ### 1-2. `.env` を設定する
 
-`.env` は認証情報を含むため、Git に追加・共有しないでください。少なくとも次の値を、
-推測されにくい値へ変更します。
+`.env` を開き、少なくとも次の値を初期値から変更してください。
 
 | 設定 | 用途 |
 |---|---|
-| `FLASK_SECRET_KEY` | 管理画面セッションの署名キー（32 文字以上） |
-| `OITERU_ADMIN_USERNAME` / `OITERU_ADMIN_PASSWORD` | 初回管理者のログイン情報 |
-| `CARD_UID_HMAC_KEY` | カード UID を擬似 ID 化するキー（32 文字以上） |
+| `FLASK_SECRET_KEY` | 管理画面セッションの署名キー（32文字以上） |
+| `OITERU_ADMIN_USERNAME` | 初回管理者のユーザー名 |
+| `OITERU_ADMIN_PASSWORD` | 初回管理者のパスワード |
+| `CARD_UID_HMAC_KEY` | カード UID を擬似 ID 化するキー（32文字以上） |
 | `MYSQL_PASSWORD` | OITERU 用 MySQL ユーザーのパスワード |
-| `MYSQL_ROOT_PASSWORD` | ローカル MySQL 初期設定用の root パスワード |
 
-ローカルの平文 HTTP 開発だけでは、`SESSION_COOKIE_SECURE=false` と
-`OITERU_STRICT_SECURITY=false` を**両方**設定できます。TLS を使う環境では、両方を
-`true` のままにしてください。`MYSQL_HOST`、`MYSQL_PORT`、`MYSQL_DATABASE` は、別の
-MySQL を使う場合のみ環境に合わせて変更します。
+`.env` は認証情報を含むため、Git に追加したり、チャットへ貼り付けたりしないでください。
 
-### 1-3. Python と MySQL を準備する
+ローカルの平文 HTTP で開発するときだけ、次の2項目を両方 `false` にできます。
 
-次のコマンドは仮想環境を作成し、依存関係とローカル MySQL の DB・ユーザーを準備します。
-`--install` は MySQL サーバーが未導入の場合だけ付けてください。MySQL の導入・起動と
-DB 作成には `sudo` 権限が必要です。
+```dotenv
+SESSION_COOKIE_SECURE=false
+OITERU_STRICT_SECURITY=false
+```
+
+TLS を使う学内実証・本番環境では、両方を `true` にし、TLS 終端済みの `https://...`
+URL を使用します。`MYSQL_ROOT_PASSWORD` は Docker Compose 用の設定であり、このガイドの
+ローカル MySQL セットアップスクリプトでは使用しません。
+
+### 1-3. Python 環境を作成する
 
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -r requirements.txt
-
-# MySQL が未導入の場合
-scripts/setup_local_mysql.sh --install
-
-# MySQL が導入済みの場合
-# scripts/setup_local_mysql.sh
 ```
 
-手書きの DDL は実行しないでください。親機の起動時に migration が適用されます。
+### 1-4. MySQL を準備する
 
-### 1-4. 親機を起動する
-
-短時間だけ動作を確認する場合は、前景で起動します。終了するには `Ctrl-c` を押します。
+MySQL が未導入の場合は、次を実行します。
 
 ```bash
-./venv-start.sh parent-mysql
+scripts/setup_local_mysql.sh --install
 ```
 
-SSH を切断しても親機を動かし続ける場合は、tmux で起動します。
+MySQL 8 が導入済みの場合は、`--install` を付けません。
+
+```bash
+scripts/setup_local_mysql.sh
+```
+
+このスクリプトは `.env` を読み、ローカル MySQL の DB とユーザーを作成します。
+MySQL の導入・起動と DB 作成には `sudo` 権限が必要です。手書きの DDL は実行しないで
+ください。アプリケーションの migration は親機起動時に適用されます。
+
+## 2. 親機を起動する
+
+### 2-1. 常駐させる場合: tmux
+
+通常運用では、親機を tmux セッションに常駐させます。
 
 ```bash
 scripts/tmux_oiteru.sh start parent
 scripts/tmux_oiteru.sh status parent
 ```
 
-`running: oiteru-parent` と表示されれば起動しています。利用者向け画面は
-`http://<親機のホスト名または IP>:5000/`、管理画面は
-`http://<親機のホスト名または IP>:5000/admin` です。
-
-常駐中の親機を操作するには、次を使用します。`attach` 中は `Ctrl-b`、続けて `d` で
-親機を止めずに離脱できます。`logs` は `Ctrl-c` で終了します。
+`running: oiteru-parent` は tmux セッションが存在することを示します。続けて親機 API が
+応答することを確認します。
 
 ```bash
-scripts/tmux_oiteru.sh attach parent  # 実行画面を表示する
-scripts/tmux_oiteru.sh logs parent    # ログを追跡する
-scripts/tmux_oiteru.sh restart parent # 再起動する
-scripts/tmux_oiteru.sh stop parent    # 停止する
+curl http://localhost:5000/api/health
 ```
 
-同じ親機を二重起動しないよう、既存の tmux セッションがある状態で `start` を実行すると
-`attach` が案内されます。ローカルホストだけで確認する場合は、`http://localhost:5000/`
-を開きます。
+レスポンスに `"status":"ok"` が含まれていれば、親機の起動完了です。
 
-## 2. 子機を起動する（Raspberry Pi）
+```bash
+scripts/tmux_oiteru.sh attach parent   # 実行画面を開く
+scripts/tmux_oiteru.sh logs parent     # ログを追跡する
+scripts/tmux_oiteru.sh restart parent  # 再起動する
+scripts/tmux_oiteru.sh stop parent     # 停止する
+```
 
-GPIO、NFC リーダー、モーターは Raspberry Pi 実機で確認してください。親機が起動済みで、
-子機から親機の URL に到達できる状態にしてから始めます。
+`attach` 中は `Ctrl-b`、続けて `d` を押すと、親機を停止せずに tmux から離脱できます。
+`logs` は `Ctrl-c` で終了します。既存セッションがある状態で `start` を実行しても
+二重起動せず、既存セッションへの `attach` が案内されます。
 
-### 2-1. 子機の実行環境を準備する
+### 2-2. 一時的に起動する場合: 前景起動
+
+短時間だけ確認するときは、tmux を使わず前景で起動します。
+
+```bash
+./venv-start.sh parent-mysql
+```
+
+終了するには `Ctrl-c` を押します。
+
+### 2-3. 親機の画面を確認する
+
+| 画面 | URL |
+|---|---|
+| 利用者向け画面 | `https://<公開している親機URL>/` |
+| 管理画面 | `https://<公開している親機URL>/admin` |
+
+ローカル HTTP 開発では、前述の2つのセキュリティ設定を `false` にしたうえで
+`http://<親機IP>:5000/` を使用できます。親機と同じホストでは
+`http://localhost:5000/` を開きます。管理画面へ `.env` の管理者情報でログインできる
+ことを確認してください。
+
+## 3. 子機を準備する
+
+GPIO、NFC リーダー、モーターは Raspberry Pi 実機で確認してください。子機の作業を
+始める前に、親機が起動し、Raspberry Pi から親機 URL へ接続できることを確認します。
+
+### 3-1. 実行環境をセットアップする
+
+Raspberry Pi 上で実行します。
 
 ```bash
 cd ~/oiteru_202603
-chmod +x scripts/setup_unit_environment.sh scripts/provision_unit.sh
+chmod +x venv-start.sh scripts/setup_unit_environment.sh \
+  scripts/provision_unit.sh scripts/tmux_oiteru.sh
 ./scripts/setup_unit_environment.sh
 ```
 
-このスクリプトは tmux と子機に必要な OS パッケージ、`.venv`、および
-`requirements-client.txt` の依存関係を用意します。I2C を有効にした場合は、案内に従い
-再起動してから次へ進みます。
+このスクリプトは tmux、子機用 OS パッケージ、`.venv`、および
+`requirements-client.txt` の依存関係を準備します。I2C を有効にした場合は、案内に
+従って Raspberry Pi を再起動してから次へ進みます。
 
-### 2-2. 子機を親機に登録する
-
-次のコマンドは対話形式で、子機名・親機 URL・16 文字以上の子機用シークレットを尋ねます。
-シークレットは `/etc/oiteru/unit-secret` に権限 `0600` で保存され、`config.json` には
-ファイルパスだけが保存されます。
+### 3-2. 子機を親機へ登録する
 
 ```bash
 sudo scripts/provision_unit.sh
 ```
 
-親機への接続確認に成功すると完了します。`404` は未承認の子機として親機に到達できた
-ことを示す正常な結果です。接続に失敗した場合は、親機 URL、ネットワーク、親機の
-tmux 状態を見直してください。
+対話形式で次の値を入力します。
 
-ステッピングモーターを直結する構成では、`config.json` の `MOTOR_TYPE=STEPPER` と
-`CONTROL_METHOD=RASPI_DIRECT` を維持し、BCM ピンが LED・センサーと重複しないことを
-確認します。詳しい設定は [config_templates/README.md](../config_templates/README.md) を
-参照してください。
+- 子機名
+- 親機 URL
+- 16文字以上の子機用シークレット
 
-### 2-3. 子機を起動する
+シークレットは `/etc/oiteru/unit-secret` に権限 `0600` で保存され、`config.json`
+にはファイルパスだけが保存されます。シークレットを Git、チャット、チケットへ平文で
+記録しないでください。
 
-短時間だけ動作を確認する場合は、前景で起動します。終了するには `Ctrl-c` を押します。
+接続確認で返る `404` は、未承認の子機として親機へ到達できたことを示す正常な結果です。
+`200` は、同じ子機がすでに承認済みであることを示します。それ以外で失敗した場合は、
+親機 URL、ネットワーク、親機の起動状態を確認します。
+
+子機は `.env` を読みません。検証のため子機から localhost 以外の平文 HTTP 親機へ
+接続する場合だけ、子機を起動する同じシェルで次を設定します。学内実証・本番環境では
+設定せず、HTTPS の親機 URL を使用してください。
 
 ```bash
-./venv-start.sh unit
+export OITERU_STRICT_SECURITY=false
 ```
 
-SSH を切断しても子機を動かし続ける場合は、tmux で起動します。
+ステッピングモーターを Raspberry Pi に直接接続する場合は、`config.json` の
+`"MOTOR_TYPE": "STEPPER"` と `"CONTROL_METHOD": "RASPI_DIRECT"` を維持してください。BCM ピンが
+LED やセンサーと重複していないことも確認します。詳しくは
+[config_templates/README.md](../config_templates/README.md) を参照してください。
+
+## 4. 子機を起動する
+
+### 4-1. 常駐させる場合: tmux
+
+通常運用では、子機を tmux セッションに常駐させます。
 
 ```bash
 scripts/tmux_oiteru.sh start unit
 scripts/tmux_oiteru.sh status unit
 ```
 
-`running: oiteru-unit` と表示されれば起動しています。子機は、管理者が承認するまで
-保留状態です。親機の管理画面の `/admin/units` で子機名と接続元を確認して承認します。
-次回 heartbeat が届くと、子機はオンラインになります。子機用シークレットをチャットや
-チケットに平文で書かないでください。
-
-常駐中の子機を操作するには、次を使用します。`attach` 中は `Ctrl-b`、続けて `d` で
-子機を止めずに離脱できます。`logs` は `Ctrl-c` で終了します。
+`running: oiteru-unit` と表示されれば、子機の tmux セッションが存在しています。ログを
+開き、接続エラーやハードウェア初期化エラーがないことも確認してください。
 
 ```bash
-scripts/tmux_oiteru.sh attach unit  # 実行画面を表示する
-scripts/tmux_oiteru.sh logs unit    # ログを追跡する
-scripts/tmux_oiteru.sh restart unit # 再起動する
-scripts/tmux_oiteru.sh stop unit    # 停止する
+scripts/tmux_oiteru.sh attach unit   # 実行画面を開く
+scripts/tmux_oiteru.sh logs unit     # ログを追跡する
+scripts/tmux_oiteru.sh restart unit  # 再起動する
+scripts/tmux_oiteru.sh stop unit     # 停止する
 ```
 
-同じ子機を二重起動しないよう、既存の tmux セッションがある状態で `start` を実行すると
-`attach` が案内されます。長期の無人運用では systemd 化も検討してください。設定例と
-注意点は [operations.md](operations.md) を参照してください。
+`attach` 中は `Ctrl-b`、続けて `d` を押すと、子機を停止せずに tmux から離脱できます。
+`logs` は `Ctrl-c` で終了します。既存セッションがある状態で `start` を実行しても
+二重起動しません。
 
-## 3. Windows でローカル開発する
+### 4-2. 一時的に起動する場合: 前景起動
 
-Windows は開発・検証用です。先に MySQL 8 を起動し、Linux の親機と同様に `.env` の
-認証情報と接続先を設定します。
+短時間だけ確認するときは、tmux を使わず前景で起動します。
+
+```bash
+./venv-start.sh unit
+```
+
+終了するには `Ctrl-c` を押します。
+
+### 4-3. 子機を承認する
+
+provisioning の接続確認または初回 heartbeat を送信した子機は、未承認の保留状態に
+なります。親機の管理画面で `/admin/units` を開き、「新規子機を登録」→「自動探知を
+開始」→対象子機の「この子機を登録」の順に進み、子機名と接続元を確認して承認して
+ください。次回 heartbeat が届くと、子機がオンラインになります。
+
+## 5. Windows で親機を一時起動する
+
+Windows は開発・検証用です。MySQL 8 を先に起動し、`.env` の認証情報と MySQL 接続先を
+設定してください。
 
 ```powershell
 Copy-Item .env.example .env
-# .env を編集してから実行する
+# .env を編集してから実行
 .\venv-start.ps1 parent-mysql
 ```
 
 `venv-start.ps1` は必要に応じて `.venv` を作成し、開発用依存関係をインストールします。
-RC-S380 を使う場合は [card_reader_windows.md](card_reader_windows.md) を参照してください。
+RC-S380 を使用する場合は [card_reader_windows.md](card_reader_windows.md) を参照してください。
 
-## 4. 起動後の確認と次の資料
+## 6. 起動後の確認
 
-親機では管理画面にログインできること、子機では heartbeat が届き承認後にオンラインに
-なることを確認します。変更前・運用開始前には、次のチェックを実行してください。
+- 親機の管理画面へログインできる
+- 子機が管理画面に表示され、承認後にオンラインになる
+- 親機・子機の tmux セッションが `running` になっている
+- `.env`、`config.json`、ログ、DB ファイルが Git の変更対象に含まれていない
+
+開発時または変更後は、次のチェックも実行します。
 
 ```bash
 .venv/bin/python -m pytest -q
@@ -205,8 +266,8 @@ RC-S380 を使う場合は [card_reader_windows.md](card_reader_windows.md) を�
 git diff --check
 ```
 
-Windows では `.venv\\Scripts\\python.exe` を使います。日常運用、バックアップ、障害時の
-一次対応は [operations.md](operations.md)、子機の詳細な手動セットアップは
+Windows では `.venv\Scripts\python.exe` を使用します。日常運用、バックアップ、障害時の
+対応は [operations.md](operations.md)、子機の詳細なセットアップは
 [scripts/SETUP_UNIT.md](../scripts/SETUP_UNIT.md) を参照してください。
 
 最終更新: 2026-08-17
