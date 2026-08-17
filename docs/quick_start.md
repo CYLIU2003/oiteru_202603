@@ -9,8 +9,7 @@ RC-S380 リーダーの利用手順には対応しますが、標準の本番ホ
 必要なもの: Git、Python 3.10 以上、MySQL 8、tmux。
 
 ```bash
-git clone <repository-url> oiteru_202603
-cd oiteru_202603
+cd /home/hirameki-3/デスクトップ/oiteru_202603/
 cp .env.example .env
 chmod +x venv-start.sh scripts/*.sh
 ```
