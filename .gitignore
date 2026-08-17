@@ -48,3 +48,4 @@ Thumbs.db
 .vscode/
 node_modules/
 oiteru.sqlite3.empty.bak
+backup_oiteru_20260814_173440.sql
