@@ -1,5 +1,5 @@
-# OITERU quick start
+# OITERU クイックスタート
 
-The canonical setup and launch instructions are now in
-[docs/quick_start.md](docs/quick_start.md). This compatibility page is kept
-only for existing links.
+正式なセットアップおよび起動手順は
+[docs/quick_start.md](docs/quick_start.md) に移動しました。このページは、
+既存のリンクとの互換性を保つためだけに残しています。
