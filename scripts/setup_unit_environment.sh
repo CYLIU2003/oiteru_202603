@@ -32,7 +32,8 @@ sudo apt-get install -y \
     pcscd \
     i2c-tools \
     git \
-    tmux
+    tmux \
+    curl
 
 # --- 3. I2Cの有効化 ---
 echo ""
@@ -65,9 +66,9 @@ echo ""
 echo "🐍 [4/6] Python仮想環境を作成中..."
 cd "$PROJECT_ROOT"
 
-if [ ! -d "venv" ]; then
-    python3 -m venv venv
-    echo "✓ 仮想環境 'venv' を作成しました"
+if [ ! -d ".venv" ]; then
+    python3 -m venv .venv
+    echo "✓ 仮想環境 '.venv' を作成しました"
 else
     echo "✓ 仮想環境は既に存在します"
 fi
@@ -75,14 +76,14 @@ fi
 # --- 5. Pythonパッケージのインストール ---
 echo ""
 echo "📚 [5/6] Pythonパッケージをインストール中..."
-source venv/bin/activate
+source .venv/bin/activate
 
 # pipを最新版に更新
 pip install --upgrade pip setuptools wheel
 
 # 子機用パッケージをインストール
-if [ -f "docker/requirements-client.txt" ]; then
-    pip install -r docker/requirements-client.txt
+if [ -f "requirements-client.txt" ]; then
+    pip install -r requirements-client.txt
     echo "✓ 子機用パッケージをインストールしました"
 else
     echo "⚠️  requirements-client.txt が見つかりません"
@@ -124,11 +125,11 @@ echo "2. I2Cを有効化した場合は、システムを再起動してくだ�
 echo "   sudo reboot"
 echo ""
 echo "3. 子機を起動してください:"
-echo "   source venv/bin/activate"
+echo "   source .venv/bin/activate"
 echo "   python unit.py"
 echo ""
 echo "または、tmuxセッションで起動:"
-echo "   tmux new-session -d -s oiteru 'source venv/bin/activate && python unit.py'"
-echo "   tmux attach -t oiteru  # ログ確認"
+echo "   scripts/tmux_oiteru.sh start unit"
+echo "   scripts/tmux_oiteru.sh attach unit  # ログ確認"
 echo ""
 echo "=========================================="

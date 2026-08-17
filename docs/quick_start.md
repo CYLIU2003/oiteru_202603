@@ -37,10 +37,17 @@ scripts/tmux_oiteru.sh status parent
 よく使う tmux コマンド:
 
 ```bash
+# 親機は oiteru-parent セッションでバックグラウンド起動される
 scripts/tmux_oiteru.sh attach parent
 scripts/tmux_oiteru.sh logs parent
 scripts/tmux_oiteru.sh restart parent
+scripts/tmux_oiteru.sh stop parent
 ```
+
+`attach` 後は `Ctrl-b`、続けて `d` を押すと、親機を停止せずに tmux から
+離脱できます。SSH を切断しても `oiteru-parent` セッションは継続します。再接続後は
+`scripts/tmux_oiteru.sh attach parent` で画面に戻り、`tmux ls` または
+`scripts/tmux_oiteru.sh status parent` で稼働状態を確認します。
 
 ## 2. Raspberry Pi 子機
 
@@ -59,6 +66,27 @@ scripts/tmux_oiteru.sh status unit
 `provision_unit.sh` は、パーミッション `0600` の `/etc/oiteru/unit-secret` を作成し、
 `config.json` にはそのパスのみを書き込みます。また、親機に到達できることも確認します。
 子機は、管理者による承認が完了するまで保留状態のままです。
+
+子機も親機とは別の `oiteru-unit` セッションでバックグラウンド起動されます。Raspberry Pi
+に SSH 接続したまま監視する場合と、離脱・復帰する場合は次のとおりです。
+
+```bash
+# 子機の標準出力を確認する
+scripts/tmux_oiteru.sh attach unit
+
+# attach 中は Ctrl-b、続けて d で子機を止めずに離脱する
+
+# SSH 再接続後の確認・復帰・停止
+scripts/tmux_oiteru.sh status unit
+scripts/tmux_oiteru.sh logs unit
+scripts/tmux_oiteru.sh attach unit
+scripts/tmux_oiteru.sh stop unit
+```
+
+親機と子機は通常は別ホストで実行するため、それぞれのホストで `tmux ls` を実行して
+確認します。同一ホストで検証する場合でも、セッション名は `oiteru-parent` と
+`oiteru-unit` に分かれるため、両方を同時に起動できます。既存セッションがある状態で
+`start` を再実行しても二重起動はせず、既存セッションへの `attach` を案内します。
 
 ステッピングモーターを直接接続する場合は、`MOTOR_TYPE=STEPPER` と
 `CONTROL_METHOD=RASPI_DIRECT` を維持してください。また、`config.json` の BCM ピンが

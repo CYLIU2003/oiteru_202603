@@ -20,6 +20,9 @@ chmod +x scripts/setup_unit_environment.sh
 ./scripts/setup_unit_environment.sh
 ```
 
+このスクリプトは tmux を含む必要パッケージと `.venv` を用意し、
+`requirements-client.txt` の子機用依存関係をインストールします。
+
 セットアップ後、公開設定を `config.json` に用意し、秘密情報は Provisioning
 スクリプトで別ファイルへ保存します。
 
@@ -170,4 +173,4 @@ scripts/tmux_oiteru.sh status unit
 | `../docs/operations.md` | 運用・障害対応 |
 | `../config_templates/README.md` | 設定ファイルの詳細 |
 
-最終更新: 2026-06-17
+最終更新: 2026-08-17
