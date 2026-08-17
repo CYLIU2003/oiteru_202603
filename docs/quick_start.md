@@ -1,8 +1,8 @@
 # OITERU クイックスタート
 
 このガイドでは、OITERU を構成する**親機**と**子機**を最短で起動します。親機は
-Linux + MySQL 8、子機は Raspberry Pi を標準環境とします。起動にはどちらも tmux を
-使用するため、SSH 接続を切ってもプロセスは継続します。
+Linux + MySQL 8、子機は Raspberry Pi を標準環境とします。短時間の確認は前景で起動し、
+SSH 切断後も動かす常駐運用では tmux を使用します。
 
 > Windows はローカル開発と RC-S380 の利用に対応していますが、学内実証の標準運用
 > ホストではありません。
@@ -17,7 +17,7 @@ Linux + MySQL 8、子機は Raspberry Pi を標準環境とします。起動に
 親機と子機は通常は別ホストで動かします。同一ホストで検証する場合も、tmux セッションが
 分かれるため同時起動できます。
 
-| 役割 | 実行するホスト | tmux セッション | 起動コマンド |
+| 役割 | 実行するホスト | 常駐時の tmux セッション | 起動コマンド |
 |---|---|---|---|
 | 親機 | Linux サーバー | `oiteru-parent` | `scripts/tmux_oiteru.sh start parent` |
 | 子機 | Raspberry Pi | `oiteru-unit` | `scripts/tmux_oiteru.sh start unit` |
@@ -77,7 +77,15 @@ scripts/setup_local_mysql.sh --install
 
 手書きの DDL は実行しないでください。親機の起動時に migration が適用されます。
 
-### 1-4. 親機を tmux で起動する
+### 1-4. 親機を起動する
+
+短時間だけ動作を確認する場合は、前景で起動します。終了するには `Ctrl-c` を押します。
+
+```bash
+./venv-start.sh parent-mysql
+```
+
+SSH を切断しても親機を動かし続ける場合は、tmux で起動します。
 
 ```bash
 scripts/tmux_oiteru.sh start parent
@@ -88,7 +96,19 @@ scripts/tmux_oiteru.sh status parent
 `http://<親機のホスト名または IP>:5000/`、管理画面は
 `http://<親機のホスト名または IP>:5000/admin` です。
 
-ローカルホストだけで確認する場合は、`http://localhost:5000/` を開きます。
+常駐中の親機を操作するには、次を使用します。`attach` 中は `Ctrl-b`、続けて `d` で
+親機を止めずに離脱できます。`logs` は `Ctrl-c` で終了します。
+
+```bash
+scripts/tmux_oiteru.sh attach parent  # 実行画面を表示する
+scripts/tmux_oiteru.sh logs parent    # ログを追跡する
+scripts/tmux_oiteru.sh restart parent # 再起動する
+scripts/tmux_oiteru.sh stop parent    # 停止する
+```
+
+同じ親機を二重起動しないよう、既存の tmux セッションがある状態で `start` を実行すると
+`attach` が案内されます。ローカルホストだけで確認する場合は、`http://localhost:5000/`
+を開きます。
 
 ## 2. 子機を起動する（Raspberry Pi）
 
@@ -126,7 +146,15 @@ tmux 状態を見直してください。
 確認します。詳しい設定は [config_templates/README.md](../config_templates/README.md) を
 参照してください。
 
-### 2-3. 子機を tmux で起動する
+### 2-3. 子機を起動する
+
+短時間だけ動作を確認する場合は、前景で起動します。終了するには `Ctrl-c` を押します。
+
+```bash
+./venv-start.sh unit
+```
+
+SSH を切断しても子機を動かし続ける場合は、tmux で起動します。
 
 ```bash
 scripts/tmux_oiteru.sh start unit
@@ -138,34 +166,21 @@ scripts/tmux_oiteru.sh status unit
 次回 heartbeat が届くと、子機はオンラインになります。子機用シークレットをチャットや
 チケットに平文で書かないでください。
 
-長期の無人運用では systemd 化を推奨します。設定例と注意点は
-[operations.md](operations.md) を参照してください。
-
-## 3. tmux の基本操作
-
-親機・子機とも、操作するホスト上で同じ形式のコマンドを使います。
+常駐中の子機を操作するには、次を使用します。`attach` 中は `Ctrl-b`、続けて `d` で
+子機を止めずに離脱できます。`logs` は `Ctrl-c` で終了します。
 
 ```bash
-# 親機の例。子機の場合は parent を unit に置き換える
-scripts/tmux_oiteru.sh attach parent  # 実行画面を表示する
-scripts/tmux_oiteru.sh logs parent    # ログを追跡する
-scripts/tmux_oiteru.sh restart parent # 再起動する
-scripts/tmux_oiteru.sh stop parent    # 停止する
+scripts/tmux_oiteru.sh attach unit  # 実行画面を表示する
+scripts/tmux_oiteru.sh logs unit    # ログを追跡する
+scripts/tmux_oiteru.sh restart unit # 再起動する
+scripts/tmux_oiteru.sh stop unit    # 停止する
 ```
 
-`attach` 中に `Ctrl-b`、続けて `d` を押すと、サービスを止めずに tmux から離脱できます。
-SSH を切断してもセッションは継続します。再接続後は `attach`、または次のコマンドで
-状態を確認してください。
+同じ子機を二重起動しないよう、既存の tmux セッションがある状態で `start` を実行すると
+`attach` が案内されます。長期の無人運用では systemd 化も検討してください。設定例と
+注意点は [operations.md](operations.md) を参照してください。
 
-```bash
-scripts/tmux_oiteru.sh status
-tmux ls
-```
-
-すでにセッションが存在する状態で `start` を実行しても二重起動せず、既存セッションへの
-`attach` が案内されます。
-
-## 4. Windows でローカル開発する
+## 3. Windows でローカル開発する
 
 Windows は開発・検証用です。先に MySQL 8 を起動し、Linux の親機と同様に `.env` の
 認証情報と接続先を設定します。
@@ -179,7 +194,7 @@ Copy-Item .env.example .env
 `venv-start.ps1` は必要に応じて `.venv` を作成し、開発用依存関係をインストールします。
 RC-S380 を使う場合は [card_reader_windows.md](card_reader_windows.md) を参照してください。
 
-## 5. 起動後の確認と次の資料
+## 4. 起動後の確認と次の資料
 
 親機では管理画面にログインできること、子機では heartbeat が届き承認後にオンラインに
 なることを確認します。変更前・運用開始前には、次のチェックを実行してください。
