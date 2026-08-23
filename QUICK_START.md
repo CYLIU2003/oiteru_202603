@@ -55,7 +55,7 @@ MySQL が導入済みの場合、最後のコマンドは `scripts/setup_local_m
 
 ```bash
 ssh <親機ユーザー>@<親機ホスト>
-cd ~/oiteru_202603
+cd ~/デスクトップ/oiteru_202603/
 ```
 
 親機用 tmux セッションを作ります。
@@ -126,7 +126,8 @@ sudo scripts/provision_unit.sh
 
 ```bash
 ssh <子機ユーザー>@<子機ホスト>
-cd ~/oiteru_202603
+cd ~/デスクトップ/oiteru_202603/
+cd ~/desktop/oiteru_202603/
 ```
 
 子機用 tmux セッションを作ります。
