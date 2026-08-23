@@ -58,10 +58,30 @@ ssh <親機ユーザー>@<親機ホスト>
 cd ~/デスクトップ/oiteru_202603/
 ```
 
-親機用 tmux セッションを作ります。
+最初に、既存の tmux セッションを確認します。
+
+```bash
+tmux ls
+```
+
+一覧に `oiteru-parent` がある場合は、既存セッションへ入ります。
+
+```bash
+tmux attach -t oiteru-parent
+```
+
+親機がすでに動いていれば、起動コマンドをもう一度実行する必要はありません。画面を確認したら、`Ctrl-b`、続けて `d` で離脱します。
+
+`oiteru-parent` がない場合だけ、新しいセッションを作ります。`tmux ls` が `no server running` と表示される場合も、新規作成して構いません。
 
 ```bash
 tmux new -s oiteru-parent
+```
+
+既存なら接続、なければ新規作成を1コマンドで行う場合は、次でも構いません。
+
+```bash
+tmux new-session -A -s oiteru-parent
 ```
 
 tmux 内で MySQL 親機を起動します。
@@ -130,10 +150,30 @@ cd ~/デスクトップ/oiteru_202603/
 cd ~/desktop/oiteru_202603/
 ```
 
-子機用 tmux セッションを作ります。
+最初に、既存の tmux セッションを確認します。
+
+```bash
+tmux ls
+```
+
+一覧に `oiteru-unit` がある場合は、既存セッションへ入ります。
+
+```bash
+tmux attach -t oiteru-unit
+```
+
+子機がすでに動いていれば、起動コマンドをもう一度実行する必要はありません。画面を確認したら、`Ctrl-b`、続けて `d` で離脱します。
+
+`oiteru-unit` がない場合だけ、新しいセッションを作ります。`tmux ls` が `no server running` と表示される場合も、新規作成して構いません。
 
 ```bash
 tmux new -s oiteru-unit
+```
+
+既存なら接続、なければ新規作成を1コマンドで行う場合は、次でも構いません。
+
+```bash
+tmux new-session -A -s oiteru-unit
 ```
 
 HTTPS の親機へ接続する標準構成では、tmux 内で子機を起動します。
