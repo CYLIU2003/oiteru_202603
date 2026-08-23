@@ -107,7 +107,9 @@ curl --fail http://127.0.0.1:5000/api/health
 
 ```bash
 ssh <子機ユーザー>@<子機ホスト>
-cd ~/oiteru_202603
+cd ~/デスクトップ/oiteru_202603/
+または
+cd ~/desktop/oiteru_202603/
 ```
 
 子機用の OS パッケージと Python 環境を準備します。
