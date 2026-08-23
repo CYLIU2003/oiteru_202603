@@ -110,6 +110,8 @@ ssh <子機ユーザー>@<子機ホスト>
 cd ~/デスクトップ/oiteru_202603/
 または
 cd ~/desktop/oiteru_202603/
+または
+cd ~/Desktop/oiteru_202603/
 ```
 
 子機用の OS パッケージと Python 環境を準備します。
