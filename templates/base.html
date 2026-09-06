@@ -8,17 +8,20 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  {% block page_styles %}{% endblock %}
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
   <div class="page-wrapper">
     <header class="site-header">
       <div class="container header-inner">
         <div class="brand-block">
+          {% block brand %}
           <img src="{{ url_for('static', filename='img/logo20250506.png') }}" alt="東京都市大学 美しい時代へ 東急グループ">
           <div class="brand-text">
             <span class="brand-subtitle">東京都市大学 × 東急グループ</span>
             <h1>OITERU システム</h1>
           </div>
+          {% endblock %}
         </div>
 
         <div class="header-status-row">

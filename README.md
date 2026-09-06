@@ -30,6 +30,9 @@ Administrator browser ── /admin/* and /api/v1/admin/* (authenticated only)
 
 - Public users can register a card and check their own usage without an
   administrator login.
+- The registration screen uses the [Campus Welcome design system](DESIGN.md)
+  and a locally served official Tokyo City University logo. See the
+  [screen design and asset source](docs/user_flow.md#登録画面のデザイン).
 - Administrative screens and administrative APIs require an authenticated
   administrator session.
 - The normal database is MySQL 8 (InnoDB). SQLite support is legacy-only and
