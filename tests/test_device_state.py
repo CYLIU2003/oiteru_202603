@@ -4,7 +4,15 @@ from __future__ import annotations
 
 import sqlite3
 
+import pytest
+
 from app import state
+
+
+@pytest.fixture(autouse=True)
+def memory_database_dialect(monkeypatch):
+    """Match these in-memory test connections without changing runtime config."""
+    monkeypatch.setattr(state._db, "db_type", "sqlite")
 
 
 def _connection():

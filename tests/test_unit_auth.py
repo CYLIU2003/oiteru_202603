@@ -8,7 +8,9 @@ from app import state
 from app.auth.unit_auth import issue_unit_session_token, validate_unit_token
 
 
-def test_device_token_is_persisted_and_revoked_when_rotated():
+def test_device_token_is_persisted_and_revoked_when_rotated(monkeypatch):
+    # This test owns an in-memory SQLite connection regardless of local .env.
+    monkeypatch.setattr(state._db, "db_type", "sqlite")
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
     conn.execute("CREATE TABLE units (name TEXT PRIMARY KEY)")
