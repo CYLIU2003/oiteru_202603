@@ -6,3 +6,4 @@ nfcpy>=1.0.4
 libusb>=1.0.27          # Windowsでnfcpyがlibusb-1.0.dllを使うために必要
 requests>=2.32.0
 PyMySQL>=1.1.0          # MySQL接続 (db_server.py / db_adapter.py)
+gunicorn>=23.0.0        # Linux production WSGI server

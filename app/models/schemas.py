@@ -62,6 +62,78 @@ class UnitRecord:
 
 
 @dataclass
+class StockMovementRecord:
+    id: int
+    unit_id: int
+    movement_type: str
+    quantity_delta: int
+    stock_before: int
+    stock_after: int
+    reason: str
+    admin_user_id: int | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+    unit_name: str | None = None
+    admin_username: str | None = None
+
+    @classmethod
+    def from_row(cls, row: dict[str, Any]) -> StockMovementRecord:
+        return cls(
+            id=int(row["id"]),
+            unit_id=int(row["unit_id"]),
+            movement_type=str(row["movement_type"]),
+            quantity_delta=int(row["quantity_delta"]),
+            stock_before=int(row["stock_before"]),
+            stock_after=int(row["stock_after"]),
+            reason=str(row["reason"]),
+            admin_user_id=_optional_int(row.get("admin_user_id")),
+            created_at=_normalize_date_str(row.get("created_at")),
+            updated_at=_normalize_date_str(row.get("updated_at")),
+            unit_name=row.get("unit_name"),
+            admin_username=row.get("admin_username"),
+        )
+
+
+@dataclass
+class MaintenanceTicketRecord:
+    id: int
+    unit_id: int
+    category: str
+    status: str
+    source: str
+    description: str
+    opened_by_admin_user_id: int | None = None
+    assigned_to_admin_user_id: int | None = None
+    resolution_note: str | None = None
+    resolved_by_admin_user_id: int | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+    resolved_at: str | None = None
+    unit_name: str | None = None
+    assigned_to_username: str | None = None
+
+    @classmethod
+    def from_row(cls, row: dict[str, Any]) -> MaintenanceTicketRecord:
+        return cls(
+            id=int(row["id"]),
+            unit_id=int(row["unit_id"]),
+            category=str(row["category"]),
+            status=str(row["status"]),
+            source=str(row["source"]),
+            description=str(row["description"]),
+            opened_by_admin_user_id=_optional_int(row.get("opened_by_admin_user_id")),
+            assigned_to_admin_user_id=_optional_int(row.get("assigned_to_admin_user_id")),
+            resolution_note=row.get("resolution_note"),
+            resolved_by_admin_user_id=_optional_int(row.get("resolved_by_admin_user_id")),
+            created_at=_normalize_date_str(row.get("created_at")),
+            updated_at=_normalize_date_str(row.get("updated_at")),
+            resolved_at=_normalize_date_str(row.get("resolved_at")),
+            unit_name=row.get("unit_name"),
+            assigned_to_username=row.get("assigned_to_username"),
+        )
+
+
+@dataclass
 class DispenseEventRecord:
     id: int
     event_id: str
@@ -220,3 +292,7 @@ def _normalize_date_str(value: Any) -> Optional[str]:
     if isinstance(value, (date, datetime)):
         return value.strftime("%Y-%m-%d %H:%M:%S")
     return str(value) if value else None
+
+
+def _optional_int(value: Any) -> int | None:
+    return int(value) if value is not None else None

@@ -20,20 +20,24 @@ chmod +x scripts/setup_unit_environment.sh
 ./scripts/setup_unit_environment.sh
 ```
 
-セットアップ後、`config.json` を確認します。
+このスクリプトは tmux を含む必要パッケージと `.venv` を用意し、
+`requirements-client.txt` の子機用依存関係をインストールします。
+
+セットアップ後、公開設定を `config.json` に用意し、秘密情報は Provisioning
+スクリプトで別ファイルへ保存します。
 
 ```bash
 cp config.example.json config.json
-nano config.json
+sudo scripts/provision_unit.sh
 ```
 
 最低限、次を変更してください。
 
 | キー | 内容 | 例 |
 |---|---|---|
-| `SERVER_URL` | 親機 URL | `http://192.168.1.10:5000` |
+| `SERVER_URL` | 親機 URL | `https://oiteru-parent.example` |
 | `UNIT_NAME` | 子機名 | `unit-01` |
-| `UNIT_PASSWORD` | 親機側と合わせるパスワード | `change-this` |
+| `UNIT_SECRET_FILE` | 秘密情報ファイル | `/etc/oiteru/unit-secret` |
 | `MOTOR_TYPE` | `SERVO` または `STEPPER` | `STEPPER` |
 | `CONTROL_METHOD` | ラズパイ直結なら `RASPI_DIRECT` | `RASPI_DIRECT` |
 | `STEPPER_BACKEND` | ステッパー制御方式 | `auto` |
@@ -148,7 +152,8 @@ sudo usermod -aG gpio $USER
 curl http://<親機IP>:5000
 ```
 
-接続できない場合は、`config.json` の `SERVER_URL`、ネットワーク、Tailscale/LAN、親機 tmux の状態を確認してください。
+接続できない場合は、`config.json` の `SERVER_URL`、`/etc/oiteru/unit-secret`
+の存在・権限、ネットワーク、親機 tmux の状態を確認してください。
 
 ## 作業後チェック
 
@@ -163,9 +168,9 @@ scripts/tmux_oiteru.sh status unit
 
 | ファイル | 内容 |
 |---|---|
-| `../取説書/QUICKSTART.md` | 全体的なクイックスタート |
+| `../docs/quick_start.md` | 全体的なクイックスタート |
 | `../docs/onboarding.md` | 新規参加者向け |
 | `../docs/operations.md` | 運用・障害対応 |
 | `../config_templates/README.md` | 設定ファイルの詳細 |
 
-最終更新: 2026-06-17
+最終更新: 2026-08-17

@@ -68,7 +68,7 @@ if ($Type -eq "unit") {
     $config = @{
         SERVER_URL = "http://${ServerIP}:5000"
         UNIT_NAME = $Name
-        UNIT_PASSWORD = $Password
+        UNIT_SECRET_FILE = "/etc/oiteru/unit-secret"
         UNIT_LOCATION = $Location
         IS_SECONDARY = $false
         MOTOR_TYPE = "STEPPER"
@@ -112,8 +112,8 @@ Write-Host ""
 
 if ($Type -eq "unit") {
     Write-Host "Next steps:" -ForegroundColor Yellow
-    Write-Host "  1. Register unit at: http://${ServerIP}:5000/admin/units/new"
-    Write-Host "  2. Start unit: scripts\start_unit.bat"
+    Write-Host "  1. On Raspberry Pi, run: sudo scripts/provision_unit.sh"
+    Write-Host "  2. Ask an administrator to approve the unit, then start it"
 } else {
     Write-Host "Next steps:" -ForegroundColor Yellow
     Write-Host "  1. Start sub-parent: scripts\start_sub_parent.bat"

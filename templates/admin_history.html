@@ -1,32 +1,34 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="admin-dashboard">
-  <h2>📋 利用履歴（排出成功）</h2>
+  <h2><span class="material-symbols-outlined">history</span> 利用履歴（排出成功）</h2>
   
   <div class="info-card">
-    <h3>ℹ️ このページについて</h3>
+    <h3><span class="material-symbols-outlined">info</span> このページについて</h3>
     <p style="margin: 0;">カードがタッチされ、生理用品が正常に排出された記録のみを表示しています。</p>
   </div>
   
   <div class="history-list" style="margin-top: 24px;">
     {% for entry in history %}
     <div class="history-item">
-      <div class="history-icon">✅</div>
+      <span class="material-symbols-outlined" style="color: var(--md-success);">check_circle</span>
       <div class="history-content">
         <div class="history-text">{{ entry['txt'] }}</div>
         <div class="history-time">{{ entry['created_at'] }}</div>
       </div>
     </div>
     {% else %}
-    <div class="info-card warning">
-      <h3>📭 履歴なし</h3>
-      <p style="margin: 0;">まだ利用履歴がありません。</p>
+    <div class="empty-state">
+      <span class="material-symbols-outlined">history</span>
+      <p>まだ利用履歴がありません</p>
     </div>
     {% endfor %}
   </div>
   
-  <div style="margin-top: 32px;">
-    <a href="{{ url_for('admin_dashboard') }}" class="menu-btn gray">← 管理者メニューに戻る</a>
+  <div style="margin-top: var(--md-space-xl);">
+    <a href="{{ url_for('admin_dashboard') }}" class="menu-btn gray">
+      <span class="material-symbols-outlined">arrow_back</span> 管理者メニューに戻る
+    </a>
   </div>
 </div>
 {% endblock %}

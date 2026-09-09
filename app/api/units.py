@@ -3,28 +3,20 @@
 from __future__ import annotations
 
 from collections import deque
-from datetime import datetime
+from datetime import datetime, timedelta
+import os
 from typing import Dict
 
-import requests
 from flask import Blueprint, jsonify, request, session
 
-from app.auth.auth_manager import hash_secret
-from app.auth.unit_auth import (
-    get_push_headers,
-    issue_unit_session_token,
-    get_unit_session_tokens,
-)
+from app import state
+from app.auth.auth_manager import verify_secret
+from app.auth.unit_auth import issue_unit_session_token, validate_unit_token
 from app.logger import get_logger
-from app.models.schemas import UnitConfigData
 from app.repositories.unit_repository import UnitRepository
-from app.services.unit_service import (
-    heartbeat_update,
-    pending_unit_config_updates,
-    unregistered_units,
-    unit_configs,
-)
+from app.services.unit_service import heartbeat_update
 from db_adapter import get_connection
+from unit.configuration import validate_gpio_config
 
 logger = get_logger(__name__)
 
@@ -34,10 +26,6 @@ _unit_repo = UnitRepository()
 
 unit_logs: Dict[str, deque] = {}
 UNIT_LOG_LIMIT = 100
-
-# Unit config normalization (from server.py)
-from app.services.settings_service import server_settings
-
 
 def _parse_bool(value) -> bool:
     if isinstance(value, bool):
@@ -116,7 +104,11 @@ def normalize_unit_config(config: dict) -> dict:
         "MOTOR_DURATION": _clamp_float(config.get("MOTOR_DURATION"), 2.0, 0.1, 60.0),
         "MOTOR_REVERSE": _parse_bool(config.get("MOTOR_REVERSE")),
         "USE_SENSOR": _parse_bool(config.get("USE_SENSOR")),
-        "SENSOR_GPIO_PIN": _clamp_int(config.get("SENSOR_GPIO_PIN"), 22, 0, 40),
+        "SENSOR_GPIO_PIN": _clamp_int(
+            config.get("SENSOR_GPIO_PIN", config.get("SENSOR_PIN")), 13, 0, 27
+        ),
+        "GREEN_LED_PIN": _clamp_int(config.get("GREEN_LED_PIN"), 5, 0, 27),
+        "RED_LED_PIN": _clamp_int(config.get("RED_LED_PIN"), 6, 0, 27),
         "SENSOR_TIMEOUT": _clamp_float(config.get("SENSOR_TIMEOUT"), 5.0, 0.1, 120.0),
         "SENSOR_CHECK_PRE": _parse_bool(config.get("SENSOR_CHECK_PRE", True)),
         "SENSOR_CHECK_POST": _parse_bool(config.get("SENSOR_CHECK_POST", True)),
@@ -136,13 +128,10 @@ def normalize_unit_config(config: dict) -> dict:
 
 
 def get_authenticated_unit(conn, unit_name, unit_password=None, unit_token=None):
-    from app.auth.auth_manager import verify_secret
-    from app.auth.unit_auth import validate_unit_token
-
     unit = _unit_repo.find_by_name(conn, unit_name)
     if not unit:
         return None
-    if unit_token and validate_unit_token(unit_name, unit_token):
+    if unit_token and validate_unit_token(conn, unit_name, unit_token):
         return unit
     if unit_password and verify_secret(unit.password, unit_password):
         return unit
@@ -161,44 +150,59 @@ def api_unit_heartbeat():
     unit_password = data.get("unit_password") or data.get("password")
     ip_address = request.remote_addr
     unit_config = data.get("config", {})
+    config_ack = data.get("config_update_ack")
 
-    if not all([unit_name, unit_password]):
-        return jsonify({"error": "Unit name and password required"}), 400
+    unit_token = data.get("unit_token")
+    if not unit_name or not (unit_password or unit_token):
+        return jsonify({"error": "Unit name and credentials required"}), 400
+    if config_ack is not None and not isinstance(config_ack, dict):
+        return jsonify({"error": "config_update_ack must be an object"}), 400
+    if config_ack:
+        try:
+            config_ack = {
+                "config_update_id": str(config_ack.get("config_update_id") or ""),
+                "config_version": int(config_ack.get("config_version")),
+                "applied": bool(config_ack.get("applied")),
+                "error": str(config_ack.get("error") or ""),
+            }
+        except (TypeError, ValueError):
+            return jsonify({"error": "Invalid config_update_ack"}), 400
 
     with get_connection() as conn:
         from app.auth.auth_manager import verify_secret
         unit = _unit_repo.find_by_name(conn, unit_name)
 
         if unit:
-            if not verify_secret(unit.password, unit_password):
-                return jsonify({"error": "Invalid password"}), 401
-
-            unit_record, response = heartbeat_update(
-                conn, unit_name, ip_address, unit_config
+            authenticated_by_password = bool(
+                unit_password and verify_secret(unit.password, unit_password)
             )
+            authenticated_by_token = bool(
+                unit_token and validate_unit_token(conn, unit_name, unit_token)
+            )
+            if not (authenticated_by_password or authenticated_by_token):
+                return jsonify({"error": "Invalid unit credentials"}), 401
 
-            token = get_unit_session_tokens().get(unit_name) or issue_unit_session_token(unit_name)
-            response["unit_api_token"] = token
-
-            if unit_name in pending_unit_config_updates:
-                response["config_update"] = pending_unit_config_updates.pop(unit_name)
+            _, response = heartbeat_update(
+                conn, unit_name, ip_address, unit_config, config_ack
+            )
+            if authenticated_by_password:
+                response["unit_api_token"] = issue_unit_session_token(conn, unit_name)
 
             return jsonify(response)
-        else:
-            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            if unit_name not in unregistered_units:
-                unregistered_units[unit_name] = {
-                    "password_hash": hash_secret(unit_password),
-                    "ip_address": ip_address,
-                    "first_seen": now,
-                    "last_seen": now,
-                    "heartbeat_count": 1,
-                }
-            else:
-                unregistered_units[unit_name]["last_seen"] = now
-                unregistered_units[unit_name]["heartbeat_count"] += 1
-                unregistered_units[unit_name]["ip_address"] = ip_address
-            return jsonify({"error": "Unit not registered", "pending": True}), 404
+
+        if not unit_password:
+            return jsonify({"error": "Password required for unregistered unit"}), 401
+        credential_conflict = state.upsert_pending_unit(
+            conn, unit_name, unit_password, ip_address
+        )
+        if credential_conflict:
+            logger.warning("Pending unit credential conflict: unit_name=%s", unit_name)
+            return jsonify({
+                "error": "Pending unit credential conflict",
+                "pending": True,
+                "credential_conflict": True,
+            }), 409
+        return jsonify({"error": "Unit not registered", "pending": True}), 404
 
 
 # --- Log endpoint ---
@@ -213,13 +217,15 @@ def api_add_log():
 
     with get_connection() as conn:
         unit = get_authenticated_unit(conn, unit_name, unit_password, unit_token)
-    if not unit:
-        return jsonify({"success": False, "error": "Invalid unit credentials"}), 401
+        if not unit:
+            return jsonify({"success": False, "error": "Invalid unit credentials"}), 401
+
+        if message:
+            from app.repositories.history_repository import HistoryRepository
+            HistoryRepository().insert(conn, f"[{unit_name}] {message}")
 
     if message:
         logger.info("[%s] %s", unit_name, message)
-        from app.repositories.history_repository import HistoryRepository
-        HistoryRepository().insert(f"[{unit_name}] {message}")
 
         if unit_name not in unit_logs:
             unit_logs[unit_name] = deque(maxlen=UNIT_LOG_LIMIT)
@@ -240,13 +246,120 @@ def _require_admin():
     return None
 
 
+def _pending_unit_expired(pending: dict) -> bool:
+    try:
+        ttl_seconds = int(os.getenv("PENDING_UNIT_TTL_SECONDS", "86400"))
+    except ValueError:
+        ttl_seconds = 86400
+    try:
+        first_seen = datetime.strptime(pending["first_seen"], "%Y-%m-%d %H:%M:%S")
+    except (KeyError, TypeError, ValueError):
+        return True
+    return first_seen + timedelta(seconds=max(60, ttl_seconds)) < datetime.now()
+
+
+@unit_bp.route("/api/v1/admin/pending-devices", methods=["GET"])
+def api_list_pending_devices():
+    err = _require_admin()
+    if err:
+        return err
+    with get_connection() as conn:
+        pending = state.get_pending_units(conn)
+    return jsonify({
+        "success": True,
+        "devices": [
+            {
+                key: item.get(key)
+                for key in (
+                    "unit_name", "ip_address", "first_seen", "last_seen",
+                    "heartbeat_count", "credential_conflict", "credential_conflict_at",
+                )
+            }
+            | {"expired": _pending_unit_expired(item)}
+            for item in pending
+        ],
+    })
+
+
+@unit_bp.route("/api/v1/admin/pending-devices/<string:unit_name>/approve", methods=["POST"])
+def api_approve_pending_device(unit_name: str):
+    err = _require_admin()
+    if err:
+        return err
+    payload = request.get_json(silent=True) or {}
+    try:
+        stock = int(payload.get("stock", 0))
+    except (TypeError, ValueError):
+        return jsonify({"error": "stock must be an integer"}), 400
+    if not 0 <= stock <= 10000:
+        return jsonify({"error": "stock must be between 0 and 10000"}), 400
+
+    with get_connection() as conn:
+        pending = state.get_pending_unit(conn, unit_name)
+        if not pending:
+            return jsonify({"error": "Pending device not found"}), 404
+        if _pending_unit_expired(pending):
+            state.delete_pending_unit(conn, unit_name)
+            return jsonify({"error": "Pending device pairing expired"}), 410
+        if pending.get("credential_conflict"):
+            return jsonify({"error": "Resolve credential conflict before approval"}), 409
+        if _unit_repo.find_by_name(conn, unit_name):
+            return jsonify({"error": "Device already registered"}), 409
+
+        _unit_repo.insert(
+            conn,
+            name=unit_name,
+            password=pending["password_hash"],
+            stock=stock,
+            initial_stock=stock,
+            connect=0,
+            available=1,
+            ip_address=pending.get("ip_address"),
+        )
+        state.delete_pending_unit(conn, unit_name)
+        state.record_device_status(conn, unit_name, "approved")
+        from app.repositories.history_repository import HistoryRepository
+        HistoryRepository().insert(conn, f"子機を承認: {unit_name}", "system")
+
+    return jsonify({"success": True, "unit_name": unit_name}), 201
+
+
+@unit_bp.route("/api/v1/admin/pending-devices/<string:unit_name>/reject", methods=["POST"])
+def api_reject_pending_device(unit_name: str):
+    err = _require_admin()
+    if err:
+        return err
+    with get_connection() as conn:
+        pending = state.get_pending_unit(conn, unit_name)
+        if not pending:
+            return jsonify({"error": "Pending device not found"}), 404
+        state.delete_pending_unit(conn, unit_name)
+        from app.repositories.history_repository import HistoryRepository
+        HistoryRepository().insert(conn, f"子機の承認要求を拒否: {unit_name}", "system")
+    return jsonify({"success": True, "unit_name": unit_name})
+
+
 @unit_bp.route("/api/unit/<string:unit_name>/config", methods=["GET"])
 def api_get_unit_config(unit_name):
     err = _require_admin()
     if err:
         return err
-    if unit_name in unit_configs:
-        return jsonify({"success": True, "unit_name": unit_name, **unit_configs[unit_name]})
+    with get_connection() as conn:
+        reported = state.get_unit_config_snapshot(conn, unit_name)
+        desired = state.get_desired_unit_config(conn, unit_name)
+    if reported or desired:
+        return jsonify(
+            {
+                "success": True,
+                "unit_name": unit_name,
+                "config": reported["config"] if reported else desired["config"],
+                "reported_config": reported["config"] if reported else None,
+                "reported_at": reported.get("last_updated") if reported else None,
+                "desired_config": desired["config"] if desired else None,
+                "desired_version": desired.get("config_version") if desired else None,
+                "ip_address": reported.get("ip_address") if reported else None,
+            }
+        )
     return jsonify({"success": False, "error": "Unit config not found"}), 404
 
 
@@ -256,66 +369,39 @@ def api_update_unit_config(unit_name):
     if err:
         return err
 
-    new_config = request.json
-    if not new_config:
+    config_patch = request.get_json(silent=True)
+    if not isinstance(config_patch, dict) or not config_patch:
         return jsonify({"error": "No config provided"}), 400
-    new_config = normalize_unit_config(new_config)
-
-    pending_unit_config_updates[unit_name] = new_config
-
-    if unit_name in unit_configs:
-        unit_configs[unit_name]["config"] = new_config
-        unit_configs[unit_name]["last_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    else:
-        unit_configs[unit_name] = {
-            "config": new_config,
-            "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "ip_address": None,
-        }
+    try:
+        validate_gpio_config(normalize_unit_config(config_patch))
+    except ValueError as exc:
+        return jsonify({"error": "Invalid GPIO configuration", "detail": str(exc)}), 400
 
     with get_connection() as conn:
         unit = _unit_repo.find_by_name(conn, unit_name)
-
-    if not unit:
-        return jsonify({"error": "Unit not found"}), 404
-
-    unit_ip = unit.ip_address
-    push_headers = get_push_headers(unit_name)
-    push_success = False
-    push_error = None
-
-    if unit_ip and unit.connect == 1 and push_headers:
+        if not unit:
+            return jsonify({"error": "Unit not found"}), 404
+        desired = state.get_desired_unit_config(conn, unit_name)
+        reported = state.get_unit_config_snapshot(conn, unit_name)
+        base_config = (
+            desired["config"] if desired else reported["config"] if reported else {}
+        )
+        merged_config = dict(base_config)
+        merged_config.update(config_patch)
+        new_config = normalize_unit_config(merged_config)
         try:
-            response = requests.post(
-                f"http://{unit_ip}:5001/api/config/update",
-                json={"config": new_config},
-                headers=push_headers,
-                timeout=5,
-            )
-            if response.status_code == 200:
-                push_success = True
-                pending_unit_config_updates.pop(unit_name, None)
-            else:
-                push_error = f"子機が設定を受け付けませんでした (status: {response.status_code})"
-        except requests.exceptions.Timeout:
-            push_error = "子機への接続がタイムアウトしました"
-        except requests.exceptions.ConnectionError:
-            push_error = "子機に接続できませんでした"
-        except Exception as exc:
-            push_error = f"エラー: {exc}"
-    else:
-        push_error = "子機がオフライン、または認証トークン未取得です"
+            validate_gpio_config(new_config)
+        except ValueError as exc:
+            return jsonify({"error": "Invalid GPIO configuration", "detail": str(exc)}), 400
+        pending = state.queue_config_update(conn, unit_name, new_config)
+        state.record_device_status(conn, unit_name, "config_update_pending")
 
     return jsonify({
         "success": True,
-        "push_success": push_success,
-        "push_error": push_error,
-        "message": (
-            "設定を即座に送信しました" if push_success
-            else f"設定変更を予約しました（{push_error}）。次回ハートビートで子機に同期されます。"
-        ),
-        "pending_config": new_config,
-    })
+        "queued": True,
+        "message": "設定変更を予約しました。次回ハートビートで子機に同期されます。",
+        "config_update": pending,
+    }), 202
 
 
 @unit_bp.route("/api/unit/<unit_name>/command", methods=["POST"])
@@ -324,34 +410,7 @@ def api_send_unit_command(unit_name):
     if err:
         return err
 
-    data = request.json
-    command = data.get("command")
-    if not command:
-        return jsonify({"error": "Command required"}), 400
-
-    with get_connection() as conn:
-        unit = _unit_repo.find_by_name(conn, unit_name)
-    if not unit:
-        return jsonify({"error": "Unit not found"}), 404
-
-    unit_ip = unit.ip_address
-    push_headers = get_push_headers(unit_name)
-    if not unit_ip or unit.connect == 0 or not push_headers:
-        return jsonify({"error": "Unit is offline"}), 503
-
-    try:
-        response = requests.post(
-            f"http://{unit_ip}:5001/api/command",
-            json={"command": command},
-            headers=push_headers,
-            timeout=10,
-        )
-        if response.status_code == 200:
-            return jsonify({"success": True, "result": response.json(), "message": "コマンドを送信しました"})
-        return jsonify({"success": False, "error": f"子機がエラーを返しました (status: {response.status_code})"})
-    except requests.exceptions.Timeout:
-        return jsonify({"success": False, "error": "タイムアウト"}), 504
-    except requests.exceptions.ConnectionError:
-        return jsonify({"success": False, "error": "接続エラー"}), 503
-    except Exception as exc:
-        return jsonify({"success": False, "error": str(exc)}), 500
+    return jsonify({
+        "success": False,
+        "error": "Remote commands are disabled. Use a local maintenance procedure.",
+    }), 410

@@ -1,12 +1,23 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="admin-section">
+<div class="card-action">
+  <span class="material-symbols-outlined" style="font-size: 2.8rem; color: var(--md-primary); margin-bottom: 8px;">restore_page</span>
   <h2>データ復元</h2>
   <p>バックアップExcelファイル（<code>backup.xlsx</code>）を選択してアップロードしてください。</p>
   <form method="post" enctype="multipart/form-data">
-    <input type="file" name="backup_file" accept=".xlsx" required>
-    <button type="submit" class="btn">アップロードして復元</button>
+    <div class="form-group">
+      <input type="file" name="backup_file" accept=".xlsx" class="form-input" required>
+    </div>
+    <button type="submit" class="btn btn-primary btn-lg">
+      <span class="material-symbols-outlined">upload</span>
+      アップロードして復元
+    </button>
   </form>
-  <p><a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">キャンセル</a></p>
+  <div class="btn-group">
+    <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">
+      <span class="material-symbols-outlined">cancel</span>
+      キャンセル
+    </a>
+  </div>
 </div>
 {% endblock %}

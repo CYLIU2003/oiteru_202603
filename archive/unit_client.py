@@ -4,12 +4,20 @@ import threading
 import json
 import os
 import hmac
-import hashlib
 import socket
 import subprocess # Tailscale対応のため追加
 import queue
 import getpass  # 安全なパスワード入力
 from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from unit.configuration import load_config as load_unit_config
+from unit.configuration import save_config as save_unit_config
+from unit.configuration import validate_gpio_config
+from unit.configuration import validate_parent_url
 
 # --------------------------------------------------------------------------
 # --- 仮想環境の自動セットアップ ---
@@ -62,9 +70,10 @@ def setup_virtualenv():
     print(f"INFO: 仮想環境 {venv_path} を使用します")
     os.execv(str(python_bin), [str(python_bin)] + sys.argv)
 
-# スクリプト起動時に仮想環境をセットアップ
-if '--no-venv' not in sys.argv:
-    setup_virtualenv()
+# Dependencies are provisioned before launch (scripts/setup_unit_environment.sh).
+# The production client must never create environments or install packages at
+# runtime.  ``setup_virtualenv`` remains only as a legacy migration helper and
+# is intentionally not called by this executable.
 
 # 仮想環境内でのインポート
 import requests
@@ -146,10 +155,9 @@ def ensure_root_privileges():
 CONFIG_FILE = 'config.json'
 DEFAULT_CONFIG = {
     "SERVER_URL": "http://127.0.0.1:5000", "UNIT_NAME": "test-01",
-    "UNIT_PASSWORD": "",  # 初回起動時は空、対話的に設定
     "MOTOR_TYPE": "STEPPER",
     "USE_SENSOR": True,
-    "GREEN_LED_PIN": 17, "RED_LED_PIN": 27, "SENSOR_PIN": 22,
+    "GREEN_LED_PIN": 5, "RED_LED_PIN": 6, "SENSOR_PIN": 13,
     "MOTOR_SPEED": 100, "MOTOR_DURATION": 2.0, "MOTOR_REVERSE": False,
     "SENSOR_CHECK_PRE": True,
     "SENSOR_CHECK_POST": True,
@@ -166,58 +174,22 @@ DEFAULT_CONFIG = {
 }
 
 
-def _hash_password_for_storage(password: str) -> str:
-    """SHA-256 hash password before storing to config file.
-    
-    Production deployments should use systemd credentials or a hardware
-    security module instead of config-file-based passwords.
-    """
-    if not password:
-        return ""
-    salt = hashlib.sha256(b"oiteru-unit-config-salt").digest()
-    return hashlib.pbkdf2_hmac(
-        "sha256", password.encode("utf-8"), salt, 100000, dklen=32
-    ).hex()
-
-
-def _masked_config_for_persistence(config: dict) -> dict:
-    """Return a copy of config safe for writing to disk.
-    
-    The UNIT_PASSWORD is replaced with a one-way hash for at-rest protection.
-    The live config dict retains the plaintext for API calls.
-    """
-    result = {}
-    for key, value in config.items():
-        if key.startswith("_"):
-            continue
-        if key == "UNIT_PASSWORD" and value:
-            result[key] = _hash_password_for_storage(str(value))
-        else:
-            result[key] = value
-    return result
-
-
 def save_config(config):
     try:
-        persisted_config = _masked_config_for_persistence(config)
-        with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
-            json.dump(persisted_config, f, indent=4, ensure_ascii=False)
+        save_unit_config(CONFIG_FILE, config)
         return True
-    except IOError:
+    except OSError:
         return False
 
 
 def load_config():
-    if os.path.exists(CONFIG_FILE):
-        try:
-            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
-                config = DEFAULT_CONFIG.copy()
-                loaded = json.load(f)
-                config.update(loaded)
-                return config
-        except (IOError, json.JSONDecodeError):
-            return DEFAULT_CONFIG.copy()
-    return DEFAULT_CONFIG.copy()
+    config = load_unit_config(CONFIG_FILE, DEFAULT_CONFIG)
+    if config.pop("_unit_secret_migration_required", False):
+        print(
+            "ERROR: 旧config.jsonのUNIT_PASSWORDは再利用できません。"
+            "安全な秘密鍵ファイルを再設定してください。"
+        )
+    return config
 
 
 def parse_int_list(value, default=None):
@@ -324,12 +296,17 @@ def apply_remote_config(remote_config, current_config):
     # 設定キーのマッピング（親機キー → 子機キー）
     key_mapping = {
         'MOTOR_TYPE': 'MOTOR_TYPE',
+        'CONTROL_METHOD': 'CONTROL_METHOD',
+        'ARDUINO_PORT': 'ARDUINO_PORT',
+        'UNIT_LOCATION': 'UNIT_LOCATION',
         'USE_SENSOR': 'USE_SENSOR',
         'MOTOR_SPEED': 'MOTOR_SPEED',
         'MOTOR_DURATION': 'MOTOR_DURATION',
         'MOTOR_REVERSE': 'MOTOR_REVERSE',
         'SENSOR_GPIO_PIN': 'SENSOR_PIN',
         'SENSOR_PIN': 'SENSOR_PIN',
+        'GREEN_LED_PIN': 'GREEN_LED_PIN',
+        'RED_LED_PIN': 'RED_LED_PIN',
         'PCA9685_CHANNEL': 'PCA9685_CHANNEL',
         'HEARTBEAT_INTERVAL': 'HEARTBEAT_INTERVAL',
         'SENSOR_TIMEOUT': 'SENSOR_TIMEOUT',
@@ -347,6 +324,16 @@ def apply_remote_config(remote_config, current_config):
     }
     
     remote_config = normalize_motor_config(remote_config)
+    candidate_config = dict(current_config)
+    for remote_key, local_key in key_mapping.items():
+        if remote_key in remote_config:
+            candidate_config[local_key] = remote_config[remote_key]
+    try:
+        validate_gpio_config(candidate_config)
+    except ValueError as exc:
+        print(f"[設定更新] 危険なGPIO設定を拒否しました: {exc}")
+        return False
+
     updated_keys = []
     for remote_key, local_key in key_mapping.items():
         if remote_key in remote_config:
@@ -368,8 +355,10 @@ def apply_remote_config(remote_config, current_config):
             print("[設定更新] config.json に保存し、即座に反映されます ✓")
         else:
             print("[設定更新] config.json の保存に失敗しました")
+            return False
     else:
         print("[設定更新] 変更なし")
+    return True
 
 
 # --------------------------------------------------------------------------
@@ -397,6 +386,10 @@ def start_flask_api_server(config, port=5001):
 
     def run_motor_test_from_api():
         test_config = normalize_motor_config(app.config['config_ref'])
+        try:
+            validate_gpio_config(test_config)
+        except ValueError as exc:
+            return {'ok': False, 'message': f'危険なGPIO設定: {exc}'}
 
         if PLATFORM != "RASPI":
             return {'ok': True, 'message': 'PCモードのためモーターは動作しません'}
@@ -424,7 +417,8 @@ def start_flask_api_server(config, port=5001):
             current_config = app.config['config_ref']
             
             # 設定を適用
-            apply_remote_config(new_config, current_config)
+            if not apply_remote_config(new_config, current_config):
+                return jsonify({'error': 'Invalid GPIO configuration'}), 400
             
             return jsonify({
                 'success': True,
@@ -531,10 +525,19 @@ def start_flask_api_server(config, port=5001):
     app.run(host='0.0.0.0', port=port, threaded=True, use_reloader=False)
 
 
-# (ネットワークスキャン機能は変更なし)
 def scan_for_servers(timeout=5):
-    """UDPブロードキャストとTailscaleネットワークをスキャンして親機サーバーを見つける"""
+    """Optionally discover only a positively identified parent service.
+
+    Production units must use the explicit ``SERVER_URL`` in config.json.
+    Discovery is retained solely for supervised development and is opt-in.
+    """
+    if os.getenv("OITERU_ALLOW_SERVER_DISCOVERY", "false").lower() != "true":
+        print("INFO: 親機探索は無効です。config.json の SERVER_URL を使用します。")
+        return []
+
     found_servers = {}
+    discovery_port = int(os.getenv("SERVER_PORT", "5000"))
+    discovery_scheme = os.getenv("OITERU_DISCOVERY_SCHEME", "https")
     
     # スキャン中であることをユーザーに通知 (GUIがある場合)
     # (ここではprint文で代替)
@@ -558,10 +561,11 @@ def scan_for_servers(timeout=5):
 
         # 各IPの health エンドポイントに接続を試みる
         for ip in peer_ips:
-            url = f"http://{ip}:5001"
+            url = f"{discovery_scheme}://{ip}:{discovery_port}"
             try:
                 response = requests.get(f"{url}/api/health", timeout=0.5)
-                if response.status_code == 200 and response.json().get('status') == 'ok':
+                health = response.json() if response.status_code == 200 else {}
+                if health.get("service") == "oiteru-parent" and health.get("api_version") == "1":
                     print(f"  -> Tailscale経由で親機を発見: {url}")
                     found_servers[ip] = url
             except requests.RequestException:
@@ -585,9 +589,9 @@ def scan_for_servers(timeout=5):
         try:
             data, addr = sock.recvfrom(1024)
             message = json.loads(data.decode('utf-8'))
-            if message.get("type") == "oiteru_server_heartbeat":
+            if message.get("type") == "oiteru_parent_heartbeat" and message.get("api_version") == "1":
                 ip = message.get('server_ip')
-                url = f"http://{ip}:{message.get('port', 5001)}"
+                url = f"{discovery_scheme}://{ip}:{message.get('port', discovery_port)}"
                 if ip not in found_servers:
                     print(f"  -> UDP経由で親機を発見: {url}")
                     found_servers[ip] = url
@@ -1137,7 +1141,6 @@ def startup_diagnostics(config):
             try:
                 if Adafruit_PCA9685 is None:
                     raise RuntimeError("Adafruit_PCA9685 is not installed")
-                import Adafruit_PCA9685
                 # I2Cバスを明示的に指定 (通常はbus=1)
                 pwm = Adafruit_PCA9685.PCA9685(busnum=1)
                 pwm.set_pwm_freq(50)
@@ -1214,6 +1217,22 @@ def send_diagnostics_to_server(server_url, unit_name, diagnostics):
         print(f"  ⚠ 診断結果の送信に失敗: {e}")
 
 def run_client(config, stop_event, gui_queue):
+    if not str(config.get("UNIT_PASSWORD") or "").strip():
+        print(
+            "ERROR: 子機の秘密情報がありません。"
+            "sudo scripts/provision_unit.sh を実行してから起動してください。"
+        )
+        return
+    try:
+        validate_gpio_config(config)
+        validate_parent_url(
+            config.get("SERVER_URL", ""),
+            strict=os.getenv("OITERU_STRICT_SECURITY", "true").lower() == "true",
+        )
+    except ValueError as exc:
+        print(f"ERROR: 安全でない子機設定のため起動を中止します: {exc}")
+        return
+
     SERVER_URL = config.get('SERVER_URL')
     UNIT_NAME = config.get('UNIT_NAME')
     UNIT_PASSWORD = config.get('UNIT_PASSWORD')
@@ -1277,6 +1296,29 @@ def run_client(config, stop_event, gui_queue):
         
         return "unknown"
 
+    def add_unit_credentials(payload):
+        """Use either a short-lived token or the local secret, never both."""
+        token = config.get('_unit_api_token')
+        if token:
+            payload['unit_token'] = token
+            return True
+        payload['unit_password'] = UNIT_PASSWORD
+        return False
+
+    def post_to_parent(path, payload, timeout):
+        """Retry once with the local secret when an in-memory token expired."""
+        request_payload = dict(payload)
+        used_token = add_unit_credentials(request_payload)
+        response = requests.post(f"{SERVER_URL}{path}", json=request_payload, timeout=timeout)
+        if response.status_code == 401 and used_token:
+            config.pop('_unit_api_token', None)
+            fallback_payload = dict(payload)
+            add_unit_credentials(fallback_payload)
+            response = requests.post(
+                f"{SERVER_URL}{path}", json=fallback_payload, timeout=timeout
+            )
+        return response
+
     def refresh_runtime_settings():
         nonlocal MOTOR_TYPE, USE_SENSOR, MOTOR_SPEED, MOTOR_DURATION, MOTOR_REVERSE
         nonlocal SENSOR_PIN, SENSOR_CHECK_PRE, SENSOR_CHECK_POST, JAM_CLEAR_ATTEMPTS
@@ -1311,6 +1353,8 @@ def run_client(config, stop_event, gui_queue):
                     "MOTOR_DURATION": MOTOR_DURATION,
                     "MOTOR_REVERSE": MOTOR_REVERSE,
                     "SENSOR_GPIO_PIN": SENSOR_PIN,
+                    "GREEN_LED_PIN": GREEN_LED_PIN,
+                    "RED_LED_PIN": RED_LED_PIN,
                     "SENSOR_CHECK_PRE": SENSOR_CHECK_PRE,
                     "SENSOR_CHECK_POST": SENSOR_CHECK_POST,
                     "JAM_CLEAR_ATTEMPTS": JAM_CLEAR_ATTEMPTS,
@@ -1329,13 +1373,17 @@ def run_client(config, stop_event, gui_queue):
                 # サーバーにハートビートを送信（設定情報付き）
                 payload = {
                     "name": UNIT_NAME, 
-                    "password": UNIT_PASSWORD,
                     "ip_address": my_ip,
                     "config": current_config
                 }
-                response = requests.post(f"{SERVER_URL}/api/unit/heartbeat", json=payload, timeout=5)
+                pending_ack = config.get("_pending_config_ack")
+                if pending_ack:
+                    payload["config_update_ack"] = pending_ack
+                response = post_to_parent("/api/unit/heartbeat", payload, timeout=5)
                 if response.status_code == 200:
                     data = response.json()
+                    if pending_ack:
+                        config.pop("_pending_config_ack", None)
                     if data.get('unit_api_token'):
                         config['_unit_api_token'] = data['unit_api_token']
                     if 'stock' in data:
@@ -1344,14 +1392,15 @@ def run_client(config, stop_event, gui_queue):
                     
                     # 親機からの設定変更をチェック（即時送信 or heartbeat経由）
                     if 'config_update' in data and data['config_update']:
-                        print("[設定変更] 親機から設定変更を受信しました（即時反映）")
-                        new_config = data['config_update']
-                        apply_remote_config(new_config, config)
-                        refresh_runtime_settings()
-                    elif 'pending_config' in data and data['pending_config']:
+                        update = data['config_update']
                         print("[設定変更] 親機から設定変更を受信しました")
-                        new_config = data['pending_config']
-                        apply_remote_config(new_config, config)
+                        applied = apply_remote_config(update.get("config", {}), config)
+                        config["_pending_config_ack"] = {
+                            "config_update_id": update.get("config_update_id"),
+                            "config_version": update.get("config_version"),
+                            "applied": applied,
+                            "error": "configuration validation or save failed" if not applied else "",
+                        }
                         refresh_runtime_settings()
                         
                 else:
@@ -1366,10 +1415,7 @@ def run_client(config, stop_event, gui_queue):
     def send_log_to_server(message):
         try:
             payload = {"unit_name": UNIT_NAME, "message": message}
-            payload["unit_password"] = UNIT_PASSWORD
-            if config.get('_unit_api_token'):
-                payload["unit_token"] = config['_unit_api_token']
-            requests.post(f"{SERVER_URL}/api/log", json=payload, timeout=3)
+            post_to_parent("/api/log", payload, timeout=3)
         except requests.exceptions.RequestException: pass
 
     def indicate(status):
@@ -1458,44 +1504,36 @@ def run_client(config, stop_event, gui_queue):
         if not card_id:
             return False
             
-        gui_queue.put({'nfc': f'読取中: {card_id}'})
-        send_log_to_server(f"カード検出: {card_id}")
+        gui_queue.put({'nfc': '読取中'})
+        send_log_to_server("カードを検出")
         
         try:
             payload = {"card_id": card_id, "unit_name": UNIT_NAME}
-            payload["unit_password"] = UNIT_PASSWORD
-            if config.get('_unit_api_token'):
-                payload["unit_token"] = config['_unit_api_token']
-            response = requests.post(f"{SERVER_URL}/api/record_usage", json=payload, timeout=10)
+            response = post_to_parent("/api/record_usage", payload, timeout=10)
             
             if response.status_code == 200:
                 response_data = response.json()
                 event_id = response_data.get('event_id')
                 if not event_id:
-                    send_log_to_server(f"利用認可レスポンス不正 (event_idなし) ({card_id})")
+                    send_log_to_server("利用認可レスポンス不正 (event_idなし)")
                     indicate("failure")
                     return True
 
-                send_log_to_server(f"利用認可 ({card_id}) event={event_id[:8]}")
+                send_log_to_server(f"利用認可 event={event_id[:8]}")
                 dispense_ok = dispense_item()
                 result_payload = {
                     "event_id": event_id,
                     "unit_name": UNIT_NAME,
                     "success": dispense_ok,
                     "error_code": None if dispense_ok else "DISPENSE_FAILED_CLIENT",
-                    "unit_password": UNIT_PASSWORD,
                 }
-                if config.get('_unit_api_token'):
-                    result_payload["unit_token"] = config['_unit_api_token']
 
                 result_response = None
                 last_result_error = None
                 for _ in range(3):
                     try:
-                        result_response = requests.post(
-                            f"{SERVER_URL}/api/dispense_result",
-                            json=result_payload,
-                            timeout=10
+                        result_response = post_to_parent(
+                            "/api/dispense_result", result_payload, timeout=10
                         )
                         break
                     except requests.exceptions.RequestException as req_error:
@@ -1504,7 +1542,7 @@ def run_client(config, stop_event, gui_queue):
 
                 if result_response is None:
                     send_log_to_server(
-                        f"排出結果確定APIへの送信失敗 ({card_id}) event={event_id[:8]} err={last_result_error}"
+                        f"排出結果確定APIへの送信失敗 event={event_id[:8]} err={last_result_error}"
                     )
                     indicate("failure")
                     return True
@@ -1512,12 +1550,12 @@ def run_client(config, stop_event, gui_queue):
                 if result_response.status_code == 200:
                     result_data = result_response.json()
                     if result_data.get('success'):
-                        send_log_to_server(f"排出結果を確定 ({card_id}) event={event_id[:8]}")
+                        send_log_to_server(f"排出結果を確定 event={event_id[:8]}")
                         indicate("success")
                     else:
                         fail_code = result_data.get('error_code', 'UNKNOWN')
                         send_log_to_server(
-                            f"排出結果は失敗として確定 ({card_id}) event={event_id[:8]} code={fail_code}"
+                            f"排出結果は失敗として確定 event={event_id[:8]} code={fail_code}"
                         )
                         indicate("failure")
                 else:
@@ -1526,7 +1564,7 @@ def run_client(config, stop_event, gui_queue):
                     except Exception:
                         result_error = f"HTTP {result_response.status_code}"
                     send_log_to_server(
-                        f"排出結果確定APIエラー ({result_error}) ({card_id}) event={event_id[:8]}"
+                        f"排出結果確定APIエラー ({result_error}) event={event_id[:8]}"
                     )
                     indicate("failure")
             else:
@@ -1535,17 +1573,17 @@ def run_client(config, stop_event, gui_queue):
                     error_msg = response.json().get('error', '不明なエラー')
                 except:
                     error_msg = f"HTTP {response.status_code}"
-                send_log_to_server(f"利用不可 ({error_msg}) ({card_id})")
+                send_log_to_server(f"利用不可 ({error_msg})")
                 indicate("failure")
                 
         except requests.exceptions.Timeout:
-            send_log_to_server(f"サーバー接続タイムアウト ({card_id})")
+            send_log_to_server("サーバー接続タイムアウト")
             indicate("failure")
         except requests.exceptions.ConnectionError:
-            send_log_to_server(f"サーバー接続エラー ({card_id})")
+            send_log_to_server("サーバー接続エラー")
             indicate("failure")
         except Exception as e:
-            send_log_to_server(f"予期しないエラー: {e} ({card_id})")
+            send_log_to_server(f"予期しないエラー: {e}")
             indicate("failure")
         finally:
             time.sleep(2)
@@ -1556,10 +1594,6 @@ def run_client(config, stop_event, gui_queue):
 
     heartbeat_thread = threading.Thread(target=send_heartbeat, daemon=True)
     heartbeat_thread.start()
-
-    # Flask APIサーバーを別スレッドで起動
-    flask_thread = threading.Thread(target=start_flask_api_server, args=(config, 5001), daemon=True)
-    flask_thread.start()
 
     clf = None
     retry_count = 0
@@ -2223,8 +2257,9 @@ if __name__ == "__main__":
         run_sensor_test_mode()
         sys.exit(0)
     
-    if PLATFORM == "RASPI":
-        ensure_root_privileges()
+    if PLATFORM == "RASPI" and getattr(os, "geteuid", lambda: 1)() == 0:
+        print("ERROR: 子機はrootで起動できません。GPIO/USBグループを設定した専用ユーザーで起動してください。")
+        sys.exit(1)
 
     # デフォルトはCUIモード（--guiオプションがある場合のみGUIモード）
     if '--gui' in sys.argv and HAS_TKINTER:

@@ -27,6 +27,11 @@ config.local.json
 config.*.local.json
 *.runtime.json
 *.secrets.json
+*.secret
+config*.secret
+unit-secret
+backups/
+*.sql.gz.enc
 
 # Virtual environments
 .venv/
@@ -41,3 +46,6 @@ env/
 Thumbs.db
 .idea/
 .vscode/
+node_modules/
+oiteru.sqlite3.empty.bak
+backup_oiteru_20260814_173440.sql

@@ -1,64 +1,79 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="card-action">
+  <span class="material-symbols-outlined" style="font-size: 2.8rem; color: var(--md-primary); margin-bottom: 8px;">manage_search</span>
   <h2>利用状況の確認</h2>
   <p>カードリーダーに学生証を置いて、以下のボタンを押してください。</p>
   {% if not reader_connected %}
-    <div style="color: red; margin-bottom: 1em;">ICカードリーダーが接続されていません。</div>
+    <div class="info-card error" style="text-align: left; margin-bottom: var(--md-space-lg);">
+      <p style="margin:0;">ICカードリーダーが接続されていません。</p>
+    </div>
     <form method="post">
-      <button type="submit" name="retry" value="1" class="btn">リーダー再接続を試す</button>
+      <button type="submit" name="retry" value="1" class="btn btn-outline">
+        <span class="material-symbols-outlined">refresh</span>
+        リーダー再接続を試す
+      </button>
     </form>
   {% else %}
-    <div id="status-message" style="margin-bottom: 1em; padding: 10px; border-radius: 5px; display: none;"></div>
+    <div id="status-message" style="margin-bottom: 1em; padding: 12px 16px; border-radius: var(--md-radius-sm); display: none; font-weight: 500;"></div>
     <form id="usage-form" method="post">
       <input type="hidden" name="card_id" id="card_id_input">
-      <button type="button" id="read-card-btn" class="btn">利用状況を確認</button>
+      <button type="button" id="read-card-btn" class="btn btn-primary btn-lg">
+        <span class="material-symbols-outlined">credit_card</span>
+        利用状況を確認
+      </button>
     </form>
     <script>
       document.getElementById('read-card-btn').addEventListener('click', function() {
         const btn = this;
         const statusDiv = document.getElementById('status-message');
         
-        // ボタンを無効化して読み取り中の表示
         btn.disabled = true;
-        btn.textContent = 'カード読み取り中...';
+        btn.innerHTML = '<span class="material-symbols-outlined" style="animation: spin 1s linear infinite;">progress_activity</span> カード読み取り中...';
         statusDiv.style.display = 'block';
-        statusDiv.style.backgroundColor = '#e3f2fd';
-        statusDiv.style.color = '#1976d2';
-        statusDiv.textContent = '📖 カードをリーダーにかざしてください...';
+        statusDiv.style.backgroundColor = '#E3F2FD';
+        statusDiv.style.color = '#1565C0';
+        statusDiv.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">nfc</span> カードをリーダーにかざしてください...';
         
-        // カード読み取りAPIを呼び出し
         fetch('/api/read_card')
           .then(response => response.json())
           .then(data => {
             if (data.success && data.card_id) {
-              // 読み取り成功
-              statusDiv.style.backgroundColor = '#e8f5e9';
-              statusDiv.style.color = '#388e3c';
-              statusDiv.textContent = '✅ カードを読み取りました: ' + data.card_id;
+              statusDiv.style.backgroundColor = '#E8F5E9';
+              statusDiv.style.color = '#2E7D32';
+              statusDiv.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">check_circle</span> カードを読み取りました: ' + data.card_id;
               
-              // フォームにカードIDをセットして送信
               document.getElementById('card_id_input').value = data.card_id;
               document.getElementById('usage-form').submit();
             } else {
-              // 読み取り失敗
-              statusDiv.style.backgroundColor = '#ffebee';
-              statusDiv.style.color = '#c62828';
-              statusDiv.textContent = '❌ ' + (data.error || 'カードを読み取れませんでした');
+              statusDiv.style.backgroundColor = '#FFEBEE';
+              statusDiv.style.color = '#C62828';
+              statusDiv.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">error</span> ' + (data.error || 'カードを読み取れませんでした');
               btn.disabled = false;
-              btn.textContent = '利用状況を確認';
+              btn.innerHTML = '<span class="material-symbols-outlined">credit_card</span> 利用状況を確認';
             }
           })
           .catch(error => {
-            statusDiv.style.backgroundColor = '#ffebee';
-            statusDiv.style.color = '#c62828';
-            statusDiv.textContent = '❌ エラー: ' + error.message;
+            statusDiv.style.backgroundColor = '#FFEBEE';
+            statusDiv.style.color = '#C62828';
+            statusDiv.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">error</span> エラー: ' + error.message;
             btn.disabled = false;
-            btn.textContent = '利用状況を確認';
+            btn.innerHTML = '<span class="material-symbols-outlined">credit_card</span> 利用状況を確認';
           });
       });
     </script>
+    <style>
+      @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+    </style>
   {% endif %}
-  <a href="{{ url_for('index') }}" class="btn btn-secondary">ホームに戻る</a>
+  <div class="btn-group">
+    <a href="{{ url_for('index') }}" class="btn btn-secondary">
+      <span class="material-symbols-outlined">home</span>
+      ホームに戻る
+    </a>
+  </div>
 </div>
 {% endblock %}

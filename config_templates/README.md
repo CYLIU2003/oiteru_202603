@@ -47,7 +47,8 @@ nano ../config.json  # ★マークの項目を編集
 
 ### 子機の場合
 - `UNIT_NAME`: 子機の名前（例: 3号機）
-- `UNIT_PASSWORD`: パスワード
+- `UNIT_SECRET_FILE`: 子機の秘密情報ファイル。実際の秘密情報は
+  `sudo scripts/provision_unit.sh` で作成し、JSON へ記載しない
 - `UNIT_LOCATION`: 設置場所（例: 7号館1階）
 
 ### 従親機の場合
@@ -56,5 +57,5 @@ nano ../config.json  # ★マークの項目を編集
 
 ## 親機のIPアドレス
 
-デフォルトは `100.114.99.67` (Tailscale) です。
-変更する場合は `SERVER_URL` または `MYSQL_HOST` を編集してください。
+実際の親機 URL または DB ホストを設定してください。非ローカルの親機には、
+strict security を有効にしたまま HTTPS を使用してください。

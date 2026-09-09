@@ -1,22 +1,60 @@
 {% extends "base.html" %}
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/register.css', v='campus-14') }}">
+{% endblock %}
+{% block body_class %}registration-page{% endblock %}
+{% block brand %}
+<a class="university-brand" href="{{ url_for('index') }}" aria-label="生理用品配布 ホームへ">
+  <img src="{{ url_for('static', filename='img/tcu-header-logo.svg') }}" width="350" height="71" alt="東京都市大学 TOKYO CITY UNIVERSITY">
+</a>
+<span class="registration-service">生理用品配布</span>
+{% endblock %}
 {% block content %}
-<div class="card-action">
-  <h2>学生証の登録</h2>
 
-  {% if not reader_connected %}
-    <div style="color: red; margin-bottom: 1em;">
-      ICカードリーダーが接続されていません。サーバーPCのUSB接続を確認してください。
+<div class="registration-workspace">
+  <section class="registration-welcome" aria-labelledby="registration-title">
+    <h1 id="registration-title">学生証の登録</h1>
+    <p class="registration-description">生理用品の受け取りに使います。</p>
+    <div class="registration-art" aria-hidden="true">
+      <span class="registration-art-dots"></span>
+      <div class="student-card">
+        <div class="student-card-top">学生証</div>
+        <div class="student-card-body">
+          <svg class="student-card-portrait" viewBox="0 0 44 54" fill="none"><rect width="44" height="54" rx="2" fill="#E5EEF2"/><circle cx="22" cy="19" r="9" fill="#91A9B6"/><path d="M6 49v-6a16 16 0 0 1 32 0v6" fill="#91A9B6"/></svg>
+          <div class="student-card-fields"><span class="student-card-line"></span><span class="student-card-line is-short"></span></div>
+        </div>
+      </div>
     </div>
-    <form method="get">
-      <button type="submit" class="btn">再確認</button>
-    </form>
-  {% else %}
-    <p>カードリーダーに学生証を置いて、以下のボタンを押してください。</p>
-    <form method="post">
-      <button type="submit" class="btn">ICカードを登録</button>
-    </form>
-  {% endif %}
+  </section>
 
-  <a href="{{ url_for('index') }}" class="btn btn-secondary">ホームに戻る</a>
+  <section class="registration-panel" aria-labelledby="guide-title">
+    <h2 id="guide-title">登録方法</h2>
+    <ol class="registration-steps">
+      <li><span class="step-number" aria-hidden="true">1</span><div><h3>学生証を用意する</h3><p>ご自身の学生証をお手元にご用意ください。</p></div></li>
+      <li><span class="step-number" aria-hidden="true">2</span><div><h3>リーダーに置く</h3><p>学生証を読み取り面に置いてください。</p></div></li>
+      <li><span class="step-number" aria-hidden="true">3</span><div><h3>「登録する」を押す</h3><p>結果が出るまで、学生証はそのまま。</p></div></li>
+    </ol>
+    {% if reader_connected %}
+      <div class="registration-reader-notice is-ready">
+        <span class="reader-indicator" aria-hidden="true"></span>
+        <div><h3>リーダー接続確認済み</h3><small>ページ表示時点</small></div>
+      </div>
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="registration-submit">登録する <span aria-hidden="true">→</span></button>
+      </form>
+    {% else %}
+      <div class="registration-reader-notice is-offline">
+        <span class="reader-indicator" aria-hidden="true"></span>
+        <div><h3>リーダー未接続</h3><p>親機PCのUSB接続を確認してください。</p></div>
+      </div>
+      <form method="get"><button type="submit" class="registration-submit">接続を再確認 <span aria-hidden="true">↻</span></button></form>
+    {% endif %}
+  </section>
+</div>
+
+<div class="registration-bottom">
+  <a class="registration-back" href="{{ url_for('index') }}"><span aria-hidden="true">←</span> ホームに戻る</a>
+  <p><a href="{{ url_for('usage') }}">利用状況を確認 <span aria-hidden="true">↗</span></a></p>
 </div>
 {% endblock %}

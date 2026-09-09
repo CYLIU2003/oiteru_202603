@@ -3,10 +3,10 @@
 <div class="admin-section">
   <div class="admin-card">
     <div class="admin-card-header">
-      <h2><span class="icon">🖥️</span>子機一覧</h2>
+      <h2><span class="material-symbols-outlined">devices</span> 子機一覧</h2>
       <div class="admin-card-actions">
         <a href="{{ url_for('admin_new_unit') }}" class="btn btn-primary btn-sm btn-icon">
-          <span>➕</span> 新規子機を登録
+          <span class="material-symbols-outlined">add</span> 新規子機を登録
         </a>
       </div>
     </div>
@@ -28,7 +28,7 @@
         <tr data-unit-id="{{ unit['id'] }}">
           <td><strong>{{ unit['id'] }}</strong></td>
           <td>{{ unit['name'] }}</td>
-          <td><span style="color:var(--muted-text);">登録済み</span></td>
+          <td><span style="color:var(--md-on-surface-variant);">登録済み</span></td>
           <td>{{ unit['stock'] }}</td>
           <td>
             {% if unit['connect'] == 1 %}
@@ -56,7 +56,7 @@
           </td>
           <td>
             <a href="{{ url_for('admin_unit_detail', uid=unit['id']) }}" class="btn btn-secondary btn-sm btn-icon">
-              <span>📝</span> 詳細
+              <span class="material-symbols-outlined">visibility</span> 詳細
             </a>
           </td>
         </tr>
@@ -65,17 +65,20 @@
     </table>
     
     {% if not units %}
-    <div style="text-align:center;padding:40px;color:var(--muted-text);">
-      <p style="font-size:2rem;margin-bottom:10px;">🖥️</p>
+    <div class="empty-state">
+      <span class="material-symbols-outlined">devices</span>
       <p>登録されている子機がありません</p>
-      <a href="{{ url_for('admin_new_unit') }}" class="btn btn-primary" style="margin-top:16px;">新規子機を登録</a>
+      <a href="{{ url_for('admin_new_unit') }}" class="btn btn-primary">
+        <span class="material-symbols-outlined">add</span>
+        新規子機を登録
+      </a>
     </div>
     {% endif %}
   </div>
 
-  <div class="btn-group" style="margin-top:20px;">
+  <div class="btn-group">
     <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary btn-icon">
-      <span>←</span> 管理者メニューに戻る
+      <span class="material-symbols-outlined">arrow_back</span> 管理者メニューに戻る
     </a>
   </div>
 </div>

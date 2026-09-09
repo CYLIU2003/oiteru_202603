@@ -1,88 +1,91 @@
 <#
 .SYNOPSIS
-OITERU 仮想環境(venv)用 起動スクリプト (Windows)
-
-.DESCRIPTION
-Dockerを使わずに、ローカルのPython仮想環境(.venv)を使用して
-親機・従親機・子機を起動するためのヘルパースクリプトです。
-
-.PARAMETER Mode
-起動モードを指定します。
-- parent-sqlite : 親機 (SQLite版)
-- parent-mysql  : 親機 (MySQL版 - localhost:3306に接続)
-- sub-parent    : 従親機 (MySQL版 - localhost:3306に接続)
-- unit          : 子機 (unit.py)
+Starts OITERU using a project-local Python virtual environment.
 
 .EXAMPLE
-# .\venv-start.ps1 parent-mysql
+  powershell -ExecutionPolicy Bypass -File .\venv-start.ps1 test
 #>
 
 param(
-    [Parameter(Mandatory=$false)]
-    [ValidateSet("parent-sqlite", "parent-mysql", "sub-parent", "unit")]
+    [ValidateSet("parent-mysql", "sub-parent", "unit", "test")]
     [string]$Mode = "parent-mysql"
 )
 
-# スクリプトのあるディレクトリへ移動
+$ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
+
+$PythonPath = Join-Path $PSScriptRoot ".venv\Scripts\python.exe"
 $EnvFile = Join-Path $PSScriptRoot ".env"
-$EnvExampleFile = Join-Path $PSScriptRoot ".env.example"
 
-# 仮想環境のPythonパス
-$PythonPath = ".\.venv\Scripts\python.exe"
-
-if (-not (Test-Path $PythonPath)) {
-    Write-Error "仮想環境が見つかりません: $PythonPath"
-    Write-Host "先に 'python -m venv .venv' と 'pip install -r requirements.txt' を実行してください。"
-    exit 1
+function Find-SystemPython {
+    foreach ($candidate in @("py", "python3", "python")) {
+        $command = Get-Command $candidate -ErrorAction SilentlyContinue
+        if ($command) {
+            return @($command.Source)
+        }
+    }
+    return $null
 }
 
-Write-Host "起動モード: $Mode"
+function Ensure-ProjectVenv {
+    if (Test-Path $PythonPath) {
+        $usable = $false
+        try {
+            & $PythonPath --version *> $null
+            $usable = ($LASTEXITCODE -eq 0)
+        } catch {
+            $usable = $false
+        }
+        if ($usable) {
+            return
+        }
+        Write-Warning "Existing .venv is stale; rebuilding it."
+    }
+
+    $systemPython = Find-SystemPython
+    if (-not $systemPython) {
+        throw "Python 3.12+ was not found. Install Python and enable 'Add python.exe to PATH', then run this command again."
+    }
+
+    Write-Host "Creating .venv with $systemPython ..."
+    & $systemPython -m venv --clear (Join-Path $PSScriptRoot ".venv")
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path $PythonPath)) {
+        throw "Failed to create .venv. Ensure the selected Python includes the venv module."
+    }
+
+    & $PythonPath -m pip install --upgrade pip
+    & $PythonPath -m pip install -r (Join-Path $PSScriptRoot "requirements-dev.txt")
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to install development dependencies."
+    }
+}
+
+function Require-EnvFile {
+    if (-not (Test-Path $EnvFile)) {
+        throw ".env was not found. Copy .env.example to .env and configure MySQL credentials."
+    }
+}
+
+Ensure-ProjectVenv
 
 switch ($Mode) {
-    "parent-sqlite" {
-        Write-Host "親機 (SQLite) を起動します..."
-        $env:DB_TYPE = "sqlite"
-        & $PythonPath server.py
-    }
     "parent-mysql" {
-        Write-Host "親機 (MySQL) を起動します..."
-        Write-Host "※ 事前にMySQLが localhost:3306 で起動している必要があります。"
-
-        if (-not (Test-Path $EnvFile)) {
-            Write-Error ".env が見つかりません: $EnvFile"
-            Write-Host "$EnvExampleFile をコピーし、必須値を設定してください。"
-            exit 1
-        }
-
+        Require-EnvFile
         & $PythonPath db_server.py
+        exit $LASTEXITCODE
     }
     "sub-parent" {
-        Write-Host "従親機 (MySQL接続) を起動します..."
-        Write-Host "※ 接続先は localhost:3306 (デフォルト) です。"
-
-        if (-not (Test-Path $EnvFile)) {
-            Write-Error ".env が見つかりません: $EnvFile"
-            Write-Host "$EnvExampleFile をコピーし、必須値を設定してください。"
-            exit 1
-        }
-
+        Require-EnvFile
         $env:DB_TYPE = "mysql"
-        if (-not $env:MYSQL_HOST) { $env:MYSQL_HOST = "localhost" }
-        if (-not $env:SERVER_NAME) { $env:SERVER_NAME = "OITERU従親機" }
-        
         & $PythonPath server.py
+        exit $LASTEXITCODE
     }
     "unit" {
-        Write-Host "子機クライアントを起動します..."
-        Write-Host ""
-        Write-Host "========================================="
-        Write-Host "  子機: 親機・従親機からの設定同期対応"
-        Write-Host "  - GUIモード: --gui オプション"
-        Write-Host "  - CUIモード: デフォルト"
-        Write-Host "  - リモート設定変更が自動反映されます"
-        Write-Host "========================================="
-        Write-Host ""
         & $PythonPath unit.py @args
+        exit $LASTEXITCODE
+    }
+    "test" {
+        & $PythonPath -m pytest -q
+        exit $LASTEXITCODE
     }
 }

@@ -1,7 +1,7 @@
 {
     "SERVER_URL": "http://127.0.0.1:5000",
     "UNIT_NAME": "unit-01",
-    "UNIT_PASSWORD": "change-this-unit-password",
+    "UNIT_SECRET_FILE": "/etc/oiteru/unit-secret",
     "MOTOR_TYPE": "STEPPER",
     "CONTROL_METHOD": "RASPI_DIRECT",
     "USE_SENSOR": true,

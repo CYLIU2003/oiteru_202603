@@ -1,0 +1,48 @@
+name: OITERU CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: oiteru
+          MYSQL_USER: oiteru_user
+          MYSQL_PASSWORD: oiteru-ci-password
+          MYSQL_ROOT_PASSWORD: root-ci-password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -uroot -proot-ci-password"
+          --health-interval=10s --health-timeout=5s --health-retries=12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements-dev.txt
+      - run: make lint
+      - run: make test
+        env:
+          DB_TYPE: sqlite
+      - name: Bootstrap empty MySQL and verify migrations
+        env:
+          DB_TYPE: mysql
+          MYSQL_HOST: 127.0.0.1
+          MYSQL_PORT: '3306'
+          MYSQL_USER: oiteru_user
+          MYSQL_PASSWORD: oiteru-ci-password
+          MYSQL_DATABASE: oiteru
+          FLASK_SECRET_KEY: ci-flask-secret-key-32-characters-minimum
+          OITERU_ADMIN_PASSWORD: ci-admin-password-32-characters-minimum
+          CARD_UID_HMAC_KEY: ci-card-uid-hmac-key-32-characters-minimum
+          SESSION_COOKIE_SECURE: 'true'
+          OITERU_STRICT_SECURITY: 'true'
+        run: |
+          python -c "from server import bootstrap_parent; bootstrap_parent()"
+          python -c "from db_adapter import db, get_connection; expected={'001_add_dispense_events','002_add_settings_usage_limit','003_add_settings_limit_period','004_add_users_last_reset_date','005_add_card_id_hash','006_add_state_tables','007_add_device_sessions_and_status_logs','008_add_device_configuration_delivery','009_add_admin_users_and_audit_logs'}; c=get_connection(); conn=c.__enter__(); names={r['name'] for r in db.fetchall(conn, 'SELECT name FROM schema_migrations')}; tables={r['table_name'] for r in db.fetchall(conn, 'SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE()')}; c.__exit__(None, None, None); assert expected <= names and {'device_sessions','device_status_logs','desired_unit_configs','device_config_updates','admin_users','admin_audit_logs'} <= tables"

@@ -469,7 +469,7 @@ def update_unit_config(config: Dict):
         # ランチャー設定から必要な項目を更新
         unit_config["SERVER_URL"] = config.get("parent_url", "http://localhost:5000")
         unit_config["UNIT_NAME"] = config.get("unit_name", socket.gethostname())
-        unit_config["UNIT_PASSWORD"] = config.get("unit_password", "password123")
+        unit_config["UNIT_SECRET_FILE"] = "/etc/oiteru/unit-secret"
         
         with open(config_file, 'w', encoding='utf-8') as f:
             json.dump(unit_config, f, indent=4, ensure_ascii=False)

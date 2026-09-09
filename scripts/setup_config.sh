@@ -90,7 +90,7 @@ if [ "$TYPE" = "unit" ]; then
 {
     "SERVER_URL": "http://${SERVER_IP}:5000",
     "UNIT_NAME": "$NAME",
-    "UNIT_PASSWORD": "$PASSWORD",
+    "UNIT_SECRET_FILE": "/etc/oiteru/unit-secret",
     "UNIT_LOCATION": "$LOCATION",
     "IS_SECONDARY": false,
     "MOTOR_TYPE": "STEPPER",
@@ -134,10 +134,9 @@ echo ""
 
 if [ "$TYPE" = "unit" ]; then
     echo -e "${YELLOW}【次のステップ】${NC}"
-    echo "  1. 親機の管理画面で子機を登録"
-    echo "     → http://${SERVER_IP}:5000/admin/units/new"
-    echo "  2. 子機を起動"
-    echo "     → sudo ./scripts/quick_start_unit.sh"
+    echo "  1. 秘密情報を作成"
+    echo "     → sudo ./scripts/provision_unit.sh"
+    echo "  2. 管理者に子機を承認してもらってから起動"
 else
     echo -e "${YELLOW}【次のステップ】${NC}"
     echo "  1. 従親機を起動"

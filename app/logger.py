@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import sys
-from typing import Optional
 
 SENSITIVE_KEYS = frozenset({
     "card_id", "password", "unit_password", "unit_token",
@@ -20,50 +20,41 @@ SENSITIVE_KEYS = frozenset({
 
 MAX_MASKED_LENGTH = 200
 
+_SENSITIVE_VALUE_PATTERN = re.compile(
+    r"\b(?P<key>" + "|".join(re.escape(key) for key in SENSITIVE_KEYS) +
+    r")\b\s*(?P<separator>[:=])\s*(?P<value>[^\s,;]+)",
+    re.IGNORECASE,
+)
+
 
 class SensitiveDataFilter(logging.Filter):
     """Mask sensitive values in log records."""
 
     def filter(self, record: logging.LogRecord) -> bool:
         if isinstance(record.msg, str):
-            record.msg = _mask_message(record.msg)
-        if record.args:
-            if isinstance(record.args, dict):
-                record.args = {
-                    k: _mask_value(k, v) for k, v in record.args.items()
-                }
-            elif isinstance(record.args, (list, tuple)):
-                record.args = tuple(
-                    _mask_simple(str(v)) for v in record.args
-                )
+            # Render before masking.  Altering a format string while leaving its
+            # original positional arguments attached can make logging itself fail
+            # (for example, when a ``%d`` argument is converted to a string).
+            try:
+                message = record.getMessage()
+            except (TypeError, ValueError):
+                message = record.msg
+            record.msg = _mask_message(message)
+            record.args = ()
         return True
 
 
 def _mask_message(msg: str) -> str:
-    for key in SENSITIVE_KEYS:
-        if key in msg:
-            pos = msg.find(key)
-            return msg[:pos + len(key) + 20] + "...[masked]"
+    msg = _SENSITIVE_VALUE_PATTERN.sub(
+        lambda match: f"{match.group('key')}{match.group('separator')}***",
+        msg,
+    )
     if len(msg) > MAX_MASKED_LENGTH:
         return msg[:MAX_MASKED_LENGTH] + "...[truncated]"
     return msg
 
 
-def _mask_value(key: str, value: object) -> object:
-    if key.lower().replace("_", "") in {k.lower().replace("_", "") for k in SENSITIVE_KEYS}:
-        return "***"
-    if isinstance(value, str) and len(value) > MAX_MASKED_LENGTH:
-        return value[:MAX_MASKED_LENGTH] + "...[truncated]"
-    return value
-
-
-def _mask_simple(value: str) -> str:
-    if len(value) > MAX_MASKED_LENGTH:
-        return value[:MAX_MASKED_LENGTH] + "...[truncated]"
-    return value
-
-
-_logger: Optional[logging.Logger] = None
+_logger: logging.Logger | None = None
 
 
 def get_logger(name: str = "oiteru") -> logging.Logger:
