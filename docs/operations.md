@@ -94,6 +94,27 @@ mysql -u oiteru_user -p oiteru -e "SELECT 1;"
 
 - 初回構築直後なら `scripts/setup_local_mysql.sh` を再確認する
 
+## 親機の NFC リーダー（カード登録用）
+
+親機 PC に NFC リーダー（Sony PaSoRi RC-S380 推奨）を接続すると、管理画面・登録ページからカードを直接読み取って利用者登録できます。
+
+### 動作確認
+
+```bash
+# リーダー検出のみ
+python tools/check_nfc_reader.py
+
+# カードを1枚読み取る（10秒待機）
+python tools/check_nfc_reader.py --read
+```
+
+### Windows 固有の注意
+
+- `server.py` の NFC 読み取りは nfcpy（libusb 経由）を使います。`pip install libusb` を入れておくと nfcpy が DLL を自動で見つけます。
+- リーダーが Windows に認識されない場合は、USB ポートの挿し直し・別ポートを試します。
+- デバイスマネージャーで「その他のデバイス」に出る場合、Zadig (https://zadig.akeo.ie) で当該デバイスに **WinUSB** ドライバを割り当ててください（Sony 公式 PC/SC ドライバが入っていると libusb から使えないため注意）。
+- Linux ではリーダーを挿すだけで認識され、`libusb` パッケージのみ必要です。
+
 ## プライバシー運用
 
 - `.env`, `config.json`, `logs/`, `*.log`, `*.sqlite3`, バックアップファイルは Git に含めない
