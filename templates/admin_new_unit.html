@@ -5,7 +5,7 @@
     <div class="admin-card-header">
       <h2><span class="material-symbols-outlined">add_circle</span> 新規子機の登録</h2>
     </div>
-    
+
     <!-- 自動探知セクション -->
     <div class="info-card" style="margin-bottom: var(--md-space-xl);">
       <h3 style="margin-top: 0; display: flex; align-items: center; gap: 10px; font-size: 1.1rem;">
@@ -16,16 +16,16 @@
         ハートビートを送信している未登録の子機を自動的に検出します。<br>
         子機が起動してからこのボタンを押してください。
       </p>
-      
+
       <button id="scanButton" class="btn btn-primary btn-icon" onclick="scanUnregisteredUnits()">
         <span class="material-symbols-outlined">radar</span> 自動探知を開始
       </button>
-      
+
       <div id="scanResult" style="display: none; margin-top: 20px;">
         <h4 style="margin: 0 0 12px 0; font-size: 1rem;">検出された未登録子機:</h4>
         <div id="unregisteredList"></div>
       </div>
-      
+
       <div id="scanStatus" style="margin-top: 12px; font-style: italic; color: var(--md-on-surface-variant);"></div>
     </div>
 
@@ -36,12 +36,12 @@
     <p style="color: var(--md-on-surface-variant); margin-bottom: 20px; font-size: 0.9rem;">
       自動探知で見つからない場合や、事前に登録したい場合は手動で入力してください。
     </p>
-    
+
     <form method="post" id="manualForm">
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px;">
         <div class="form-group">
           <label class="form-label" for="name">子機名（システム識別子）</label>
-          <input type="text" class="form-input" id="name" name="name" required 
+          <input type="text" class="form-input" id="name" name="name" required
                  placeholder="例: unit_001">
           <div class="form-help">子機との通信に使用される識別子です</div>
         </div>
@@ -185,7 +185,7 @@
 function updateAvailableInput(checkbox) {
   const label = document.getElementById('available-label');
   const input = document.getElementById('available-input');
-  
+
   if (checkbox.checked) {
     label.textContent = '有効';
     label.className = 'toggle-label active';
@@ -202,21 +202,21 @@ async function scanUnregisteredUnits() {
   const scanStatus = document.getElementById('scanStatus');
   const scanResult = document.getElementById('scanResult');
   const unregisteredList = document.getElementById('unregisteredList');
-  
+
   scanButton.disabled = true;
   scanButton.innerHTML = '<span>⏳</span> 探索中...';
   scanStatus.textContent = '🔍 子機を探索中...';
   scanStatus.style.color = 'var(--primary-color)';
-  
+
   try {
     const response = await fetch('/api/unregistered_units');
     const data = await response.json();
-    
+
     if (data.success && data.units.length > 0) {
       scanStatus.textContent = `✅ ${data.count}台の未登録子機を発見しました`;
       scanStatus.style.color = 'var(--success-color)';
       scanResult.style.display = 'block';
-      
+
       unregisteredList.innerHTML = data.units.map(unit => `
         <div class="unit-discovery-card" id="unit-${unit.name}">
           <div class="unit-info">
@@ -252,11 +252,11 @@ async function registerUnit(unitName) {
   if (!confirm(`子機「${unitName}」を登録しますか？`)) {
     return;
   }
-  
+
   const button = document.querySelector(`#unit-${unitName} .register-btn`);
   button.disabled = true;
   button.innerHTML = '<span>⏳</span> 登録中...';
-  
+
   try {
     const response = await fetch('/api/register_unit', {
       method: 'POST',
@@ -265,13 +265,13 @@ async function registerUnit(unitName) {
       },
       body: JSON.stringify({ name: unitName })
     });
-    
+
     const data = await response.json();
-    
+
     if (data.success) {
       alert(`✅ ${data.message}`);
       document.getElementById(`unit-${unitName}`).remove();
-      
+
       if (document.querySelectorAll('.unit-discovery-card').length === 0) {
         document.getElementById('unregisteredList').innerHTML = '<div class="no-units-message">✅ 全ての子機を登録しました</div>';
       }

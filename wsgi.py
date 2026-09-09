@@ -6,4 +6,3 @@ from server import app, bootstrap_parent
 # idempotent bootstrap here guarantees schema readiness before workers accept
 # device heartbeats.
 bootstrap_parent(start_background=True)
-
