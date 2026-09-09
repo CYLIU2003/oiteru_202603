@@ -158,6 +158,9 @@ python tools/check_nfc_reader.py
 python tools/check_nfc_reader.py --read
 ```
 
+診断ツールは成功時に終了コード `0`、未検出・読み取り失敗時に `1` を返します。
+カード UID と例外の詳細文字列は出力せず、成功の有無とエラー種別のみ記録します。
+
 ### Windows 固有の注意
 
 - `server.py` の NFC 読み取りは nfcpy（libusb 経由）を使います。`pip install libusb` を入れておくと nfcpy が DLL を自動で見つけます。

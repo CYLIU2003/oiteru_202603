@@ -20,8 +20,11 @@ WindowsでPaSoRi RC-S380が認識されない場合:
 """
 
 import argparse
+import logging
 import sys
 import time
+
+logger = logging.getLogger(__name__)
 
 
 def main() -> int:
@@ -32,8 +35,7 @@ def main() -> int:
     try:
         import nfc
     except ImportError:
-        print("[FAIL] nfcpy がインストールされていません。")
-        print("       pip install -r requirements.txt を実行してください。")
+        logger.error("nfcpy が未インストールです。pip install -r requirements.txt を実行してください。")
         return 1
 
     # server.py と同じ接続パスを試行
@@ -42,32 +44,31 @@ def main() -> int:
     last_error = None
     for path in usb_paths:
         try:
-            clf = nfc.ContactlessFrontend(path)
-            if clf:
-                print(f"[OK] NFCリーダーを検出しました: {clf}")
-                print(f"     device: {getattr(clf, 'device', '?')}")
+            candidate = nfc.ContactlessFrontend(path)
+            if candidate:
+                clf = candidate
+                logger.info("NFCリーダーを検出しました")
                 break
+            candidate.close()
         except Exception as e:
             last_error = e
 
     if clf is None:
-        print("[FAIL] NFCリーダーが見つかりません。")
-        print("       - USB接続を確認してください")
-        print("       - Windowsで未認識の場合、Zadig で WinUSB ドライバを割り当ててください")
+        logger.error("NFCリーダーが見つかりません。USB接続とドライバを確認してください。")
         if last_error:
-            print(f"       最終エラー: {last_error}")
+            logger.error("最終エラー種別: %s", type(last_error).__name__)
         return 1
 
     if not args.read:
         clf.close()
-        print("[INFO] カード読み取りテストをスキップ (--read で実行)")
+        logger.info("カード読み取りテストをスキップ (--read で実行)")
         return 0
 
-    print("[INFO] カードをリーダーに置いてください (最大10秒待機)...")
-    start = time.time()
-    card_id = None
-    while time.time() - start < 10:
-        try:
+    logger.info("カードをリーダーに置いてください (最大10秒待機)...")
+    start = time.monotonic()
+    card_read = False
+    try:
+        while time.monotonic() - start < 10:
             target = clf.sense(
                 nfc.clf.RemoteTarget("106A"),
                 nfc.clf.RemoteTarget("106B"),
@@ -78,20 +79,20 @@ def main() -> int:
             if target:
                 tag = nfc.tag.activate(clf, target)
                 if tag:
-                    card_id = tag.identifier.hex().upper()
-                    print(f"[OK] カードを読み取りました: {card_id}")
-                    print(f"     型: {tag.type}, 製品: {getattr(tag, 'product', '?')}")
+                    card_read = True
+                    logger.info("カードを読み取りました (UID非表示)")
                     break
-        except Exception as e:
-            print(f"[WARN] 読み取りエラー: {e}")
-            break
+    except Exception as e:
+        logger.warning("読み取りエラー種別: %s", type(e).__name__)
+    finally:
+        clf.close()
 
-    clf.close()
-    if card_id is None:
-        print("[FAIL] カードを読み取れませんでした。")
+    if not card_read:
+        logger.error("カードを読み取れませんでした。")
         return 1
     return 0
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     sys.exit(main())
