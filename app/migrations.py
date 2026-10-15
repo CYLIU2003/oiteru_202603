@@ -18,6 +18,7 @@ MIGRATIONS = [
     "008_add_device_configuration_delivery",
     "009_add_admin_users_and_audit_logs",
     "010_add_operations_management",
+    "011_pseudonymize_card_ids",
 ]
 
 
@@ -78,6 +79,8 @@ def _apply_migration(conn, name: str):
         _migration_009(conn)
     elif name == "010_add_operations_management":
         _migration_010(conn)
+    elif name == "011_pseudonymize_card_ids":
+        _migration_011(conn)
 
 
 def _migration_001(conn):
@@ -227,6 +230,68 @@ def _migration_010(conn):
             FOREIGN KEY (resolved_by_admin_user_id) REFERENCES admin_users(id) ON DELETE SET NULL
         )
     """)
+
+
+def _migration_011(conn):
+    """Replace raw card UIDs left by older code paths with card refs.
+
+    The registration screen used to store the raw (uppercase) UID, while the
+    child sends lowercase and the dispense API looks users up by the hash of
+    that.  Such users were never matched, and raw UIDs stayed in the database.
+    Every UID is now normalized and stored only as ``hash_card_uid``.
+    """
+    from app.auth.auth_manager import hash_card_uid, is_card_ref
+
+    raw_to_ref = {}
+    users = _db.fetchall(conn, "SELECT id, card_id, card_id_hash FROM users") or []
+    taken = {str(u["card_id"]) for u in users if is_card_ref(u["card_id"])}
+    for user in users:
+        card_id = str(user["card_id"])
+        if is_card_ref(card_id):
+            if user.get("card_id_hash") != card_id:
+                _db.execute(
+                    conn, "UPDATE users SET card_id_hash = ? WHERE id = ?", (card_id, user["id"])
+                )
+            continue
+        ref = hash_card_uid(card_id)
+        raw_to_ref[card_id] = ref
+        if ref in taken:
+            # The same card was auto-registered again under its ref.  Merging
+            # two people's counters is an operator decision, so leave it.
+            logger.warning(
+                "users.id=%s duplicates another record for the same card; merge it in the admin screen",
+                user["id"],
+            )
+            continue
+        _db.execute(
+            conn,
+            "UPDATE users SET card_id = ?, card_id_hash = ? WHERE id = ?",
+            (ref, ref, user["id"]),
+        )
+        taken.add(ref)
+
+    events = _db.fetchall(conn, "SELECT DISTINCT card_id FROM dispense_events") or []
+    for row in events:
+        card_id = str(row["card_id"])
+        if is_card_ref(card_id):
+            continue
+        ref = hash_card_uid(card_id)
+        raw_to_ref[card_id] = ref
+        _db.execute(
+            conn, "UPDATE dispense_events SET card_id = ? WHERE card_id = ?", (ref, card_id)
+        )
+
+    # Old history messages embedded the raw UID; keep only the short label.
+    for raw, ref in raw_to_ref.items():
+        if len(raw) < 6:
+            continue
+        for variant in {raw, raw.upper(), raw.lower()}:
+            _db.execute(
+                conn,
+                "UPDATE history SET txt = REPLACE(txt, ?, ?) WHERE txt LIKE ?",
+                (variant, f"card_ref:{ref[:12]}", f"%{variant}%"),
+            )
+    logger.info("Pseudonymized %d raw card identifiers", len(raw_to_ref))
 
 
 def _safe_add_column(conn, table: str, column: str, col_type: str):

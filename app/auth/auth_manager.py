@@ -13,6 +13,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import os
+import re
 import secrets
 import time
 from typing import Dict, Optional, Set
@@ -110,17 +111,45 @@ def generate_session_token() -> str:
 # ---------------------------------------------------------------------------
 
 
+_CARD_REF_PATTERN = re.compile(r"[0-9a-f]{64}")
+
+
+def normalize_card_uid(card_id: str) -> str:
+    """Return the canonical text of a card UID: hex without separators, lowercase.
+
+    The child reads ``tag.idm.hex()`` (lowercase) while the parent's reader
+    and the registration form produce uppercase, so every UID is normalized
+    before hashing or both sides would compute different card refs.
+    """
+    return re.sub(r"[\s:\-]", "", str(card_id)).lower()
+
+
+def card_uid_hmac_key() -> bytes:
+    return (
+        os.getenv("CARD_UID_HMAC_KEY")
+        or "development-only-card-uid-hmac-key-not-for-production"
+    ).encode()
+
+
 def hash_card_uid(card_id: str) -> str:
-    """Return a one-way hash of a card UID for pseudonymous storage.
+    """Return a one-way hash (the "card ref") of a card UID.
 
     Uses a key dedicated to card pseudonymization.  It must never share the
     Flask session key because their rotation and access policies differ.
     """
-    key = (
-        os.getenv("CARD_UID_HMAC_KEY")
-        or "development-only-card-uid-hmac-key-not-for-production"
-    ).encode()
-    return hmac.new(key, card_id.encode("utf-8"), hashlib.sha256).hexdigest()
+    return hmac.new(
+        card_uid_hmac_key(), normalize_card_uid(card_id).encode("utf-8"), hashlib.sha256
+    ).hexdigest()
+
+
+def is_card_ref(value: str) -> bool:
+    return bool(_CARD_REF_PATTERN.fullmatch(str(value or "")))
+
+
+def to_card_ref(value: str) -> str:
+    """Accept either a raw UID or an existing card ref and return the card ref."""
+    text = str(value or "").strip()
+    return text if is_card_ref(text) else hash_card_uid(text)
 
 
 # ---------------------------------------------------------------------------
