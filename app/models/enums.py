@@ -27,6 +27,16 @@ class DispenseErrorCode:
     PERIOD_LIMIT_EXCEEDED = "PERIOD_LIMIT_EXCEEDED"
     DISPENSE_FAILED = "DISPENSE_FAILED"
     DISPENSE_FAILED_CLIENT = "DISPENSE_FAILED_CLIENT"
+    # Standalone (offline) dispenses already happened physically.  These codes
+    # are kept on a *recorded* event so an operator can review the mismatch.
+    OFFLINE_LIMIT_OVERRUN = "OFFLINE_LIMIT_OVERRUN"
+    OFFLINE_USER_UNKNOWN = "OFFLINE_USER_UNKNOWN"
+    OFFLINE_UNIT_STOCK_MISMATCH = "OFFLINE_UNIT_STOCK_MISMATCH"
+
+
+class DispenseSource:
+    ONLINE = "online"
+    OFFLINE = "offline"
 
 
 class LimitPeriod:

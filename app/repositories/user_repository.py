@@ -88,6 +88,18 @@ class UserRepository(BaseRepository):
             (card_id,),
         )
 
+    def find_allowed(self, conn) -> List[UserRecord]:
+        rows = self.fetch_all(
+            conn, "SELECT * FROM users WHERE allow = 1 AND card_id_hash <> ''"
+        )
+        return [UserRecord.from_row(r) for r in rows]
+
+    def add_total_only(self, conn, card_id: str) -> int:
+        """Count a dispense that happened although no allowance was left."""
+        return self.update(
+            conn, "UPDATE users SET total = total + 1 WHERE card_id = ?", (card_id,)
+        )
+
     def restore_stock_and_total(self, conn, card_id: str) -> int:
         return self.update(
             conn,
