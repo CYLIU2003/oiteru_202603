@@ -52,9 +52,12 @@ python3 -m venv .venv
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -r requirements.txt
 scripts/setup_local_mysql.sh --install
-scripts/tmux_oiteru.sh start parent
-scripts/tmux_oiteru.sh status parent
+scripts/parent.sh install
 ```
+
+The parent runs as the `oiteru-parent` systemd service and restarts on its own
+after a reboot or crash. Day-to-day start, stop and recovery steps for operators
+are in [docs/runbook.md](docs/runbook.md).
 
 Open `http://localhost:5000/` for the public flow. Open
 `http://localhost:5000/admin` only to sign in as an administrator.
@@ -79,8 +82,10 @@ mocks; run real NFC, GPIO, and motor checks only on the intended Raspberry Pi.
 | `app/repositories/` | Database access |
 | `app/models/` | DTOs, schemas, and enums |
 | `app/auth/` | Administrator and child-device authentication |
-| `unit/` | Hardware abstractions and safe child configuration |
-| `scripts/` | Explicit setup, tmux, provisioning, and recovery commands |
+| `unit/` | Child-device client (`unit_client.py`), hardware abstractions, and safe child configuration |
+| `scripts/` | Setup, start, provisioning, and recovery commands (`scripts/parent.sh` for the parent) |
+| `systemd/` | Parent service templates installed by `scripts/parent.sh install` |
+| `legacy/` | Retired Docker, launcher and SQLite-era files; not used by the standard setup |
 | `docs/` | Canonical user, operator, and developer documentation |
 | `tests/` | Unit and integration-style regression tests |
 

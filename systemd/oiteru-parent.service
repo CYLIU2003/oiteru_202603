@@ -1,18 +1,22 @@
+# OITERU 親機（本番標準）
+# このファイルはテンプレートです。直接コピーせず、次のコマンドで導入してください。
+#   scripts/parent.sh install
+# 利用者名とリポジトリのパスは、導入時にスクリプトが実際の値へ置き換えます。
 [Unit]
 Description=OITERU Parent Server (MySQL)
 After=network-online.target mysql.service oiteru-card-reader.service
-Wants=network-online.target
-Requires=mysql.service
-Requires=oiteru-card-reader.service
+# mysql は Requires= にしない。Requires= だと MySQL の自動更新（unattended-upgrades）で
+# 親機も一緒に停止され、MySQL が戻っても親機は起動されない（2026-09-01 に実際に発生）。
+# DB 接続はリクエストごとに再試行し、起動時に DB がなければ Restart=always で再起動する。
+Wants=network-online.target mysql.service oiteru-card-reader.service
 
 [Service]
 Type=simple
-User=hirameki-3
-WorkingDirectory=/home/hirameki-3/デスクトップ/oiteru_202603
+User=@OITERU_USER@
+WorkingDirectory=@OITERU_ROOT@
 Environment=SERVER_PORT=5000
-PermissionsStartOnly=true
-ExecStartPre=/bin/bash /home/hirameki-3/デスクトップ/oiteru_202603/scripts/init_card_reader.sh
-ExecStart=/home/hirameki-3/デスクトップ/oiteru_202603/.venv/bin/gunicorn --config /home/hirameki-3/デスクトップ/oiteru_202603/gunicorn.conf.py wsgi:app
+Environment=PYTHONUNBUFFERED=1
+ExecStart=@OITERU_ROOT@/.venv/bin/gunicorn --config @OITERU_ROOT@/gunicorn.conf.py wsgi:app
 Restart=always
 RestartSec=10
 StandardOutput=journal

@@ -9,8 +9,9 @@ OITELU 親機DB版 (MySQL + Webサーバー一体型)
 標準DBは MySQL 8 です。起動前に共通ブートストラップがすべての
 migration と設定読込を完了させます。
 
-起動方法 (Docker推奨):
-    docker-compose -f docker-compose.mysql.yml up -d
+起動方法:
+    本番 (Linux) は scripts/parent.sh install で systemd に登録する。
+    このファイルは Windows 開発機での手動起動用。
 
 環境変数:
     DB_TYPE=mysql (必須)

@@ -54,6 +54,6 @@ if ($webReady) {
 # 3. WSL2 + Ubuntu 26.04 + NFC セットアップ
 Start-Sleep -Seconds 5
 Log "WSL NFC セットアップを実行中..."
-& powershell.exe -ExecutionPolicy Bypass -File "C:\Users\PSLAB\Desktop\oiteru_202603\scripts\wsl_nfc_setup.ps1" *>> $Log
+& powershell.exe -ExecutionPolicy Bypass -File "C:\Users\PSLAB\Desktop\oiteru_202603\scripts\windows\wsl_nfc_setup.ps1" *>> $Log
 
 Log "=== OITERU 自動復帰 完了 ==="

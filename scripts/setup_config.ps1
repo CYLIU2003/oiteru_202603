@@ -116,6 +116,6 @@ if ($Type -eq "unit") {
     Write-Host "  2. Ask an administrator to approve the unit, then start it"
 } else {
     Write-Host "Next steps:" -ForegroundColor Yellow
-    Write-Host "  1. Start sub-parent: scripts\start_sub_parent.bat"
+    Write-Host "  1. Start sub-parent: scripts/tmux_oiteru.sh start sub-parent (Linux)"
 }
 Write-Host ""

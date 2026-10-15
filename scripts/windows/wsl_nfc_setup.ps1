@@ -10,8 +10,8 @@ Windows再起動後に、以下を実行します:
 4. カード読み取りの動作確認
 
 使い方:
-    .\scripts\wsl_nfc_setup.ps1            # 標準セットアップ
-    .\scripts\wsl_nfc_setup.ps1 -ReadCard  # 最後にカード読み取りテストも実行
+    .\scripts\windows\wsl_nfc_setup.ps1            # 標準セットアップ
+    .\scripts\windows\wsl_nfc_setup.ps1 -ReadCard  # 最後にカード読み取りテストも実行
 
 ※ usbipd の bind/attach には管理者権限が必要です。
    スクリプトが管理者権限でない場合は、カードリーダーアタッチだけ別途
