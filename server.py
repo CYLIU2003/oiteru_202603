@@ -22,19 +22,15 @@ import hashlib
 import hmac
 import io
 import json
-import random
-import re
 import secrets
 import socket
 import subprocess
 import threading
 import time
-import traceback
 from collections import deque
 
 import pandas as pd
 import requests
-from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 from flask import (
@@ -46,7 +42,6 @@ from flask import (
     url_for,
     session,
     flash,
-    g,
     send_file,
 )
 def load_environment(env_path: str | None = None) -> None:
@@ -339,17 +334,6 @@ def require_admin_api():
     return None
 
 
-def validate_unit_credentials(conn, unit_name: str, unit_password: str):
-    if not unit_name or not unit_password:
-        return None
-    unit = db.fetchone(conn, "SELECT * FROM units WHERE name = ?", (unit_name,))
-    if not unit:
-        return None
-    if not verify_secret(unit["password"], unit_password):
-        return None
-    return unit
-
-
 def issue_unit_session_token(unit_name: str) -> str:
     token = secrets.token_urlsafe(24)
     unit_session_tokens[unit_name] = token
@@ -478,12 +462,6 @@ def record_admin_audit(action: str, target_type: str | None = None, target_id: s
         return
     with get_connection() as conn:
         _admin_user_repo.record_audit(conn, admin_user_id, action, target_type, target_id)
-
-
-# --- データベース接続ヘルパー ---
-def get_db_connection():
-    """データベース接続を取得（db_adapter経由）"""
-    return get_connection()
 
 
 @app.teardown_appcontext
@@ -653,14 +631,6 @@ def generate_event_id() -> str:
     return secrets.token_hex(16)
 
 
-# --- パスワード確認 ---
-def check_password(entered_password: str) -> bool:
-    """管理者パスワードを確認する"""
-    with get_connection() as conn:
-        info = db.fetchone(conn, "SELECT pass FROM info WHERE id = 1")
-    return bool(info and verify_secret(info["pass"], entered_password))
-
-
 # --- データベース初期化 ---
 def init_db():
     """データベースのテーブルを初期化する"""
@@ -752,75 +722,6 @@ def init_db():
             )
     except Exception:
         logger.exception("MySQL 初期化に失敗しました")
-        raise
-
-
-# --- DBマイグレーション ---
-def migrate_db():
-    """データベーススキーマのマイグレーション"""
-    try:
-        with get_connection() as conn:
-            # settingsテーブルに新しいカラムを追加（存在しない場合）
-            db.execute(
-                conn,
-                """
-                CREATE TABLE IF NOT EXISTS dispense_events (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    event_id VARCHAR(64) UNIQUE NOT NULL,
-                    unit_name VARCHAR(255) NOT NULL,
-                    card_id VARCHAR(255) NOT NULL,
-                    status VARCHAR(20) NOT NULL,
-                    error_code VARCHAR(64),
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-                )
-            """,
-            )
-
-            try:
-                db.execute(
-                    conn,
-                    "ALTER TABLE settings ADD COLUMN usage_limit INT DEFAULT 2",
-                )
-                print("  - settingsテーブルに usage_limit カラムを追加しました")
-            except Exception:
-                pass  # 既に存在する場合はスキップ
-
-            try:
-                db.execute(
-                    conn,
-                    "ALTER TABLE settings ADD COLUMN limit_period VARCHAR(10) DEFAULT 'day'",
-                )
-                print("  - settingsテーブルに limit_period カラムを追加しました")
-            except Exception:
-                pass  # 既に存在する場合はスキップ
-
-            # usersテーブルにlast_reset_dateカラムを追加
-            try:
-                db.execute(
-                    conn, "ALTER TABLE users ADD COLUMN last_reset_date DATE"
-                )
-                print("  - usersテーブルに last_reset_date カラムを追加しました")
-                # 既存ユーザーには今日の日付を設定
-                today = datetime.now().strftime("%Y-%m-%d")
-                db.execute(
-                    conn,
-                    "UPDATE users SET last_reset_date = ? WHERE last_reset_date IS NULL",
-                    (today,),
-                )
-            except Exception:
-                pass
-
-            # daily_limitの値をusage_limitに移行
-            try:
-                db.execute(
-                    conn,
-                    "UPDATE settings SET usage_limit = daily_limit WHERE usage_limit IS NULL OR usage_limit = 0",
-                )
-            except Exception:
-                pass
-    except Exception:
-        logger.exception("legacy migration に失敗しました")
         raise
 
 
@@ -1736,134 +1637,6 @@ def api_get_unit_logs(unit_name):
     return jsonify({"logs": logs, "count": len(logs)})
 
 
-def api_record_usage():
-    """
-    子機からの利用認可API（在庫減算はまだ行わない）
-    認可成功後、子機は /api/dispense_result で物理排出結果を通知する
-    """
-    data = request.json or {}
-    card_id = data.get("card_id")
-    unit_name = data.get("unit_name")
-    unit_password = data.get("unit_password")
-    unit_token = data.get("unit_token")
-
-    if not all([card_id, unit_name]) or not (unit_password or unit_token):
-        return jsonify(
-            {"error": "Card ID, Unit Name and unit credentials are required"}
-        ), 400
-
-    event_id = generate_event_id()
-
-    try:
-        with get_connection() as conn:
-            create_dispense_event(conn, event_id, unit_name, card_id, "requested")
-
-            # --- 1. 子機の在庫と利用可能状態を確認 ---
-            unit = get_authenticated_unit(conn, unit_name, unit_password, unit_token)
-            if not unit:
-                update_dispense_event(
-                    conn, event_id, "failed", "INVALID_UNIT_CREDENTIALS"
-                )
-                return jsonify(
-                    {"error": "Invalid unit credentials", "event_id": event_id}
-                ), 401
-
-            if unit["stock"] <= 0 or unit["available"] == 0:
-                message = f"[{unit_name}] 在庫不足のため利用不可 (カードID: {card_id})"
-                add_history(message, "usage")
-                update_dispense_event(conn, event_id, "failed", "UNIT_STOCK_EMPTY")
-                return jsonify(
-                    {"error": "Unit has no stock remaining", "event_id": event_id}
-                ), 400
-
-            # --- 2. 利用者の確認（自動登録モード対応） ---
-            user = db.fetchone(
-                conn, "SELECT * FROM users WHERE card_id = ?", (card_id,)
-            )
-
-            if not user:
-                # デバッグログ
-                print(
-                    f"[DEBUG] 未登録カード: {card_id}, auto_register_mode={server_settings['auto_register_mode']}"
-                )
-
-                # 自動登録モードの場合は新規登録
-                user = auto_register_user(conn, card_id, unit_name=unit_name)
-                if not user:
-                    message = f"[{unit_name}] 未登録カード (カードID: {card_id})"
-                    add_history(message, "usage")
-                    update_dispense_event(conn, event_id, "failed", "USER_NOT_FOUND")
-                    return jsonify(
-                        {
-                            "error": "User not found",
-                            "auto_register": False,
-                            "event_id": event_id,
-                        }
-                    ), 404
-
-            # 利用不許可のユーザー
-            if user.get("allow", 1) == 0:
-                message = f"[{unit_name}] 利用不許可 (カードID: {card_id})"
-                add_history(message, "usage")
-                update_dispense_event(conn, event_id, "failed", "USER_DENIED")
-                return jsonify(
-                    {"error": "User is not allowed", "event_id": event_id}
-                ), 403
-
-            # --- 期間が変わった場合、stockを自動リセット ---
-            period = server_settings["limit_period"]
-            user = check_and_reset_user_stock(conn, user, period)
-
-            # 残数チェック
-            if user["stock"] <= 0:
-                message = f"[{unit_name}] 残数不足 (カードID: {card_id})"
-                add_history(message, "usage")
-                update_dispense_event(conn, event_id, "failed", "USER_STOCK_EMPTY")
-                return jsonify(
-                    {"error": "User has no stock remaining", "event_id": event_id}
-                ), 400
-
-            # --- 期間内の利用上限チェック ---
-            period = server_settings["limit_period"]
-            usage_limit = server_settings["usage_limit"]
-            usage_count = get_usage_count_in_period(conn, card_id, period)
-
-            if usage_count >= usage_limit:
-                period_name = get_period_display_name(period)
-                message = f"[{unit_name}] {period_name}の上限({usage_limit}個)に達しています (カードID: {card_id})"
-                add_history(message, "usage")
-                update_dispense_event(conn, event_id, "failed", "PERIOD_LIMIT_EXCEEDED")
-                return jsonify(
-                    {
-                        "error": "Period limit exceeded",
-                        "message": f"{period_name}あたりの取得上限（{usage_limit}個）に達しました",
-                        "usage_count": usage_count,
-                        "usage_limit": usage_limit,
-                        "period": period,
-                        "event_id": event_id,
-                    }
-                ), 429
-
-            update_dispense_event(conn, event_id, "authorized")
-            add_history(
-                f"[{unit_name}] 排出認可 (event_id: {event_id}, カードID: {card_id})",
-                "usage",
-            )
-
-            return jsonify(
-                {
-                    "success": True,
-                    "authorized": True,
-                    "message": "Dispense authorized",
-                    "event_id": event_id,
-                }
-            )
-
-    except Exception as e:
-        print(f"!! 利用認可エラー: {e}")
-        return jsonify({"error": f"Database error: {e}"}), 500
-
-
 def parse_bool(value) -> bool:
     if isinstance(value, bool):
         return value
@@ -2031,278 +1804,6 @@ def open_local_nfc_frontend():
         except Exception:
             continue
     return None
-
-
-def api_dispense_result():
-    """子機からの物理排出結果を受け取り、在庫を確定更新する"""
-    data = request.json or {}
-    event_id = data.get("event_id")
-    unit_name = data.get("unit_name")
-    unit_password = data.get("unit_password")
-    unit_token = data.get("unit_token")
-    dispense_success = parse_bool(data.get("success"))
-    error_code = data.get("error_code")
-
-    if not all([event_id, unit_name]) or not (unit_password or unit_token):
-        return jsonify(
-            {"error": "Event ID, Unit Name and unit credentials are required"}
-        ), 400
-
-    try:
-        with get_connection() as conn:
-            unit = get_authenticated_unit(conn, unit_name, unit_password, unit_token)
-            if not unit:
-                return jsonify({"error": "Invalid unit credentials"}), 401
-
-            event = db.fetchone(
-                conn, "SELECT * FROM dispense_events WHERE event_id = ?", (event_id,)
-            )
-            if not event:
-                return jsonify({"error": "Event not found"}), 404
-            if event["unit_name"] != unit_name:
-                return jsonify({"error": "Event does not belong to unit"}), 403
-
-            current_status = event["status"]
-            if current_status == "recorded":
-                return jsonify(
-                    {
-                        "success": True,
-                        "recorded": True,
-                        "idempotent": True,
-                        "event_id": event_id,
-                    }
-                )
-            if current_status == "failed":
-                return jsonify(
-                    {
-                        "success": False,
-                        "recorded": False,
-                        "idempotent": True,
-                        "event_id": event_id,
-                        "error_code": event.get("error_code"),
-                    }
-                )
-
-            if not dispense_success:
-                fail_code = error_code or "DISPENSE_FAILED"
-                update_dispense_event(conn, event_id, "failed", fail_code)
-                add_history(
-                    f"[{unit_name}] 排出失敗 (event_id: {event_id}, カードID: {event['card_id']}, code: {fail_code})",
-                    "usage",
-                )
-                return jsonify(
-                    {
-                        "success": False,
-                        "recorded": False,
-                        "event_id": event_id,
-                        "error_code": fail_code,
-                    }
-                )
-
-            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            transitioned = db.update(
-                conn,
-                "UPDATE dispense_events SET status = ?, updated_at = ? WHERE event_id = ? AND status IN ('authorized', 'requested')",
-                ("dispensing", now, event_id),
-            )
-            if transitioned == 0:
-                latest = db.fetchone(
-                    conn,
-                    "SELECT status, error_code FROM dispense_events WHERE event_id = ?",
-                    (event_id,),
-                )
-                if latest and latest["status"] == "recorded":
-                    return jsonify(
-                        {
-                            "success": True,
-                            "recorded": True,
-                            "idempotent": True,
-                            "event_id": event_id,
-                        }
-                    )
-                if latest and latest["status"] == "failed":
-                    return jsonify(
-                        {
-                            "success": False,
-                            "recorded": False,
-                            "idempotent": True,
-                            "event_id": event_id,
-                            "error_code": latest.get("error_code"),
-                        }
-                    )
-                return jsonify(
-                    {
-                        "error": f"Event is not processable (status: {latest['status'] if latest else 'unknown'})"
-                    }
-                ), 409
-
-            latest_unit = db.fetchone(
-                conn, "SELECT * FROM units WHERE name = ?", (unit_name,)
-            )
-            user = db.fetchone(
-                conn, "SELECT * FROM users WHERE card_id = ?", (event["card_id"],)
-            )
-
-            if not user:
-                update_dispense_event(conn, event_id, "failed", "USER_NOT_FOUND")
-                return jsonify({"error": "User not found"}), 404
-
-            if latest_unit["stock"] <= 0 or latest_unit["available"] == 0:
-                update_dispense_event(conn, event_id, "failed", "UNIT_STOCK_EMPTY")
-                return jsonify({"error": "Unit has no stock remaining"}), 400
-
-            if user.get("allow", 1) == 0:
-                update_dispense_event(conn, event_id, "failed", "USER_DENIED")
-                return jsonify({"error": "User is not allowed"}), 403
-
-            period = server_settings["limit_period"]
-            user = check_and_reset_user_stock(conn, user, period)
-
-            if user["stock"] <= 0:
-                update_dispense_event(conn, event_id, "failed", "USER_STOCK_EMPTY")
-                return jsonify({"error": "User has no stock remaining"}), 400
-
-            usage_limit = server_settings["usage_limit"]
-            usage_count = get_usage_count_in_period(conn, event["card_id"], period)
-            if usage_count >= usage_limit:
-                update_dispense_event(conn, event_id, "failed", "PERIOD_LIMIT_EXCEEDED")
-                period_name = get_period_display_name(period)
-                return jsonify(
-                    {
-                        "error": "Period limit exceeded",
-                        "message": f"{period_name}あたりの取得上限（{usage_limit}個）に達しました",
-                        "usage_count": usage_count,
-                        "usage_limit": usage_limit,
-                        "period": period,
-                    }
-                ), 429
-
-            new_user_stock = user["stock"] - 1
-            new_total = user["total"] + 1
-            db.execute(
-                conn,
-                "UPDATE users SET stock = ?, total = ? WHERE card_id = ?",
-                (new_user_stock, new_total, event["card_id"]),
-            )
-
-            new_unit_stock = latest_unit["stock"] - 1
-            db.execute(
-                conn,
-                "UPDATE units SET stock = ? WHERE name = ?",
-                (new_unit_stock, unit_name),
-            )
-
-            if new_unit_stock <= 0:
-                db.execute(
-                    conn, "UPDATE units SET available = 0 WHERE name = ?", (unit_name,)
-                )
-                add_history(f"[{unit_name}] 在庫0のため排出停止", "system")
-
-            update_dispense_event(conn, event_id, "recorded")
-            add_history(
-                f"[{unit_name}] 利用成功 (event_id: {event_id}, カードID: {event['card_id']}, 残数: {new_user_stock})",
-                "success",
-            )
-
-            return jsonify(
-                {
-                    "success": True,
-                    "recorded": True,
-                    "event_id": event_id,
-                    "user_stock": new_user_stock,
-                    "unit_stock": new_unit_stock,
-                }
-            )
-    except Exception as e:
-        print(f"!! 排出結果更新エラー: {e}")
-        return jsonify({"error": f"Database error: {e}"}), 500
-
-
-def api_unit_heartbeat():
-    """子機からの生存確認を受け取る"""
-    data = request.json
-
-    if DEBUG_HEARTBEAT:
-        print(f"[DEBUG] Heartbeat received: {data}")
-
-    if data is None:
-        if DEBUG_HEARTBEAT:
-            print("[DEBUG] No JSON data received")
-        return jsonify({"error": "No JSON data received"}), 400
-
-    unit_name = data.get("unit_name") or data.get("name")  # 両方のキーに対応
-    unit_password = data.get("unit_password") or data.get("password")
-    ip_address = request.remote_addr
-
-    # 子機から送られた設定情報を保存
-    unit_config = data.get("config", {})
-    if unit_config and unit_name:
-        unit_configs[unit_name] = {
-            "config": unit_config,
-            "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "ip_address": ip_address,
-        }
-
-    if not all([unit_name, unit_password]):
-        if DEBUG_HEARTBEAT:
-            print(
-                f"[DEBUG] Missing fields - unit_name: {unit_name}, password: {'***' if unit_password else None}"
-            )
-        return jsonify({"error": "Unit name and password required"}), 400
-
-    with get_connection() as conn:
-        unit = db.fetchone(conn, "SELECT * FROM units WHERE name = ?", (unit_name,))
-
-        if unit:
-            if not verify_secret(unit["password"], unit_password):
-                return jsonify({"error": "Invalid password"}), 401
-
-            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            db.execute(
-                conn,
-                "UPDATE units SET connect = 1, last_seen = ?, ip_address = ? WHERE name = ?",
-                (now, ip_address, unit_name),
-            )
-
-            # レスポンスを構築
-            response_data = {
-                "success": True,
-                "stock": unit["stock"],
-                "available": unit["available"],
-                "auto_register_mode": server_settings["auto_register_mode"],
-                "auto_register_stock": server_settings["auto_register_stock"],
-                "usage_limit": server_settings["usage_limit"],
-                "limit_period": server_settings["limit_period"],
-                "settings_version": settings_version,
-                "unit_api_token": unit_session_tokens.get(unit_name)
-                or issue_unit_session_token(unit_name),
-            }
-
-            # 保留中の設定変更があれば送信
-            if unit_name in pending_unit_config_updates:
-                response_data["config_update"] = pending_unit_config_updates[unit_name]
-                del pending_unit_config_updates[unit_name]  # 送信したら削除
-                if DEBUG_HEARTBEAT:
-                    print(f"[DEBUG] Sending config update to {unit_name}")
-
-            return jsonify(response_data)
-        else:
-            # 未登録子機として一時保存
-            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            if unit_name not in unregistered_units:
-                unregistered_units[unit_name] = {
-                    "password_hash": hash_secret(unit_password),
-                    "ip_address": ip_address,
-                    "first_seen": now,
-                    "last_seen": now,
-                    "heartbeat_count": 1,
-                }
-            else:
-                unregistered_units[unit_name]["last_seen"] = now
-                unregistered_units[unit_name]["heartbeat_count"] += 1
-                unregistered_units[unit_name]["ip_address"] = ip_address
-
-            return jsonify({"error": "Unit not registered", "pending": True}), 404
 
 
 @app.route("/api/unit/register_pending/<string:unit_name>", methods=["POST"])
