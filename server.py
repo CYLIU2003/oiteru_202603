@@ -71,6 +71,7 @@ load_environment()
 # importing it so db_server.py, Gunicorn, and direct development starts agree.
 from db_adapter import db, get_connection, DatabaseError
 from app.routing import assert_unique_routes
+from app.auth.auth_manager import to_card_ref
 
 # --- New app module imports ---
 from app.logger import get_logger as _get_logger
@@ -823,16 +824,25 @@ def register():
                 return redirect(url_for("register"))
 
         if card_id:
+            # 生のカード UID は保存しない。子機と同じ方法で作った card ref だけを保存する
+            card_ref = to_card_ref(card_id)
             try:
                 with get_connection() as conn:
                     now = datetime.now().strftime("%Y-%m-%d %H:%M")
                     db.execute(
                         conn,
-                        "INSERT INTO users (card_id, entry, stock) VALUES (?, ?, ?)",
-                        (card_id, now, server_settings["auto_register_stock"]),
+                        "INSERT INTO users (card_id, card_id_hash, entry, stock, last_reset_date)"
+                        " VALUES (?, ?, ?, ?, ?)",
+                        (
+                            card_ref,
+                            card_ref,
+                            now,
+                            server_settings["auto_register_stock"],
+                            datetime.now().strftime("%Y-%m-%d"),
+                        ),
                     )
-                add_history(f"新規登録({card_id})", "system")
-                flash(f"登録が完了しました。(カードID: {card_id})", "success")
+                add_history(f"新規登録 (card_ref: {card_ref[:12]})", "system")
+                flash("登録が完了しました。", "success")
             except DatabaseError:
                 flash("この学生証は既に登録済みです。", "warning")
             except Exception as e:
@@ -856,12 +866,13 @@ def usage():
     if request.method == "POST":
         card_id = request.form.get("card_id", "").strip()
         if card_id:
+            card_ref = to_card_ref(card_id)
             with get_connection() as conn:
                 user = db.fetchone(
-                    conn, "SELECT * FROM users WHERE card_id = ?", (card_id,)
+                    conn, "SELECT * FROM users WHERE card_id_hash = ?", (card_ref,)
                 )
                 if not user and server_settings["auto_register_mode"]:
-                    user = auto_register_user(conn, card_id)
+                    user = auto_register_user(conn, card_ref)
                 if user:
                     return render_template("usage_result.html", **dict(user))
                 else:
@@ -989,13 +1000,13 @@ def admin_user_detail(uid):
                 flash(f"利用者(ID:{uid})を削除しました。", "success")
                 return redirect(url_for("admin_users"))
 
-            card_id = request.form.get("cardid")
+            card_ref = to_card_ref(request.form.get("cardid", ""))
             allow = request.form.get("allow")
             stock = request.form.get("stock")
             db.execute(
                 conn,
-                "UPDATE users SET card_id = ?, allow = ?, stock = ? WHERE id = ?",
-                (card_id, allow, stock, uid),
+                "UPDATE users SET card_id = ?, card_id_hash = ?, allow = ?, stock = ? WHERE id = ?",
+                (card_ref, card_ref, allow, stock, uid),
             )
         add_history(f"利用者情報を更新 (ID:{uid})", "system")
         flash(f"利用者(ID:{uid})の情報を更新しました。", "success")
@@ -1198,11 +1209,12 @@ def admin_restore():
                     db.execute(
                         conn,
                         """
-                        INSERT INTO users (card_id, allow, entry, stock, today, total) 
-                        VALUES (?, ?, ?, ?, ?, ?)
+                        INSERT INTO users (card_id, card_id_hash, allow, entry, stock, today, total)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,
                         (
-                            row["card_id"],
+                            to_card_ref(row["card_id"]),
+                            to_card_ref(row["card_id"]),
                             row["allow"],
                             row["entry"],
                             row["stock"],
@@ -1592,7 +1604,9 @@ def api_get_user_by_card(card_id):
         return auth_error
 
     with get_connection() as conn:
-        user = db.fetchone(conn, "SELECT * FROM users WHERE card_id = ?", (card_id,))
+        user = db.fetchone(
+            conn, "SELECT * FROM users WHERE card_id_hash = ?", (to_card_ref(card_id),)
+        )
     if user:
         return jsonify(dict(user))
     return jsonify({"error": "User not found"}), 404
@@ -1735,21 +1749,20 @@ def normalize_unit_config(config: dict) -> dict:
 
 
 def auto_register_user(conn, card_id, unit_name=None):
-    """自動登録モードが有効な場合に利用者を新規登録する。"""
+    """自動登録モードが有効な場合に利用者を新規登録する（card ref で保存）。"""
     if not server_settings["auto_register_mode"]:
         return None
+    card_id = to_card_ref(card_id)
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     today = datetime.now().strftime("%Y-%m-%d")
     initial_stock = server_settings["auto_register_stock"]
 
-    print(
-        f"[DEBUG] 自動登録実行: card_id={card_id}, initial_stock={initial_stock}"
-    )
     db.execute(
         conn,
-        "INSERT INTO users (card_id, entry, stock, allow, last_reset_date) VALUES (?, ?, ?, 1, ?)",
-        (card_id, now, initial_stock, today),
+        "INSERT INTO users (card_id, card_id_hash, entry, stock, allow, last_reset_date)"
+        " VALUES (?, ?, ?, ?, 1, ?)",
+        (card_id, card_id, now, initial_stock, today),
     )
 
     register_source = f"[{unit_name}]" if unit_name else "[usage]"
@@ -1757,12 +1770,12 @@ def auto_register_user(conn, card_id, unit_name=None):
         conn,
         "INSERT INTO history (txt, type, created_at) VALUES (?, ?, ?)",
         (
-            f"{register_source} 自動登録 (カードID: {card_id}, 初期残数: {initial_stock})",
+            f"{register_source} 自動登録 (card_ref: {card_id[:12]}, 初期残数: {initial_stock})",
             "system",
             datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         ),
     )
-    return db.fetchone(conn, "SELECT * FROM users WHERE card_id = ?", (card_id,))
+    return db.fetchone(conn, "SELECT * FROM users WHERE card_id_hash = ?", (card_id,))
 
 
 def detect_local_nfc_reader() -> tuple[bool, str]:
