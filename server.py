@@ -1461,10 +1461,11 @@ def api_reader_status():
                 }
             ), 503
 
-    except Exception as e:
-        print(f"リーダーステータス取得エラー: {e}")
+    except Exception:
+        # 例外の文字列には DB 接続情報が含まれうるため、応答には出さずログにだけ残す
+        logger.exception("リーダーステータス取得エラー")
         return jsonify(
-            {"connected": False, "error": f"ステータス取得失敗: {str(e)}"}
+            {"connected": False, "error": "ステータス取得に失敗しました"}
         ), 500
 
 

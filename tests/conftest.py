@@ -18,9 +18,11 @@ def _mysql_settings() -> dict:
     return {
         "host": os.getenv("MYSQL_HOST", "127.0.0.1"),
         "port": int(os.getenv("MYSQL_PORT", "3306")),
-        "user": os.getenv("OITERU_TEST_MYSQL_USER") or os.getenv("MYSQL_USER", "root"),
-        "password": os.getenv("OITERU_TEST_MYSQL_PASSWORD")
-        or os.getenv("MYSQL_PASSWORD", ""),
+        "user": os.environ.get("OITERU_TEST_MYSQL_USER", os.getenv("MYSQL_USER", "root")),
+        # 空文字のパスワードも明示的な指定として尊重する（.env の値で上書きしない）
+        "password": os.environ.get(
+            "OITERU_TEST_MYSQL_PASSWORD", os.getenv("MYSQL_PASSWORD", "")
+        ),
         "charset": "utf8mb4",
     }
 
