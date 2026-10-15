@@ -36,6 +36,39 @@ class DispenseEventRepository(BaseRepository):
             (event_id, unit_name, card_id, status, error_code, now, now),
         )
 
+    def insert_offline(
+        self,
+        conn,
+        event_id: str,
+        unit_name: str,
+        card_id: str,
+        status: str,
+        occurred_at: str,
+        error_code: Optional[str] = None,
+    ) -> int:
+        """Insert an event the child dispensed in standalone mode.
+
+        ``created_at`` is the physical dispense time so that period limits
+        count the dispense in the period it actually happened.
+        """
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        return super().insert(
+            conn,
+            "INSERT INTO dispense_events (event_id, unit_name, card_id, status, error_code,"
+            " source, occurred_at, created_at, updated_at)"
+            " VALUES (?, ?, ?, ?, ?, 'offline', ?, ?, ?)",
+            (event_id, unit_name, card_id, status, error_code, occurred_at, occurred_at, now),
+        )
+
+    def count_recorded_by_card_since(self, conn, period_start: str) -> dict:
+        rows = self.fetch_all(
+            conn,
+            "SELECT card_id, COUNT(*) AS count FROM dispense_events"
+            " WHERE status = ? AND created_at >= ? GROUP BY card_id",
+            (DispenseStatus.RECORDED, period_start + " 00:00:00"),
+        )
+        return {row["card_id"]: int(row["count"]) for row in rows}
+
     def update_status(
         self, conn, event_id: str, status: str, error_code: Optional[str] = None
     ) -> int:

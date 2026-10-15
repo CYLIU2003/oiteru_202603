@@ -1389,6 +1389,14 @@ def run_client(config, stop_event, gui_queue):
                     if 'stock' in data:
                         # サーバーからの在庫数で同期（GUI更新）
                         gui_queue.put({'stock': data['stock']})
+
+                    # 親機とつながったので、オフライン中の記録を送り、照合表を更新する
+                    try:
+                        offline_sync.after_heartbeat(data.get('stock'))
+                    except requests.exceptions.RequestException:
+                        pass
+                    except Exception as sync_error:
+                        print(f"警告: オフライン同期に失敗しました: {sync_error}")
                     
                     # 親機からの設定変更をチェック（即時送信 or heartbeat経由）
                     if 'config_update' in data and data['config_update']:
@@ -1509,7 +1517,11 @@ def run_client(config, stop_event, gui_queue):
         
         try:
             payload = {"card_id": card_id, "unit_name": UNIT_NAME}
-            response = post_to_parent("/api/record_usage", payload, timeout=10)
+            try:
+                response = post_to_parent("/api/record_usage", payload, timeout=10)
+            except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+                handle_offline_touch(card_id)
+                return True
             
             if response.status_code == 200:
                 response_data = response.json()
@@ -1541,10 +1553,15 @@ def run_client(config, stop_event, gui_queue):
                         time.sleep(1)
 
                 if result_response is None:
-                    send_log_to_server(
-                        f"排出結果確定APIへの送信失敗 event={event_id[:8]} err={last_result_error}"
+                    # 排出は済んでいるので、結果を保存して親機の復旧後に送り直す
+                    offline_store.enqueue_result(
+                        event_id, dispense_ok, result_payload["error_code"]
                     )
-                    indicate("failure")
+                    print(
+                        f"排出結果を送れませんでした。保存して後で送ります event={event_id[:8]}"
+                        f" err={type(last_result_error).__name__}"
+                    )
+                    indicate("success" if dispense_ok else "failure")
                     return True
 
                 if result_response.status_code == 200:
@@ -1591,6 +1608,36 @@ def run_client(config, stop_event, gui_queue):
                 gui_queue.put({'nfc': '待機中...'})
         
         return True
+
+    from unit.offline import OfflineStore, OfflineSync
+
+    offline_store = OfflineStore(
+        config.get("OFFLINE_DATA_DIR", "data/offline"),
+        enabled=parse_bool_value(config.get("OFFLINE_MODE_ENABLED", True)),
+    )
+    offline_sync = OfflineSync(
+        offline_store,
+        lambda path, payload, timeout: post_to_parent(
+            path, {"unit_name": UNIT_NAME, **payload}, timeout
+        ),
+        log=lambda message: (print(message), send_log_to_server(message)),
+    )
+
+    def handle_offline_touch(card_id):
+        """親機に接続できないときだけ使う、子機単独の排出（スタンドアロンモード）。"""
+        decision = offline_store.authorize(card_id)
+        if not decision.allowed:
+            print(f"オフライン: 利用不可 ({decision.reason})")
+            indicate("failure")
+            return
+        print("オフライン: 親機に接続できないため、子機だけで排出します")
+        dispense_ok = dispense_item()
+        entry = offline_store.record_dispense(
+            decision.card_ref,
+            dispense_ok,
+            None if dispense_ok else "DISPENSE_FAILED_CLIENT",
+        )
+        print(f"オフライン: 記録を保存しました event={entry['event_id'][:8]}（親機の復旧後に送信）")
 
     heartbeat_thread = threading.Thread(target=send_heartbeat, daemon=True)
     heartbeat_thread.start()

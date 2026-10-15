@@ -1,4 +1,6 @@
 # Runtime databases / generated data
+# 子機のスタンドアロンモードの照合表・未送信記録
+data/
 oiteru.sqlite3
 oiteru.sqlite3.backup_*
 *.db

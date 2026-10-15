@@ -97,6 +97,12 @@ class UnitRepository(BaseRepository):
             (name,),
         )
 
+    def decrement_stock_floor_zero(self, conn, name: str) -> int:
+        """Consume one item that was already dispensed, never going below zero."""
+        return self.update(
+            conn, "UPDATE units SET stock = stock - 1 WHERE name = ? AND stock > 0", (name,)
+        )
+
     def set_available(self, conn, name: str, available: int) -> int:
         return self.update(
             conn, "UPDATE units SET available = ? WHERE name = ?", (available, name)

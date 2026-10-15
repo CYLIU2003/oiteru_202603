@@ -19,6 +19,7 @@ MIGRATIONS = [
     "009_add_admin_users_and_audit_logs",
     "010_add_operations_management",
     "011_pseudonymize_card_ids",
+    "012_add_offline_dispense_fields",
 ]
 
 
@@ -81,6 +82,8 @@ def _apply_migration(conn, name: str):
         _migration_010(conn)
     elif name == "011_pseudonymize_card_ids":
         _migration_011(conn)
+    elif name == "012_add_offline_dispense_fields":
+        _migration_012(conn)
 
 
 def _migration_001(conn):
@@ -292,6 +295,12 @@ def _migration_011(conn):
                 (variant, f"card_ref:{ref[:12]}", f"%{variant}%"),
             )
     logger.info("Pseudonymized %d raw card identifiers", len(raw_to_ref))
+
+
+def _migration_012(conn):
+    """Record whether a dispense happened online or in child standalone mode."""
+    _safe_add_column(conn, "dispense_events", "source", "VARCHAR(16) NOT NULL DEFAULT 'online'")
+    _safe_add_column(conn, "dispense_events", "occurred_at", "DATETIME NULL")
 
 
 def _safe_add_column(conn, table: str, column: str, col_type: str):

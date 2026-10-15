@@ -145,12 +145,14 @@ from app.api.health import health_bp
 from app.api.dispense import dispense_bp
 from app.api.units import unit_bp
 from app.api.operations import operations_bp
+from app.api.offline import offline_bp
 
 app.register_blueprint(health_bp)
 app.register_blueprint(dispense_bp)
 app.register_blueprint(unit_bp)
 app.register_blueprint(operations_bp)
-logger.info("Registered API blueprints: health, dispense, unit, operations")
+app.register_blueprint(offline_bp)
+logger.info("Registered API blueprints: health, dispense, unit, operations, offline")
 
 # ========================================
 # サーバー設定
