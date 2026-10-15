@@ -5,8 +5,10 @@
 [Unit]
 Description=OITERU Parent Server (MySQL)
 After=network-online.target mysql.service oiteru-card-reader.service
-Wants=network-online.target oiteru-card-reader.service
-Requires=mysql.service
+# mysql は Requires= にしない。Requires= だと MySQL の自動更新（unattended-upgrades）で
+# 親機も一緒に停止され、MySQL が戻っても親機は起動されない（2026-09-01 に実際に発生）。
+# DB 接続はリクエストごとに再試行し、起動時に DB がなければ Restart=always で再起動する。
+Wants=network-online.target mysql.service oiteru-card-reader.service
 
 [Service]
 Type=simple

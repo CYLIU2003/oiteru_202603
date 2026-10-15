@@ -28,11 +28,17 @@ def test_templates_have_no_machine_specific_values():
         assert "@OITERU_ROOT@" in text
 
 
-def test_card_reader_failure_does_not_block_parent():
-    text = (ROOT / "systemd" / "oiteru-parent.service").read_text(encoding="utf-8")
-    assert "Requires=oiteru-card-reader.service" not in text
-    assert "oiteru-card-reader.service" in text.split("Wants=", 1)[1].splitlines()[0]
-    assert "Requires=mysql.service" in text
+def test_dependencies_cannot_stop_parent_for_good():
+    """A MySQL upgrade or reader failure must not leave the parent stopped."""
+    raw = (ROOT / "systemd" / "oiteru-parent.service").read_text(encoding="utf-8")
+    text = "\n".join(line for line in raw.splitlines() if not line.startswith("#"))
+    assert "Requires=" not in text
+    assert "BindsTo=" not in text
+    wants = text.split("\nWants=", 1)[1].splitlines()[0]
+    assert "mysql.service" in wants
+    assert "oiteru-card-reader.service" in wants
+    assert "mysql.service" in text.split("\nAfter=", 1)[1].splitlines()[0]
+    assert "Restart=always" in text
     assert "ExecStartPre" not in text
     assert "PermissionsStartOnly" not in text
 
