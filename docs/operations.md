@@ -9,8 +9,8 @@
 | 親機 | `db_server.py` |
 | DB | ローカル MySQL 8 (InnoDB) |
 | 子機 | Raspberry Pi / Linux + `unit.py` |
-| 起動 | `tmux` |
-| 起動補助 | `scripts/tmux_oiteru.sh` |
+| 親機の起動 | systemd サービス `oiteru-parent`（導入: `sudo scripts/install_parent_service.sh`） |
+| 子機の起動 | `tmux`（`scripts/tmux_oiteru.sh`）または systemd `oiteru-unit.service` |
 
 Docker は当面の標準運用では使いません。MySQL は OS の `mysql` サービスとして起動します。
 
@@ -24,12 +24,11 @@ Docker は当面の標準運用では使いません。MySQL は OS の `mysql` 
 
 ## 起動・停止
 
-親機:
+親機は systemd で自動起動します。起動・停止・復旧の手順は [runbook.md](runbook.md) を参照してください。
 
 ```bash
-cd ~/Desktop/oiteru_202603
-scripts/tmux_oiteru.sh start parent
-scripts/tmux_oiteru.sh attach parent
+systemctl is-active oiteru-parent
+sudo systemctl restart oiteru-parent
 ```
 
 子機:
@@ -43,9 +42,8 @@ scripts/tmux_oiteru.sh attach unit
 状態確認:
 
 ```bash
-scripts/tmux_oiteru.sh status
-tmux ls
-systemctl status mysql
+systemctl status oiteru-parent mysql --no-pager
+scripts/tmux_oiteru.sh status unit
 ```
 
 ## ラズパイ子機の systemd サービス運用（2026-08-14 実績: rpi1)
@@ -112,7 +110,7 @@ OITERU_BACKUP_KEY='同じ鍵' scripts/restore_mysql.sh backups/oiteru-<UTC時刻
 - `.env` の `OITERU_ADMIN_USERNAME` と `OITERU_ADMIN_PASSWORD` が正しいか確認する
 - 親機再起動後に `FLASK_SECRET_KEY` が変わっていないか確認する
 - ログイン試行上限に達した場合は、待機後に再試行する
-- 親機が起動しているか `scripts/tmux_oiteru.sh status parent` で確認する
+- 親機が起動しているか `systemctl is-active oiteru-parent` で確認する
 
 ### 子機がオフライン
 
@@ -239,7 +237,8 @@ DDL で本番 DB を変更せず、アプリケーション起動時の migratio
 - `.env.example` を元に新しい `.env` を作成した
 - `config.example.json` を元に各子機の `config.json` を作成した
 - `scripts/setup_local_mysql.sh` でローカル MySQL を準備した
-- `scripts/tmux_oiteru.sh start parent` で親機を起動した
+- `sudo scripts/install_parent_service.sh` で親機を systemd に登録し、起動した
+- 後任者に [runbook.md](runbook.md) の「はじめての人へ」を一緒にやってもらった
 - 管理画面ログインを確認した
 - 子機 heartbeat を確認した
 - 補充手順と障害時一次対応を担当者へ説明した

@@ -1,27 +1,26 @@
 # Scripts ディレクトリ
 
-このディレクトリには、OITERU のセットアップ、tmux 起動、診断に使うスクリプトが含まれています。
+このディレクトリには、OITERU のセットアップ、起動、診断に使うスクリプトが含まれています。
 
-現在の標準運用は **Linux 系 OS + tmux + ローカル MySQL** です。新しく参加した人は、まず「推奨スクリプト」だけ見れば十分です。
+現在の標準運用は **Linux 系 OS + ローカル MySQL** で、親機は systemd、子機は tmux で起動します。親機の運用手順は [../docs/runbook.md](../docs/runbook.md) を見てください。新しく参加した人は、まず「推奨スクリプト」だけ見れば十分です。
 
 ## 推奨スクリプト
 
 | ファイル名 | 説明 | 対象環境 |
 |---|---|---|
-| `tmux_oiteru.sh` | 親機・子機・従親機を tmux で start/stop/attach/status/logs する | Linux |
 | `install_parent_service.sh` | 本番親機を systemd サービスとして導入・更新する（`sudo` で実行、`--dry-run` で内容確認） | Linux（本番親機） |
+| `tmux_oiteru.sh` | 子機・従親機を tmux で start/stop/attach/status/logs する。親機は保守時の手動起動だけに使う | Linux |
 | `setup_local_mysql.sh` | `.env` を読み、ローカル MySQL の DB とユーザーを作成する | Linux |
 | `setup_unit_environment.sh` | 子機環境の自動セットアップ | Raspberry Pi |
 | `SETUP_UNIT.md` | 子機セットアップの詳細ガイド | 全環境 |
 
 ## よく使うコマンド
 
-親機:
+親機（初回・更新時）:
 
 ```bash
 scripts/setup_local_mysql.sh
-scripts/tmux_oiteru.sh start parent
-scripts/tmux_oiteru.sh attach parent
+sudo scripts/install_parent_service.sh
 ```
 
 子機:
@@ -34,15 +33,15 @@ scripts/tmux_oiteru.sh attach unit
 状態確認:
 
 ```bash
-scripts/tmux_oiteru.sh status
-tmux ls
+systemctl is-active oiteru-parent
+scripts/tmux_oiteru.sh status unit
 systemctl status mysql
 ```
 
 停止:
 
 ```bash
-scripts/tmux_oiteru.sh stop parent
+sudo systemctl stop oiteru-parent
 scripts/tmux_oiteru.sh stop unit
 ```
 
@@ -75,7 +74,7 @@ scripts/tmux_oiteru.sh stop unit
 
 - `.env`, `config.json`, `logs/`, DB ファイルは Git に含めないでください。
 - Linux/macOS で実行権限がない場合は `chmod +x scripts/<script>` を実行してください。
-- Windows 用スクリプトは開発・補助用です。学内実証の標準手順は Linux/tmux です。
+- Windows 用スクリプト（`oiteru_restart_auto.ps1` を含む）は開発用 PC 向けです。本番親機では使いません。
 - Docker 関連スクリプトは当面の標準ではありません。
 
 ## 関連ドキュメント
@@ -85,6 +84,7 @@ scripts/tmux_oiteru.sh stop unit
 | `../README.md` | 全体像 |
 | `../docs/onboarding.md` | 新規参加者向け |
 | `../docs/quick_start.md` | 標準の起動手順 |
+| `../docs/runbook.md` | 親機の起動・停止・復旧（はじめての人向け） |
 | `../docs/operations.md` | 運用・障害対応 |
 | `../config_templates/README.md` | 設定ファイルの詳細 |
 

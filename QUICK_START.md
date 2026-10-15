@@ -17,7 +17,8 @@ OITERU は、NFC カードを使って生理用品を排出し、利用状況・
 ~~~
 
 - 親機は **MySQL 8（InnoDB）** を使用します。標準運用では SQLite と Docker は使用しません。
-- 親機と子機は、通常 tmux のバックグラウンドセッションで起動します。
+- 親機は systemd サービス `oiteru-parent` として自動で起動します。子機は tmux のバックグラウンドセッションで起動します。
+- 親機の起動・停止・復旧の短い手順は [docs/runbook.md](docs/runbook.md) にまとめています。
 - 親機の管理画面は管理者ログインが必要です。利用者向けの登録・利用状況確認画面はログイン不要です。
 - 以下のコマンドは、リポジトリのルートディレクトリで実行します。
 
@@ -136,11 +137,10 @@ scripts/setup_local_mysql.sh
 ### 1-4. 親機を起動する
 
 ~~~bash
-scripts/tmux_oiteru.sh start parent
-scripts/tmux_oiteru.sh status parent
+sudo scripts/install_parent_service.sh
 ~~~
 
-running: oiteru-parent と表示されれば、親機プロセスは起動しています。API でも確認します。
+このコマンドは、親機を systemd サービス `oiteru-parent` として登録し、自動起動を有効にして起動します。最後に `OK:` と表示されれば起動しています。以後は PC を再起動しても自動で起動します。API でも確認します。
 
 ~~~bash
 curl --fail http://127.0.0.1:5000/api/health
@@ -164,12 +164,12 @@ http://127.0.0.1:5000/
 ### 親機の状態を確認するコマンド
 
 ~~~bash
-scripts/tmux_oiteru.sh status parent
-scripts/tmux_oiteru.sh logs parent
+systemctl is-active oiteru-parent
+sudo journalctl -u oiteru-parent -f
 systemctl status mysql
 ~~~
 
-logs parent はログを継続表示します。ログ表示だけを終了する場合は Ctrl-c を押します。親機を停止する場合は、後述の停止コマンドを使います。
+`journalctl -f` はログを継続表示します。ログ表示だけを終了する場合は Ctrl-c を押します。親機を停止する場合は、後述の停止コマンドを使います。
 
 ---
 
@@ -400,41 +400,41 @@ OITERU_STRICT_SECURITY=false scripts/tmux_oiteru.sh start unit
 
 ---
 
-## 6. tmux の再接続・停止・再起動
+## 6. 停止・再起動
 
-### 実行中か確認する
+### 親機
+
+~~~bash
+sudo systemctl restart oiteru-parent   # 再起動
+sudo systemctl stop oiteru-parent      # 停止（次に PC を起動したときは自動で起動する）
+~~~
+
+親機を再起動した後は、子機の heartbeat が再開してオンラインに戻ることを確認します。保守のために tmux で親機を手動起動する場合は、先に `sudo systemctl stop oiteru-parent` を実行します。手順は [docs/runbook.md](docs/runbook.md) を参照してください。
+
+### 子機（tmux）
+
+#### 実行中か確認する
 
 ~~~bash
 scripts/tmux_oiteru.sh status
 ~~~
 
-### 画面へ再接続する
+#### 画面へ再接続する
 
 ~~~bash
-# 親機
-scripts/tmux_oiteru.sh attach parent
-
-# 子機
 scripts/tmux_oiteru.sh attach unit
 ~~~
 
 tmux から離れるだけなら、Ctrl-b を押してから d を押します。これでプロセスを動かしたまま SSH を切断できます。
 
-### 停止・再起動する
+#### 停止・再起動する
 
 ~~~bash
-# 親機
-scripts/tmux_oiteru.sh stop parent
-scripts/tmux_oiteru.sh restart parent
-
-# 子機
 scripts/tmux_oiteru.sh stop unit
 scripts/tmux_oiteru.sh restart unit
 ~~~
 
-親機を再起動した後は、子機の heartbeat が再開してオンラインに戻ることを確認します。
-
-### SSH 接続を切る場合
+#### SSH 接続を切る場合
 
 必ず Ctrl-b → d で tmux から離脱してから SSH を終了します。tmux を使わずに実行中のターミナルを閉じると、親機・子機プロセスも終了することがあります。
 
@@ -478,10 +478,11 @@ unset OITERU_BACKUP_KEY
 
 ### 親機が起動しない
 
+症状ごとの対処表は [docs/runbook.md](docs/runbook.md) にあります。
+
 ~~~bash
-scripts/tmux_oiteru.sh status parent
-scripts/tmux_oiteru.sh logs parent
-systemctl status mysql
+systemctl status oiteru-parent mysql --no-pager
+sudo journalctl -u oiteru-parent -n 100 --no-pager
 ~~~
 
 次も確認します。

@@ -52,9 +52,12 @@ python3 -m venv .venv
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -r requirements.txt
 scripts/setup_local_mysql.sh --install
-scripts/tmux_oiteru.sh start parent
-scripts/tmux_oiteru.sh status parent
+sudo scripts/install_parent_service.sh
 ```
+
+The parent runs as the `oiteru-parent` systemd service and restarts on its own
+after a reboot or crash. Day-to-day start, stop and recovery steps for operators
+are in [docs/runbook.md](docs/runbook.md).
 
 Open `http://localhost:5000/` for the public flow. Open
 `http://localhost:5000/admin` only to sign in as an administrator.

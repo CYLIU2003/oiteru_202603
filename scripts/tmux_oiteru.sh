@@ -88,6 +88,14 @@ start_role() {
     ensure_files_for_role "$role"
     mkdir -p "$PROJECT_ROOT/logs"
 
+    # 本番の親機は systemd で動く。同時に起動するとポート 5000 が衝突する。
+    if [ "$role" = "parent" ] && command -v systemctl >/dev/null 2>&1 \
+        && systemctl is-active --quiet oiteru-parent.service 2>/dev/null; then
+        echo "ERROR: 親機は systemd (oiteru-parent) で動いています。" >&2
+        echo "保守で手動起動する場合だけ、先に止めてください: sudo systemctl stop oiteru-parent" >&2
+        exit 1
+    fi
+
     if session_exists "$session"; then
         echo "tmux session already exists: $session"
         echo "Attach: scripts/tmux_oiteru.sh attach $role"
