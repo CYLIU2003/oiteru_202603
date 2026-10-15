@@ -29,11 +29,6 @@ case "$MODE" in
 
         exec $PYTHON_PATH -m gunicorn --config gunicorn.conf.py wsgi:app
         ;;
-    parent-sqlite)
-        echo "親機 (SQLite) を起動します..."
-        export DB_TYPE="sqlite"
-        $PYTHON_PATH server.py
-        ;;
     sub-parent)
         echo "従親機 (MySQL接続) を起動します..."
 
@@ -72,10 +67,9 @@ PY
         $PYTHON_PATH unit.py "$@"
         ;;
     *)
-        echo "使い方: $0 {parent-mysql|parent-sqlite|sub-parent|unit}"
+        echo "使い方: $0 {parent-mysql|sub-parent|unit}"
         echo ""
         echo "  parent-mysql  - 親機 (MySQL版, 既定) を起動"
-        echo "  parent-sqlite - 親機 (SQLite版, legacy) を起動"
         echo "  sub-parent    - 従親機 (MySQL版) を起動"
         echo "  unit          - 子機を起動"
         exit 1

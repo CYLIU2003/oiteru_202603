@@ -29,7 +29,13 @@ jobs:
       - run: make lint
       - run: make test
         env:
-          DB_TYPE: sqlite
+          # DB を使うテストは MySQL の使い捨て DB oiteru_test で実行する（SQLite は廃止）
+          DB_TYPE: mysql
+          OITERU_TEST_MYSQL: '1'
+          MYSQL_HOST: 127.0.0.1
+          MYSQL_PORT: '3306'
+          OITERU_TEST_MYSQL_USER: root
+          OITERU_TEST_MYSQL_PASSWORD: root-ci-password
       - name: Bootstrap empty MySQL and verify migrations
         env:
           DB_TYPE: mysql

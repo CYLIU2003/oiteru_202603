@@ -2,7 +2,7 @@
 
 Start with the [documentation index](README.md) and complete the supported
 [quick start](quick_start.md). The normal stack is Flask, MySQL 8 (InnoDB),
-and Raspberry Pi child devices; SQLite and launcher-based flows are legacy.
+and Raspberry Pi child devices. SQLite has been removed; launcher-based flows are legacy.
 
 ## Working rules
 

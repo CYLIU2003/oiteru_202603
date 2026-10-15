@@ -23,6 +23,8 @@ def public_client(monkeypatch):
         lambda: (False, "reader unavailable for test"),
     )
     monkeypatch.setattr(server, "open_local_nfc_frontend", lambda: None)
+    # Never reach a real database: the public routes only need empty results.
+    monkeypatch.setattr(server, "get_connection", _fake_connection)
     monkeypatch.setattr(server.db, "fetchall", lambda *_args, **_kwargs: [])
     return server.app.test_client()
 

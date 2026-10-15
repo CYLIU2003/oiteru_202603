@@ -35,8 +35,8 @@ Administrator browser ── /admin/* and /api/v1/admin/* (authenticated only)
   [screen design and asset source](docs/user_flow.md#登録画面のデザイン).
 - Administrative screens and administrative APIs require an authenticated
   administrator session.
-- The normal database is MySQL 8 (InnoDB). SQLite support is legacy-only and
-  must not be used for a standard or production deployment.
+- The only supported database is MySQL 8 (InnoDB). SQLite has been removed;
+  the parent refuses to start when `DB_TYPE` is set to anything but `mysql`.
 - Store parent secrets in `.env`; store a child-device secret in its separate
   `UNIT_SECRET_FILE`. Never commit either file.
 
@@ -72,6 +72,15 @@ git diff --check
 
 On Linux, replace the Python path with `.venv/bin/python`. Hardware tests use
 mocks; run real NFC, GPIO, and motor checks only on the intended Raspberry Pi.
+
+Database tests run against a real MySQL 8 and are skipped unless
+`OITERU_TEST_MYSQL=1`. Each test recreates a throwaway database whose name must
+end in `_test` (default `oiteru_test`), so point it at a development MySQL,
+never at production. CI runs them automatically:
+
+```bash
+OITERU_TEST_MYSQL=1 OITERU_TEST_MYSQL_USER=root OITERU_TEST_MYSQL_PASSWORD=...   .venv/bin/python -m pytest -q
+```
 
 ## Repository map
 
