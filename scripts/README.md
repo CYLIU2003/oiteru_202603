@@ -9,6 +9,7 @@
 | ファイル名 | 説明 | 対象環境 |
 |---|---|---|
 | `tmux_oiteru.sh` | 親機・子機・従親機を tmux で start/stop/attach/status/logs する | Linux |
+| `install_parent_service.sh` | 本番親機を systemd サービスとして導入・更新する（`sudo` で実行、`--dry-run` で内容確認） | Linux（本番親機） |
 | `setup_local_mysql.sh` | `.env` を読み、ローカル MySQL の DB とユーザーを作成する | Linux |
 | `setup_unit_environment.sh` | 子機環境の自動セットアップ | Raspberry Pi |
 | `SETUP_UNIT.md` | 子機セットアップの詳細ガイド | 全環境 |
