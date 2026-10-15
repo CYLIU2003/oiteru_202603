@@ -1,5 +1,5 @@
 # OITERU 親機の NFC カードリーダー初期化
-# このファイルはテンプレートです。導入は scripts/install_parent_service.sh を使ってください。
+# このファイルはテンプレートです。導入は scripts/parent.sh install を使ってください。
 # 失敗しても親機本体は起動します（親機側は Wants= で参照しています）。
 [Unit]
 Description=OITERU Card Reader Boot Initialization

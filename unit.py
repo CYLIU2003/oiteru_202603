@@ -3,7 +3,7 @@
 """
 OITERU unit launcher.
 
-The actual unit client lives in archive/unit_client.py for now.  Keep this
+The actual unit client lives in unit/unit_client.py.  Keep this
 file small so both servo and stepper branches can share the same entry point:
 `python unit.py`.
 """
@@ -17,7 +17,7 @@ def main() -> None:
     script_dir = os.path.dirname(os.path.abspath(__file__))
     os.chdir(script_dir)
 
-    unit_client_path = os.path.join(script_dir, 'archive', 'unit_client.py')
+    unit_client_path = os.path.join(script_dir, 'unit', 'unit_client.py')
     if not os.path.exists(unit_client_path):
         print(f"エラー: {unit_client_path} が見つかりません")
         sys.exit(1)

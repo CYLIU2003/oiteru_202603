@@ -1,4 +1,4 @@
-"""Checks for the parent systemd unit templates and their installer."""
+"""Checks for the parent systemd unit templates and scripts/parent.sh install."""
 
 import shutil
 import subprocess
@@ -7,14 +7,14 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-INSTALLER = ROOT / "scripts" / "install_parent_service.sh"
+PARENT = ROOT / "scripts" / "parent.sh"
 
 pytestmark = pytest.mark.skipif(shutil.which("bash") is None, reason="bash is required")
 
 
 def run_installer(*args):
     return subprocess.run(
-        ["bash", str(INSTALLER), *args],
+        ["bash", str(PARENT), "install", *args],
         capture_output=True,
         text=True,
         check=False,
@@ -65,4 +65,15 @@ def test_dry_run_renders_user_and_root(tmp_path):
 def test_rejects_unsafe_arguments(args):
     result = run_installer("--dry-run", *args)
     assert result.returncode == 1
-    assert "ERROR" in result.stderr
+    assert "エラー" in result.stderr
+
+
+def test_parent_help_and_unknown_command():
+    help_result = subprocess.run(["bash", str(PARENT), "help"], capture_output=True, text=True, check=False)
+    assert help_result.returncode == 0
+    for command in ("status", "restart", "logs", "install"):
+        assert command in help_result.stdout
+
+    unknown = subprocess.run(["bash", str(PARENT), "start"], capture_output=True, text=True, check=False)
+    assert unknown.returncode == 1
+    assert "不明なコマンド" in unknown.stderr

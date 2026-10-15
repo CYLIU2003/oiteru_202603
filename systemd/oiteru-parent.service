@@ -1,6 +1,6 @@
 # OITERU 親機（本番標準）
 # このファイルはテンプレートです。直接コピーせず、次のコマンドで導入してください。
-#   sudo scripts/install_parent_service.sh
+#   scripts/parent.sh install
 # 利用者名とリポジトリのパスは、導入時にスクリプトが実際の値へ置き換えます。
 [Unit]
 Description=OITERU Parent Server (MySQL)

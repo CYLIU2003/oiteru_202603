@@ -137,10 +137,10 @@ scripts/setup_local_mysql.sh
 ### 1-4. 親機を起動する
 
 ~~~bash
-sudo scripts/install_parent_service.sh
+scripts/parent.sh install
 ~~~
 
-このコマンドは、親機を systemd サービス `oiteru-parent` として登録し、自動起動を有効にして起動します。最後に `OK:` と表示されれば起動しています。以後は PC を再起動しても自動で起動します。API でも確認します。
+このコマンドは、親機を systemd サービス `oiteru-parent` として登録し、自動起動を有効にして起動します。`sudo` は付けずに実行し、聞かれたらパスワードを入れます。最後に「問題ありません。」と表示されれば起動しています。以後は PC を再起動しても自動で起動します。API でも確認します。
 
 ~~~bash
 curl --fail http://127.0.0.1:5000/api/health
@@ -164,12 +164,11 @@ http://127.0.0.1:5000/
 ### 親機の状態を確認するコマンド
 
 ~~~bash
-systemctl is-active oiteru-parent
-sudo journalctl -u oiteru-parent -f
-systemctl status mysql
+scripts/parent.sh status
+scripts/parent.sh logs
 ~~~
 
-`journalctl -f` はログを継続表示します。ログ表示だけを終了する場合は Ctrl-c を押します。親機を停止する場合は、後述の停止コマンドを使います。
+`logs` はログを継続表示します。ログ表示だけを終了する場合は Ctrl-c を押します。親機を停止する場合は、後述の停止コマンドを使います。
 
 ---
 
@@ -405,7 +404,7 @@ OITERU_STRICT_SECURITY=false scripts/tmux_oiteru.sh start unit
 ### 親機
 
 ~~~bash
-sudo systemctl restart oiteru-parent   # 再起動
+scripts/parent.sh restart              # 再起動
 sudo systemctl stop oiteru-parent      # 停止（次に PC を起動したときは自動で起動する）
 ~~~
 
@@ -481,8 +480,8 @@ unset OITERU_BACKUP_KEY
 症状ごとの対処表は [docs/runbook.md](docs/runbook.md) にあります。
 
 ~~~bash
-systemctl status oiteru-parent mysql --no-pager
-sudo journalctl -u oiteru-parent -n 100 --no-pager
+scripts/parent.sh status
+scripts/parent.sh logs
 ~~~
 
 次も確認します。

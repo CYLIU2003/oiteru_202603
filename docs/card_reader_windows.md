@@ -104,4 +104,4 @@ c:/oiteru_202603/.venv/Scripts/python.exe -c "import nfc; clf = nfc.ContactlessF
 - 親機サーバーの再起動は不要です（カード読み取りはリクエスト時に
   リーダーを開く実装のため）。
 - Linux / WSL2 で使う場合はこの手順は不要です
-  （`scripts/attach_card_reader.ps1` など、usbipd 経由の既存手順を使用）。
+  （`legacy/scripts/attach_card_reader.ps1` など、usbipd 経由の既存手順を使用）。
