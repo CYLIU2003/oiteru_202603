@@ -91,7 +91,7 @@ class UserRepository(BaseRepository):
     def restore_stock_and_total(self, conn, card_id: str) -> int:
         return self.update(
             conn,
-            "UPDATE users SET stock = stock + 1, total = MAX(total - 1, 0) WHERE card_id = ?",
+            "UPDATE users SET stock = stock + 1, total = GREATEST(total - 1, 0) WHERE card_id = ?",
             (card_id,),
         )
 
