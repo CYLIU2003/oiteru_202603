@@ -22,164 +22,87 @@ logger = get_logger(__name__)
 
 def ensure_state_tables(conn):
     """Create state tables if they do not exist."""
-    if _db.db_type == "mysql":
-        _db.execute(conn, """
-            CREATE TABLE IF NOT EXISTS pending_units (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                unit_name VARCHAR(255) UNIQUE NOT NULL,
-                password_hash VARCHAR(255) NOT NULL,
-                ip_address VARCHAR(50),
-                first_seen DATETIME,
-                last_seen DATETIME,
-                heartbeat_count INT DEFAULT 1,
-                credential_conflict TINYINT DEFAULT 0,
-                credential_conflict_at DATETIME NULL
-            )
-        """)
-        _db.execute(conn, """
-            CREATE TABLE IF NOT EXISTS unit_config_snapshots (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                unit_name VARCHAR(255) UNIQUE NOT NULL,
-                config_json TEXT NOT NULL,
-                ip_address VARCHAR(50),
-                last_updated DATETIME,
-                FOREIGN KEY (unit_name) REFERENCES units(name) ON DELETE CASCADE
-            )
-        """)
-        _db.execute(conn, """
-            CREATE TABLE IF NOT EXISTS pending_config_updates (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                unit_name VARCHAR(255) UNIQUE NOT NULL,
-                config_json TEXT NOT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        _db.execute(conn, """
-            CREATE TABLE IF NOT EXISTS device_sessions (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                unit_name VARCHAR(255) NOT NULL,
-                token_hash CHAR(64) UNIQUE NOT NULL,
-                issued_at DATETIME NOT NULL,
-                expires_at DATETIME NOT NULL,
-                revoked_at DATETIME NULL,
-                last_used_at DATETIME NULL,
-                INDEX idx_device_sessions_unit_active (unit_name, expires_at),
-                FOREIGN KEY (unit_name) REFERENCES units(name) ON DELETE CASCADE
-            )
-        """)
-        _db.execute(conn, """
-            CREATE TABLE IF NOT EXISTS device_status_logs (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                unit_name VARCHAR(255) NOT NULL,
-                status VARCHAR(64) NOT NULL,
-                detail VARCHAR(255) NULL,
-                created_at DATETIME NOT NULL,
-                INDEX idx_device_status_logs_unit_created (unit_name, created_at),
-                FOREIGN KEY (unit_name) REFERENCES units(name) ON DELETE CASCADE
-            )
-        """)
-        _db.execute(conn, """
-            CREATE TABLE IF NOT EXISTS desired_unit_configs (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                unit_name VARCHAR(255) UNIQUE NOT NULL,
-                config_json TEXT NOT NULL,
-                config_version INT NOT NULL,
-                updated_at DATETIME NOT NULL,
-                FOREIGN KEY (unit_name) REFERENCES units(name) ON DELETE CASCADE
-            )
-        """)
-        _db.execute(conn, """
-            CREATE TABLE IF NOT EXISTS device_config_updates (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                config_update_id VARCHAR(64) UNIQUE NOT NULL,
-                unit_name VARCHAR(255) NOT NULL,
-                config_json TEXT NOT NULL,
-                config_version INT NOT NULL,
-                status VARCHAR(16) NOT NULL,
-                created_at DATETIME NOT NULL,
-                sent_at DATETIME NULL,
-                acked_at DATETIME NULL,
-                error VARCHAR(255) NULL,
-                INDEX idx_device_config_updates_delivery (unit_name, status, config_version),
-                FOREIGN KEY (unit_name) REFERENCES units(name) ON DELETE CASCADE
-            )
-        """)
-    else:
-        _db.execute(conn, """
-            CREATE TABLE IF NOT EXISTS pending_units (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                unit_name TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
-                ip_address TEXT,
-                first_seen TEXT,
-                last_seen TEXT,
-                heartbeat_count INTEGER DEFAULT 1,
-                credential_conflict INTEGER DEFAULT 0,
-                credential_conflict_at TEXT
-            )
-        """)
-        _db.execute(conn, """
-            CREATE TABLE IF NOT EXISTS unit_config_snapshots (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                unit_name TEXT UNIQUE NOT NULL,
-                config_json TEXT NOT NULL,
-                ip_address TEXT,
-                last_updated TEXT
-            )
-        """)
-        _db.execute(conn, """
-            CREATE TABLE IF NOT EXISTS pending_config_updates (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                unit_name TEXT UNIQUE NOT NULL,
-                config_json TEXT NOT NULL,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        _db.execute(conn, """
-            CREATE TABLE IF NOT EXISTS device_sessions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                unit_name TEXT NOT NULL,
-                token_hash TEXT UNIQUE NOT NULL,
-                issued_at TEXT NOT NULL,
-                expires_at TEXT NOT NULL,
-                revoked_at TEXT,
-                last_used_at TEXT,
-                FOREIGN KEY (unit_name) REFERENCES units(name) ON DELETE CASCADE
-            )
-        """)
-        _db.execute(conn, """
-            CREATE TABLE IF NOT EXISTS device_status_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                unit_name TEXT NOT NULL,
-                status TEXT NOT NULL,
-                detail TEXT,
-                created_at TEXT NOT NULL,
-                FOREIGN KEY (unit_name) REFERENCES units(name) ON DELETE CASCADE
-            )
-        """)
-        _db.execute(conn, """
-            CREATE TABLE IF NOT EXISTS desired_unit_configs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                unit_name TEXT UNIQUE NOT NULL,
-                config_json TEXT NOT NULL,
-                config_version INTEGER NOT NULL,
-                updated_at TEXT NOT NULL
-            )
-        """)
-        _db.execute(conn, """
-            CREATE TABLE IF NOT EXISTS device_config_updates (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                config_update_id TEXT UNIQUE NOT NULL,
-                unit_name TEXT NOT NULL,
-                config_json TEXT NOT NULL,
-                config_version INTEGER NOT NULL,
-                status TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                sent_at TEXT,
-                acked_at TEXT,
-                error TEXT
-            )
-        """)
+    _db.execute(conn, """
+        CREATE TABLE IF NOT EXISTS pending_units (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            unit_name VARCHAR(255) UNIQUE NOT NULL,
+            password_hash VARCHAR(255) NOT NULL,
+            ip_address VARCHAR(50),
+            first_seen DATETIME,
+            last_seen DATETIME,
+            heartbeat_count INT DEFAULT 1,
+            credential_conflict TINYINT DEFAULT 0,
+            credential_conflict_at DATETIME NULL
+        )
+    """)
+    _db.execute(conn, """
+        CREATE TABLE IF NOT EXISTS unit_config_snapshots (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            unit_name VARCHAR(255) UNIQUE NOT NULL,
+            config_json TEXT NOT NULL,
+            ip_address VARCHAR(50),
+            last_updated DATETIME,
+            FOREIGN KEY (unit_name) REFERENCES units(name) ON DELETE CASCADE
+        )
+    """)
+    _db.execute(conn, """
+        CREATE TABLE IF NOT EXISTS pending_config_updates (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            unit_name VARCHAR(255) UNIQUE NOT NULL,
+            config_json TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    _db.execute(conn, """
+        CREATE TABLE IF NOT EXISTS device_sessions (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            unit_name VARCHAR(255) NOT NULL,
+            token_hash CHAR(64) UNIQUE NOT NULL,
+            issued_at DATETIME NOT NULL,
+            expires_at DATETIME NOT NULL,
+            revoked_at DATETIME NULL,
+            last_used_at DATETIME NULL,
+            INDEX idx_device_sessions_unit_active (unit_name, expires_at),
+            FOREIGN KEY (unit_name) REFERENCES units(name) ON DELETE CASCADE
+        )
+    """)
+    _db.execute(conn, """
+        CREATE TABLE IF NOT EXISTS device_status_logs (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            unit_name VARCHAR(255) NOT NULL,
+            status VARCHAR(64) NOT NULL,
+            detail VARCHAR(255) NULL,
+            created_at DATETIME NOT NULL,
+            INDEX idx_device_status_logs_unit_created (unit_name, created_at),
+            FOREIGN KEY (unit_name) REFERENCES units(name) ON DELETE CASCADE
+        )
+    """)
+    _db.execute(conn, """
+        CREATE TABLE IF NOT EXISTS desired_unit_configs (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            unit_name VARCHAR(255) UNIQUE NOT NULL,
+            config_json TEXT NOT NULL,
+            config_version INT NOT NULL,
+            updated_at DATETIME NOT NULL,
+            FOREIGN KEY (unit_name) REFERENCES units(name) ON DELETE CASCADE
+        )
+    """)
+    _db.execute(conn, """
+        CREATE TABLE IF NOT EXISTS device_config_updates (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            config_update_id VARCHAR(64) UNIQUE NOT NULL,
+            unit_name VARCHAR(255) NOT NULL,
+            config_json TEXT NOT NULL,
+            config_version INT NOT NULL,
+            status VARCHAR(16) NOT NULL,
+            created_at DATETIME NOT NULL,
+            sent_at DATETIME NULL,
+            acked_at DATETIME NULL,
+            error VARCHAR(255) NULL,
+            INDEX idx_device_config_updates_delivery (unit_name, status, config_version),
+            FOREIGN KEY (unit_name) REFERENCES units(name) ON DELETE CASCADE
+        )
+    """)
 
 
 # ---------------------------------------------------------------------------

@@ -29,34 +29,18 @@ class UnitRepository(BaseRepository):
         return [UnitRecord.from_row(r) for r in rows]
 
     def find_recently_active(self, conn, seconds: int = 60) -> List[UnitRecord]:
-        from db_adapter import db
-
-        if db.db_type == "mysql":
-            rows = self.fetch_all(
-                conn,
-                """
-                SELECT name, last_seen, stock, connect,
-                       TIMESTAMPDIFF(SECOND, last_seen, NOW()) as seconds_ago
-                FROM units
-                WHERE last_seen IS NOT NULL
-                  AND TIMESTAMPDIFF(SECOND, last_seen, NOW()) < ?
-                ORDER BY last_seen DESC
-                """,
-                (seconds,),
-            )
-        else:
-            rows = self.fetch_all(
-                conn,
-                """
-                SELECT name, last_seen, stock, connect,
-                       (julianday('now') - julianday(last_seen)) * 86400.0 as seconds_ago
-                FROM units
-                WHERE last_seen IS NOT NULL
-                  AND (julianday('now') - julianday(last_seen)) * 86400.0 < ?
-                ORDER BY last_seen DESC
-                """,
-                (seconds,),
-            )
+        rows = self.fetch_all(
+            conn,
+            """
+            SELECT name, last_seen, stock, connect,
+                   TIMESTAMPDIFF(SECOND, last_seen, NOW()) as seconds_ago
+            FROM units
+            WHERE last_seen IS NOT NULL
+              AND TIMESTAMPDIFF(SECOND, last_seen, NOW()) < ?
+            ORDER BY last_seen DESC
+            """,
+            (seconds,),
+        )
         return [UnitRecord.from_row(r) for r in rows]
 
     def count_all(self, conn) -> int:

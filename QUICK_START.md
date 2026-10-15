@@ -16,7 +16,7 @@ OITERU は、NFC カードを使って生理用品を排出し、利用状況・
           └── NFC リーダー、モーター、センサー、LED
 ~~~
 
-- 親機は **MySQL 8（InnoDB）** を使用します。標準運用では SQLite と Docker は使用しません。
+- 親機は **MySQL 8（InnoDB）** だけを使います。SQLite は廃止しました（`DB_TYPE` が `mysql` 以外だと起動しません）。Docker も使用しません。
 - 親機は systemd サービス `oiteru-parent` として自動で起動します。子機は tmux のバックグラウンドセッションで起動します。
 - 親機の起動・停止・復旧の短い手順は [docs/runbook.md](docs/runbook.md) にまとめています。
 - 親機の管理画面は管理者ログインが必要です。利用者向けの登録・利用状況確認画面はログイン不要です。

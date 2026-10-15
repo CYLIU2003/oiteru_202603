@@ -1,38 +1,36 @@
 """
-データベース抽張化レイヤー
-SQLiteとMySQLの両方をサポート
+データベース接続レイヤー（MySQL 8 専用）
+
+SQLite は廃止しました。DB_TYPE を省略すると mysql として扱い、
+mysql 以外が指定されていたら起動時にエラーで止めます。
+（設定ミスのまま、本番とは別の空 DB に黙って書き込むのを防ぐため）
 """
 
+import logging
 import os
-import sqlite3
-from typing import Any, Dict, List, Optional, Tuple
 from contextlib import contextmanager
+from typing import Any, Dict, List, Optional, Tuple
 
-# 環境変数からデータベースタイプを取得
-DB_TYPE = os.getenv('DB_TYPE', 'sqlite').lower()
+import pymysql
+from pymysql.cursors import DictCursor
 
-if DB_TYPE == 'mysql':
-    import pymysql
-    pymysql.install_as_MySQLdb()
-    import MySQLdb
-    from MySQLdb.cursors import DictCursor
-    # MySQLのIntegrityErrorを使用
-    DatabaseError = MySQLdb.IntegrityError
-else:
-    # SQLiteのIntegrityErrorを使用
-    DatabaseError = sqlite3.IntegrityError
+logger = logging.getLogger(__name__)
+
+DB_TYPE = (os.getenv('DB_TYPE') or 'mysql').strip().lower()
+if DB_TYPE != 'mysql':
+    raise RuntimeError(
+        f"DB_TYPE={DB_TYPE} には対応していません。OITERU は MySQL 8 専用です"
+        "（SQLite は廃止しました）。.env の DB_TYPE を mysql にしてください。"
+    )
+
+DatabaseError = pymysql.IntegrityError
+
 
 class DatabaseConnection:
     """データベース接続を管理するクラス"""
-    
+
     def __init__(self):
         self.db_type = DB_TYPE
-        if self.db_type != 'mysql':
-            # SQLite
-            self.db_path = os.path.join(
-                os.path.dirname(os.path.abspath(__file__)), 
-                'oiteru.sqlite3'
-            )
 
     def _mysql_config(self):
         return {
@@ -55,16 +53,14 @@ class DatabaseConnection:
         
         for attempt in range(max_retries):
             try:
-                if self.db_type == 'mysql':
-                    conn = MySQLdb.connect(**self._mysql_config())
-                else:
-                    conn = sqlite3.connect(self.db_path)
-                    conn.row_factory = sqlite3.Row
+                conn = pymysql.connect(**self._mysql_config())
                 break
             except Exception as e:
                 if attempt < max_retries - 1:
                     import time
-                    print(f"DB接続失敗 (試行 {attempt + 1}/{max_retries}): {e}")
+                    logger.warning(
+                        "DB接続失敗 (試行 %d/%d): %s", attempt + 1, max_retries, type(e).__name__
+                    )
                     time.sleep(retry_delay)
                 else:
                     raise
@@ -82,17 +78,14 @@ class DatabaseConnection:
     
     def get_cursor(self, conn):
         """カーソルを取得"""
-        if self.db_type == 'mysql':
-            return conn.cursor()
-        else:
-            return conn.cursor()
+        return conn.cursor()
     
     def execute(self, conn, query: str, params: Optional[Tuple] = None) -> Any:
         """クエリを実行"""
         cursor = self.get_cursor(conn)
         
-        # MySQLの場合、プレースホルダーを%sに変換
-        if self.db_type == 'mysql' and '?' in query:
+        # 既存コードの ? プレースホルダーを MySQL の %s に変換
+        if '?' in query:
             query = query.replace('?', '%s')
         
         if params:
@@ -108,13 +101,6 @@ class DatabaseConnection:
         result = cursor.fetchone()
         cursor.close()
         
-        if result is None:
-            return None
-        
-        # SQLiteのRow型をdictに変換
-        if self.db_type == 'sqlite' and hasattr(result, 'keys'):
-            return dict(result)
-        
         return result
     
     def fetchall(self, conn, query: str, params: Optional[Tuple] = None) -> List[Dict]:
@@ -123,11 +109,7 @@ class DatabaseConnection:
         results = cursor.fetchall()
         cursor.close()
         
-        # SQLiteのRow型をdictに変換
-        if self.db_type == 'sqlite' and results:
-            return [dict(row) for row in results]
-        
-        return results if results else []
+        return list(results) if results else []
     
     def insert(self, conn, query: str, params: Optional[Tuple] = None) -> int:
         """INSERT文を実行し、挿入されたIDを返す"""
@@ -193,10 +175,8 @@ def get_db_type():
     """現在のデータベースタイプを取得"""
     return DB_TYPE
 
-# 初期化時にデータベースタイプを表示
-print(f"Database Type: {DB_TYPE.upper()}")
-if DB_TYPE == 'mysql':
-    print(f"MySQL Host: {os.getenv('MYSQL_HOST', 'localhost')}")
-    print(f"MySQL Database: {os.getenv('MYSQL_DATABASE', 'oiteru')}")
-else:
-    print(f"SQLite Database: {db.db_path}")
+logger.info(
+    "Database: MySQL host=%s database=%s",
+    os.getenv('MYSQL_HOST', 'localhost'),
+    os.getenv('MYSQL_DATABASE', 'oiteru'),
+)

@@ -14,8 +14,7 @@ OITELU 親機 / 従親機 (Webサーバー)
     python server.py  # legacy互換経路
 
 環境変数:
-    DB_TYPE=mysql の場合、外部MySQLに接続
-    DB_TYPE=sqlite の場合、ローカルSQLiteを使用
+    DB は MySQL 8 (InnoDB) のみ。SQLite は廃止しました。
 """
 
 import os
@@ -110,7 +109,6 @@ def create_app() -> Flask:
 
 
 app = create_app()
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "oiteru.sqlite3")
 
 
 def get_csrf_token() -> str:
@@ -234,7 +232,7 @@ def validate_runtime_security():
     """起動前に最低限のセキュリティ設定を検証する。"""
     strict_security = parse_env_bool(
         "OITERU_STRICT_SECURITY",
-        default=(db.db_type == "mysql"),
+        default=True,
     )
     errors = []
     warnings = []
@@ -257,12 +255,11 @@ def validate_runtime_security():
         message = "OITERU_ADMIN_PASSWORD は12文字以上を推奨します。"
         (errors if strict_security else warnings).append(message)
 
-    if db.db_type == "mysql":
-        mysql_password = (os.getenv("MYSQL_PASSWORD") or "").strip()
-        if not mysql_password:
-            errors.append("MYSQL_PASSWORD が未設定です。")
-        elif mysql_password in INSECURE_MYSQL_PASSWORDS:
-            errors.append("MYSQL_PASSWORD に既定値/弱い値は使用できません。")
+    mysql_password = (os.getenv("MYSQL_PASSWORD") or "").strip()
+    if not mysql_password:
+        errors.append("MYSQL_PASSWORD が未設定です。")
+    elif mysql_password in INSECURE_MYSQL_PASSWORDS:
+        errors.append("MYSQL_PASSWORD に既定値/弱い値は使用できません。")
 
     for warning in warnings:
         logger.warning(warning)
@@ -667,236 +664,95 @@ def check_password(entered_password: str) -> bool:
 # --- データベース初期化 ---
 def init_db():
     """データベースのテーブルを初期化する"""
-    if db.db_type == "mysql":
-        print("MySQLモード: 必要テーブルを確認します")
-        try:
-            with get_connection() as conn:
-                db.execute(
-                    conn,
-                    """
-                    CREATE TABLE IF NOT EXISTS users (
-                        id INT AUTO_INCREMENT PRIMARY KEY,
-                        card_id VARCHAR(255) UNIQUE NOT NULL,
-                        allow TINYINT DEFAULT 1,
-                        entry VARCHAR(50),
-                        stock INT DEFAULT 2,
-                        today INT DEFAULT 0,
-                        total INT DEFAULT 0,
-                        last_reset_date DATE,
-                        last1 VARCHAR(50), last2 VARCHAR(50), last3 VARCHAR(50), last4 VARCHAR(50), last5 VARCHAR(50),
-                        last6 VARCHAR(50), last7 VARCHAR(50), last8 VARCHAR(50), last9 VARCHAR(50), last10 VARCHAR(50)
-                    )
-                """,
-                )
-                db.execute(
-                    conn,
-                    """
-                    CREATE TABLE IF NOT EXISTS units (
-                        id INT AUTO_INCREMENT PRIMARY KEY,
-                        name VARCHAR(255) UNIQUE NOT NULL,
-                        password VARCHAR(255) NOT NULL,
-                        stock INT DEFAULT 0,
-                        initial_stock INT DEFAULT 100,
-                        connect TINYINT DEFAULT 0,
-                        available TINYINT DEFAULT 1,
-                        last_seen DATETIME,
-                        ip_address VARCHAR(50)
-                    )
-                """,
-                )
-                db.execute(
-                    conn,
-                    """
-                    CREATE TABLE IF NOT EXISTS history (
-                        id INT AUTO_INCREMENT PRIMARY KEY,
-                        txt TEXT NOT NULL,
-                        type VARCHAR(20) DEFAULT 'usage',
-                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-                    )
-                """,
-                )
-                db.execute(
-                    conn,
-                    """
-                    CREATE TABLE IF NOT EXISTS dispense_events (
-                        id INT AUTO_INCREMENT PRIMARY KEY,
-                        event_id VARCHAR(64) UNIQUE NOT NULL,
-                        unit_name VARCHAR(255) NOT NULL,
-                        card_id VARCHAR(255) NOT NULL,
-                        status VARCHAR(20) NOT NULL,
-                        error_code VARCHAR(64),
-                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-                    )
-                """,
-                )
-                db.execute(
-                    conn,
-                    """
-                    CREATE TABLE IF NOT EXISTS settings (
-                        id INT PRIMARY KEY,
-                        auto_register_mode TINYINT DEFAULT 0,
-                        auto_register_stock INT DEFAULT 2,
-                        usage_limit INT DEFAULT 2,
-                        limit_period VARCHAR(10) DEFAULT 'day',
-                        version INT DEFAULT 0,
-                        updated_at DATETIME
-                    )
-                """,
-                )
-                db.execute(
-                    conn,
-                    """
-                    CREATE TABLE IF NOT EXISTS info (
-                        id INT PRIMARY KEY,
-                        pass VARCHAR(255) NOT NULL,
-                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-                    )
-                """,
-                )
-        except Exception:
-            logger.exception("MySQL 初期化に失敗しました")
-            raise
-        return
-
-    if os.path.exists(DB_PATH):
-        print("データベースは既に存在します。")
-        # settingsテーブルの追加を試みる
-        try:
-            with get_connection() as conn:
-                db.execute(
-                    conn,
-                    """
-                    CREATE TABLE IF NOT EXISTS settings (
-                        id INTEGER PRIMARY KEY,
-                        auto_register_mode INTEGER DEFAULT 0,
-                        auto_register_stock INTEGER DEFAULT 2,
-                        usage_limit INTEGER DEFAULT 2,
-                        limit_period TEXT DEFAULT 'day',
-                        version INTEGER DEFAULT 0,
-                        updated_at TEXT
-                    )
-                """,
-                )
-                db.execute(
-                    conn,
-                    """
-                    CREATE TABLE IF NOT EXISTS dispense_events (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        event_id TEXT UNIQUE NOT NULL,
-                        unit_name TEXT NOT NULL,
-                        card_id TEXT NOT NULL,
-                        status TEXT NOT NULL,
-                        error_code TEXT,
-                        created_at TEXT,
-                        updated_at TEXT
-                    )
-                """,
-                )
-        except Exception as e:
-            print(f"settingsテーブル作成エラー: {e}")
-        return
-
-    print("新しいデータベースを作成・初期化します...")
-    with app.app_context():
+    print("MySQLモード: 必要テーブルを確認します")
+    try:
         with get_connection() as conn:
-            # usersテーブル
             db.execute(
                 conn,
                 """
-                CREATE TABLE users (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    card_id TEXT UNIQUE NOT NULL,
-                    allow INTEGER DEFAULT 1,
-                    entry TEXT,
-                    stock INTEGER DEFAULT 2,
-                    today INTEGER DEFAULT 0,
-                    total INTEGER DEFAULT 0,
-                    last_reset_date TEXT,
-                    last1 TEXT, last2 TEXT, last3 TEXT, last4 TEXT, last5 TEXT,
-                    last6 TEXT, last7 TEXT, last8 TEXT, last9 TEXT, last10 TEXT
+                CREATE TABLE IF NOT EXISTS users (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    card_id VARCHAR(255) UNIQUE NOT NULL,
+                    allow TINYINT DEFAULT 1,
+                    entry VARCHAR(50),
+                    stock INT DEFAULT 2,
+                    today INT DEFAULT 0,
+                    total INT DEFAULT 0,
+                    last_reset_date DATE,
+                    last1 VARCHAR(50), last2 VARCHAR(50), last3 VARCHAR(50), last4 VARCHAR(50), last5 VARCHAR(50),
+                    last6 VARCHAR(50), last7 VARCHAR(50), last8 VARCHAR(50), last9 VARCHAR(50), last10 VARCHAR(50)
                 )
             """,
             )
-
-            # unitsテーブル
             db.execute(
                 conn,
                 """
-                CREATE TABLE units (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT UNIQUE NOT NULL,
-                    password TEXT NOT NULL,
-                    stock INTEGER DEFAULT 0,
-                    initial_stock INTEGER DEFAULT 100,
-                    connect INTEGER DEFAULT 0,
-                    available INTEGER DEFAULT 1,
-                    last_seen TEXT,
-                    ip_address TEXT
+                CREATE TABLE IF NOT EXISTS units (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    name VARCHAR(255) UNIQUE NOT NULL,
+                    password VARCHAR(255) NOT NULL,
+                    stock INT DEFAULT 0,
+                    initial_stock INT DEFAULT 100,
+                    connect TINYINT DEFAULT 0,
+                    available TINYINT DEFAULT 1,
+                    last_seen DATETIME,
+                    ip_address VARCHAR(50)
                 )
             """,
             )
-
-            # historyテーブル
             db.execute(
                 conn,
                 """
-                CREATE TABLE history (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                CREATE TABLE IF NOT EXISTS history (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
                     txt TEXT NOT NULL,
-                    type TEXT DEFAULT 'usage',
+                    type VARCHAR(20) DEFAULT 'usage',
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             """,
             )
-
-            # dispense_eventsテーブル
             db.execute(
                 conn,
                 """
-                CREATE TABLE dispense_events (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    event_id TEXT UNIQUE NOT NULL,
-                    unit_name TEXT NOT NULL,
-                    card_id TEXT NOT NULL,
-                    status TEXT NOT NULL,
-                    error_code TEXT,
-                    created_at TEXT,
-                    updated_at TEXT
+                CREATE TABLE IF NOT EXISTS dispense_events (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    event_id VARCHAR(64) UNIQUE NOT NULL,
+                    unit_name VARCHAR(255) NOT NULL,
+                    card_id VARCHAR(255) NOT NULL,
+                    status VARCHAR(20) NOT NULL,
+                    error_code VARCHAR(64),
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
                 )
             """,
             )
-
-            # settingsテーブル
-            # (既存DB用の分岐にのみあったため、新規作成時に欠落し
-            #  migration 002 が失敗する不具合を修正)
             db.execute(
                 conn,
                 """
-                CREATE TABLE settings (
-                    id INTEGER PRIMARY KEY,
-                    auto_register_mode INTEGER DEFAULT 0,
-                    auto_register_stock INTEGER DEFAULT 2,
-                    usage_limit INTEGER DEFAULT 2,
-                    limit_period TEXT DEFAULT 'day',
-                    version INTEGER DEFAULT 0,
-                    updated_at TEXT
+                CREATE TABLE IF NOT EXISTS settings (
+                    id INT PRIMARY KEY,
+                    auto_register_mode TINYINT DEFAULT 0,
+                    auto_register_stock INT DEFAULT 2,
+                    usage_limit INT DEFAULT 2,
+                    limit_period VARCHAR(10) DEFAULT 'day',
+                    version INT DEFAULT 0,
+                    updated_at DATETIME
                 )
             """,
             )
-
-            # infoテーブル
             db.execute(
                 conn,
                 """
-                CREATE TABLE info (
-                    id INTEGER PRIMARY KEY,
-                    pass TEXT NOT NULL
+                CREATE TABLE IF NOT EXISTS info (
+                    id INT PRIMARY KEY,
+                    pass VARCHAR(255) NOT NULL,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             """,
             )
-
-            print("データベースの初期化が完了しました。")
+    except Exception:
+        logger.exception("MySQL 初期化に失敗しました")
+        raise
 
 
 # --- DBマイグレーション ---
@@ -905,125 +761,64 @@ def migrate_db():
     try:
         with get_connection() as conn:
             # settingsテーブルに新しいカラムを追加（存在しない場合）
-            if db.db_type == "mysql":
-                # MySQLの場合
+            db.execute(
+                conn,
+                """
+                CREATE TABLE IF NOT EXISTS dispense_events (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    event_id VARCHAR(64) UNIQUE NOT NULL,
+                    unit_name VARCHAR(255) NOT NULL,
+                    card_id VARCHAR(255) NOT NULL,
+                    status VARCHAR(20) NOT NULL,
+                    error_code VARCHAR(64),
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                )
+            """,
+            )
+
+            try:
                 db.execute(
                     conn,
-                    """
-                    CREATE TABLE IF NOT EXISTS dispense_events (
-                        id INT AUTO_INCREMENT PRIMARY KEY,
-                        event_id VARCHAR(64) UNIQUE NOT NULL,
-                        unit_name VARCHAR(255) NOT NULL,
-                        card_id VARCHAR(255) NOT NULL,
-                        status VARCHAR(20) NOT NULL,
-                        error_code VARCHAR(64),
-                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-                    )
-                """,
+                    "ALTER TABLE settings ADD COLUMN usage_limit INT DEFAULT 2",
                 )
+                print("  - settingsテーブルに usage_limit カラムを追加しました")
+            except Exception:
+                pass  # 既に存在する場合はスキップ
 
-                try:
-                    db.execute(
-                        conn,
-                        "ALTER TABLE settings ADD COLUMN usage_limit INT DEFAULT 2",
-                    )
-                    print("  - settingsテーブルに usage_limit カラムを追加しました")
-                except Exception:
-                    pass  # 既に存在する場合はスキップ
-
-                try:
-                    db.execute(
-                        conn,
-                        "ALTER TABLE settings ADD COLUMN limit_period VARCHAR(10) DEFAULT 'day'",
-                    )
-                    print("  - settingsテーブルに limit_period カラムを追加しました")
-                except Exception:
-                    pass  # 既に存在する場合はスキップ
-
-                # usersテーブルにlast_reset_dateカラムを追加
-                try:
-                    db.execute(
-                        conn, "ALTER TABLE users ADD COLUMN last_reset_date DATE"
-                    )
-                    print("  - usersテーブルに last_reset_date カラムを追加しました")
-                    # 既存ユーザーには今日の日付を設定
-                    today = datetime.now().strftime("%Y-%m-%d")
-                    db.execute(
-                        conn,
-                        "UPDATE users SET last_reset_date = ? WHERE last_reset_date IS NULL",
-                        (today,),
-                    )
-                except Exception:
-                    pass
-
-                # daily_limitの値をusage_limitに移行
-                try:
-                    db.execute(
-                        conn,
-                        "UPDATE settings SET usage_limit = daily_limit WHERE usage_limit IS NULL OR usage_limit = 0",
-                    )
-                except Exception:
-                    pass
-            else:
-                # SQLiteの場合
+            try:
                 db.execute(
                     conn,
-                    """
-                    CREATE TABLE IF NOT EXISTS dispense_events (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        event_id TEXT UNIQUE NOT NULL,
-                        unit_name TEXT NOT NULL,
-                        card_id TEXT NOT NULL,
-                        status TEXT NOT NULL,
-                        error_code TEXT,
-                        created_at TEXT,
-                        updated_at TEXT
-                    )
-                """,
+                    "ALTER TABLE settings ADD COLUMN limit_period VARCHAR(10) DEFAULT 'day'",
                 )
+                print("  - settingsテーブルに limit_period カラムを追加しました")
+            except Exception:
+                pass  # 既に存在する場合はスキップ
 
-                try:
-                    db.execute(
-                        conn,
-                        "ALTER TABLE settings ADD COLUMN usage_limit INTEGER DEFAULT 2",
-                    )
-                    print("  - settingsテーブルに usage_limit カラムを追加しました")
-                except Exception:
-                    pass
+            # usersテーブルにlast_reset_dateカラムを追加
+            try:
+                db.execute(
+                    conn, "ALTER TABLE users ADD COLUMN last_reset_date DATE"
+                )
+                print("  - usersテーブルに last_reset_date カラムを追加しました")
+                # 既存ユーザーには今日の日付を設定
+                today = datetime.now().strftime("%Y-%m-%d")
+                db.execute(
+                    conn,
+                    "UPDATE users SET last_reset_date = ? WHERE last_reset_date IS NULL",
+                    (today,),
+                )
+            except Exception:
+                pass
 
-                try:
-                    db.execute(
-                        conn,
-                        "ALTER TABLE settings ADD COLUMN limit_period TEXT DEFAULT 'day'",
-                    )
-                    print("  - settingsテーブルに limit_period カラムを追加しました")
-                except Exception:
-                    pass
-
-                # usersテーブルにlast_reset_dateカラムを追加
-                try:
-                    db.execute(
-                        conn, "ALTER TABLE users ADD COLUMN last_reset_date TEXT"
-                    )
-                    print("  - usersテーブルに last_reset_date カラムを追加しました")
-                    # 既存ユーザーには今日の日付を設定
-                    today = datetime.now().strftime("%Y-%m-%d")
-                    db.execute(
-                        conn,
-                        "UPDATE users SET last_reset_date = ? WHERE last_reset_date IS NULL",
-                        (today,),
-                    )
-                except Exception:
-                    pass
-
-                try:
-                    db.execute(
-                        conn,
-                        "UPDATE settings SET usage_limit = daily_limit WHERE usage_limit IS NULL OR usage_limit = 0",
-                    )
-                except Exception:
-                    pass
+            # daily_limitの値をusage_limitに移行
+            try:
+                db.execute(
+                    conn,
+                    "UPDATE settings SET usage_limit = daily_limit WHERE usage_limit IS NULL OR usage_limit = 0",
+                )
+            except Exception:
+                pass
     except Exception:
         logger.exception("legacy migration に失敗しました")
         raise
@@ -1625,24 +1420,14 @@ def api_reader_status():
     try:
         with get_connection() as conn:
             # 最近アクティブな子機（過去60秒以内）を取得
-            if db.db_type == "mysql":
-                query = """
-                    SELECT name, last_seen, stock, connect,
-                           TIMESTAMPDIFF(SECOND, last_seen, NOW()) as seconds_ago
-                    FROM units
-                    WHERE last_seen IS NOT NULL 
-                      AND TIMESTAMPDIFF(SECOND, last_seen, NOW()) < 60
-                    ORDER BY last_seen DESC
-                """
-            else:
-                query = """
-                    SELECT name, last_seen, stock, connect,
-                           (julianday('now') - julianday(last_seen)) * 86400.0 as seconds_ago
-                    FROM units
-                    WHERE last_seen IS NOT NULL 
-                      AND (julianday('now') - julianday(last_seen)) * 86400.0 < 60
-                    ORDER BY last_seen DESC
-                """
+            query = """
+                SELECT name, last_seen, stock, connect,
+                       TIMESTAMPDIFF(SECOND, last_seen, NOW()) as seconds_ago
+                FROM units
+                WHERE last_seen IS NOT NULL
+                  AND TIMESTAMPDIFF(SECOND, last_seen, NOW()) < 60
+                ORDER BY last_seen DESC
+            """
 
             rows = db.fetchall(conn, query)
 
@@ -2802,10 +2587,10 @@ def bootstrap_parent(*, start_background: bool = False) -> None:
     from app.migrations import run_all_migrations
 
     # HTTP/Tailscale 内運用では OITERU_STRICT_SECURITY=false で起動できるように
-    # する（MySQL のときデフォルト strict は維持）。
+    # する（既定は strict）。
     strict = parse_env_bool(
         "OITERU_STRICT_SECURITY",
-        default=(db.db_type == "mysql"),
+        default=True,
     )
     issues = validate_security(db_type=db.db_type, strict=strict)
     errors = [message for severity, message in issues if severity == "error"]
@@ -2847,9 +2632,6 @@ if __name__ == "__main__":
     logger.info("=" * 60)
     logger.info("OITELU 親機/従親機 を起動しています...")
     logger.info("=" * 60)
-    if db.db_type == "sqlite":
-        logger.warning("server.py + SQLite は legacy 互換経路です。")
-        logger.warning("標準構成は db_server.py + MySQL を使用してください。")
 
     bootstrap_parent(start_background=True)
     logger.info("親機の起動が完了しました。http://localhost:%d", SERVER_PORT)
