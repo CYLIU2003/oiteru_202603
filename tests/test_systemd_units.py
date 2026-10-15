@@ -2,6 +2,7 @@
 
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -9,7 +10,12 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 PARENT = ROOT / "scripts" / "parent.sh"
 
-pytestmark = pytest.mark.skipif(shutil.which("bash") is None, reason="bash is required")
+# parent.sh is for the Linux production parent. On Windows "bash" is often
+# WSL, which cannot run a script by its Windows path.
+pytestmark = pytest.mark.skipif(
+    sys.platform == "win32" or shutil.which("bash") is None,
+    reason="parent.sh runs only on Linux",
+)
 
 
 def run_installer(*args):
