@@ -9,4 +9,4 @@
 - スキーマ変更は `app/migrations.py` に migration を追加して行うこと。
 - DB を使うテストは本物の MySQL で実行します（`OITERU_TEST_MYSQL=1`、DB 名は `*_test`）。
 - `.env`、カード UID、パスワード、トークンをコード・ログ・資料に平文で残さないこと。
-- `legacy/` は旧方式の保管場所です。新しいコードから参照しないでください。
+- 旧 Docker・SQLite・launcher の実装は削除済みです。調査方法は `legacy/README.md` を参照し、旧方式を現行コードから呼び出さないでください。

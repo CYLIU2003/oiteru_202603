@@ -10,6 +10,6 @@ document that answers the task; do not create parallel copies of these guides.
 | Developer setup and contribution rules | [onboarding.md](onboarding.md) |
 | Public-user route and administrator boundary | [user_flow.md](user_flow.md) |
 | RC-S380 use on Windows through WSL2 | [card_reader_windows.md](card_reader_windows.md) |
-| Child and sub-parent configuration values | [../config_templates/README.md](../config_templates/README.md) |
+| Child and sub-parent configuration values | [configuration.md](configuration.md) |
 
 The project overview is [../README.md](../README.md).

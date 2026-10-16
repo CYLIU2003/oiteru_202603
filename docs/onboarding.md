@@ -33,5 +33,5 @@ Hardware code must remain behind an interface so tests can run with mocks.
 | System entry and constraints | [../README.md](../README.md) |
 | Deployment and child provisioning | [quick_start.md](quick_start.md) |
 | Operational domain and failures | [operations.md](operations.md) |
-| Parent and child configuration | [../config_templates/README.md](../config_templates/README.md) |
+| Parent and child configuration | [configuration.md](configuration.md) |
 | Tests | `../tests/` |

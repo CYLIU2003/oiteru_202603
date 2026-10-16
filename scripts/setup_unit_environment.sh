@@ -94,8 +94,8 @@ echo ""
 echo "⚙️  [6/6] 設定ファイルを確認中..."
 
 if [ ! -f "config.json" ]; then
-    if [ -f "config_templates/config_unit.template.json" ]; then
-        cp config_templates/config_unit.template.json config.json
+    if [ -f "config.example.json" ]; then
+        cp config.example.json config.json
         echo "✓ テンプレートからconfig.jsonを作成しました"
         echo ""
         echo "⚠️  重要: config.jsonを編集して、以下を設定してください:"

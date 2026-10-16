@@ -1,42 +1,20 @@
-# scripts/
+# 起動・保守コマンドの一覧
 
-OITERU を動かすためのスクリプトです。はじめての人が使うのは `parent.sh` だけです。
-親機の運用手順は [../docs/runbook.md](../docs/runbook.md) を見てください。
+普段の当番は [操作ガイド](../QUICK_START.md#daily) を使います。
+親機の状態確認が必要な場合は [親機の運用ガイド](../docs/runbook.md) へ進んでください。
 
-## 親機（本番 Linux）
+| ファイル | 実行する場所・用途 |
+| --- | --- |
+| `parent.sh` | 親機。`status` で状態確認、`logs` でログ確認、`restart` で再起動、`install` で初回登録 |
+| `setup_local_mysql.sh` | 親機。初回にローカル MySQL の DB とユーザーを作成 |
+| `backup_mysql.sh` / `restore_mysql.sh` | 親機。`bash scripts/backup_mysql.sh` などとして実行。鍵の渡し方は操作ガイドを参照 |
+| `init_card_reader.sh` | 親機。systemd が NFC リーダーを初期化するときに使う |
+| `setup_unit_environment.sh` | 子機。初回のソフトウェア準備 |
+| `provision_unit.sh` | 子機。`sudo bash scripts/provision_unit.sh` で秘密ファイルを作成 |
+| `tmux_oiteru.sh` | 子機の起動・停止。親機では保守で手動起動するときだけ使う |
 
-| ファイル | 使う場面 |
-|---|---|
-| `parent.sh` | 親機を見る・直す。`status` / `restart` / `logs` / `install` |
-| `setup_local_mysql.sh` | 初回だけ。`.env` を読んで MySQL の DB とユーザーを作る |
-| `backup_mysql.sh`, `restore_mysql.sh` | DB の暗号化バックアップと復元（[../docs/operations.md](../docs/operations.md)） |
-| `init_card_reader.sh` | 親機の NFC リーダー初期化。systemd が自動で実行する |
+設定の見本と役割は [設定ファイルの説明](../docs/configuration.md) を参照してください。
+旧 Docker・launcher・設定ウィザード・特定の Windows PC 用自動起動スクリプトは削除しました。
+Windows で NFC を検証する場合は [WSL の手順](../docs/card_reader_windows.md) を使います。
 
-## 子機（Raspberry Pi）・従親機
-
-| ファイル | 使う場面 |
-|---|---|
-| `setup_unit_environment.sh` | 子機の初回セットアップ |
-| `provision_unit.sh` | 子機の設定ファイルと秘密情報を作る |
-| `SETUP_UNIT.md` | 子機セットアップの詳しい説明 |
-| `tmux_oiteru.sh` | 子機・従親機を tmux で起動・停止する。親機は保守で手動起動するときだけ |
-| `setup_config.sh`, `setup_config.ps1` | `config.json` を対話形式で作る（[../config_templates/README.md](../config_templates/README.md)） |
-
-## 開発用 PC（Windows）
-
-| ファイル | 使う場面 |
-|---|---|
-| `windows/oiteru_restart_auto.ps1` | 開発用 PC の再起動後に、MySQL と親機を自動で起動する |
-| `windows/wsl_nfc_setup.ps1` | WSL2 で NFC リーダーを使えるようにする |
-
-本番の親機では、Windows 用スクリプトは使いません。
-
-## 使わなくなったスクリプト
-
-Docker 版、launcher 版、`start_*` 版などの古い起動スクリプトは [../legacy/](../legacy/) に移しました。
-標準の手順では使いません。
-
-## 注意
-
-- `.env`, `config.json`, `logs/`, DB ファイルは Git に含めないでください。
-- 実行権限がない場合は `chmod +x scripts/<ファイル名>` を実行してください。
+`.env`、`config.json`、秘密ファイル、ログ、DB、バックアップは Git に含めません。

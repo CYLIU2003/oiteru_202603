@@ -132,4 +132,5 @@ sudo systemctl start oiteru-parent
 
 ### 開発用 PC（Windows）について
 
-日常の開発は Windows PC で行います。Windows 用スクリプトは `scripts/windows/` にあり、本番（hirameki-3）では使いません。
+Windows で開発する場合は [開発の案内](onboarding.md)、NFC の検証は [WSL の手順](card_reader_windows.md) を参照してください。
+特定 PC のパスに依存していた旧自動起動スクリプトは削除しました。

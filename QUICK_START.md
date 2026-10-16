@@ -439,7 +439,7 @@ JSON では、文字列を `"` で囲み、項目を `,` で区切ります。`t
 | `HEARTBEAT_INTERVAL` | 状態を送る間隔。省略時は 30 秒 |
 
 `UNIT_PASSWORD` を JSON に書かず、次の手順で別ファイルに保存します。
-配線や回転量の詳細は [子機セットアップ](scripts/SETUP_UNIT.md) と [設定項目](config_templates/README.md) を参照してください。
+配線や回転量の詳細は [設定項目](docs/configuration.md) を参照してください。
 
 ### 2-4. 子機の秘密情報を登録する
 
@@ -601,6 +601,5 @@ unset OITERU_BACKUP_KEY
 - [日常運用・障害対応・スタンドアロンモード](docs/operations.md)
 - [利用者と管理者の画面](docs/user_flow.md)
 - [開発の案内](docs/onboarding.md)
-- [子機セットアップの詳細](scripts/SETUP_UNIT.md)
-- [設定項目の説明](config_templates/README.md)
+- [設定項目の説明](docs/configuration.md)
 - [Windows の NFC リーダー](docs/card_reader_windows.md)
