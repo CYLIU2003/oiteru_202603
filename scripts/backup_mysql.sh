@@ -25,10 +25,12 @@ chmod 0700 "$BACKUP_DIR"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 OUTPUT="$BACKUP_DIR/oiteru-${STAMP}.sql.gz.enc"
 
+# OITERU grants access to its own database, not global PROCESS privileges.
 MYSQL_PWD="$MYSQL_PASSWORD" mysqldump \
     --host="${MYSQL_HOST:-localhost}" \
     --port="${MYSQL_PORT:-3306}" \
     --user="$MYSQL_USER" \
+    --no-tablespaces \
     --single-transaction --routines --events --triggers \
     --databases "$MYSQL_DATABASE" \
     | gzip -c \
