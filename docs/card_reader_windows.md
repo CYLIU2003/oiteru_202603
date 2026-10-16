@@ -1,107 +1,101 @@
-# Windows 開発機で RC-S380 カードリーダーを使う手順
+# Windows の WSL で NFC リーダーを検証する
 
-対象: Windows PC で OITERU 親機を動作させる開発環境
+**対象は開発担当者です。日常の当番や、実機なしのテストにはこの作業は不要です。**
+Windows に接続した USB リーダーを WSL 2（Windows 上で Linux を動かす仕組み）へ渡して使います。
+親機プログラムも同じ WSL 内で動かす必要があります。Windows 側の親機からは、WSL へ渡したリーダーを使えません。
 
-## 推奨: WSL2 + usbipd 経由（2026-08-06 実証済み）
+この手順は [Microsoft 公式の WSL USB 接続手順](https://learn.microsoft.com/en-us/windows/wsl/connect-usb) の
+usbipd-win 5 以降の操作を基準にしています。
+このリポジトリの標準運用は Linux 親機です。Windows の実機検証は担当者と一緒に行ってください。
 
-Windows 側の SONY 公式ドライバを残したまま、RC-S380 を WSL2 に渡して
-Linux 側（標準構成）で nfcpy を使う方法。ドライバ置き換え不要。
+## 1. WSL と usbipd を確認する
 
-### 手順
+**Windows の PowerShell：**
 
 ```powershell
-# 1. Ubuntu をインストール（未インストールの場合）
-winget install -e --id Canonical.Ubuntu.2404 --accept-source-agreements --accept-package-agreements --disable-interactivity
+wsl --list --verbose
+usbipd --version
+```
 
-# 2. usbipd-win をインストール
-winget install -e --id dorssel.usbipd-win --accept-source-agreements --accept-package-agreements --disable-interactivity
+使う Linux ディストリビューションが一覧にあり、`VERSION` が `2` であることを確認します。
+名前は環境で異なります。決まった Ubuntu バージョンやユーザー名をコピーしないでください。
+WSL が未導入なら [Microsoft の WSL インストール手順](https://learn.microsoft.com/en-us/windows/wsl/install) を使います。
 
-# 3. Ubuntu を WSL に登録（root ユーザーで初回登録）
-& "$env:LOCALAPPDATA\Microsoft\WindowsApps\ubuntu2404.exe" install --root
+usbipd がなければ、公式の案内に従って導入します。
 
-# 4. WSL2 を起動したまま維持（バックグラウンドで sleep を実行）
-Start-Process wsl.exe -ArgumentList '-d','Ubuntu-24.04','--','bash','-c','sleep 3600'
+```powershell
+winget install --interactive --exact dorssel.usbipd-win
+```
 
-# 5. カードリーダーの BUSID を確認（RC-S380 は 054c:06c3）
+導入後に PowerShell を開き直し、もう一度バージョンを確認します。
+
+## 2. リーダーを WSL へ渡す
+
+1. 使用する WSL のターミナルを開き、そのままにする。
+2. USB リーダーを接続する。
+3. **管理者として開いた Windows PowerShell** で次を実行する。
+
+```powershell
 usbipd list
-
-# 6. bind + attach（管理者権限が必要。UAC プロンプトで「はい」）
-Start-Process powershell.exe -Verb RunAs -Wait -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-Command','usbipd bind --busid 2-3; usbipd attach --wsl --busid 2-3 --auto-attach'
-
-# 7. WSL2 内で認識確認
-wsl -d Ubuntu-24.04 -- lsusb   # → "Bus 001 Device 002: ID 054c:06c3 Sony Corp. RC-S380"
-
-# 8. WSL2 内に Python + nfcpy をセットアップ
-wsl -d Ubuntu-24.04 -- apt-get install -y python3-pip python3-venv python3-dev libusb-1.0-0
-wsl -d Ubuntu-24.04 -- python3 -m venv /opt/oiteru-venv
-wsl -d Ubuntu-24.04 -- /opt/oiteru-venv/bin/pip install nfcpy
-
-# 9. 動作確認
-wsl -d Ubuntu-24.04 -- /opt/oiteru-venv/bin/python -c "import nfc; clf=nfc.ContactlessFrontend('usb'); print('OPEN OK:', clf); clf.close()"
 ```
 
-### 注意
+リーダーの行にある BUSID を確認します。BUSID は `2-3` などですが、接続先によって変わります。
+マウスなど別の USB 機器を選ばないよう、機器名を担当者と確認してください。
 
-- attach 中は Windows 側からリーダーは見えなくなる（WSL 側に移動する）。
-- 親機サーバーも WSL2 内で起動する必要がある（Windows 側の server.py からは
-  リーダーにアクセスできない）。
-- アタッチ解除: `usbipd detach --busid 2-3`（管理者権限）。
-
-## 旧手順（Windows 直接 + Zadig）※非推奨
-
-Windows 側の `server.py` を直接起動する構成で、SONY 公式ドライバが
-libusb をブロックする問題への対処。
-
-## 2. 必要なもの
-
-- Zadig（公式配布元: https://zadig.akeo.ie/）
-- 管理者権限
-
-## 3. ドライバ置き換え手順（Zadig）
-
-1. 公式配布元からダウンロードした Zadig を**右クリック → 「管理者として実行」**。
-2. メニュー **Options → List All Devices** にチェックを入れる。
-3. 上部プルダウンで **Sony NFC Port/PaSoRi 100 USB**（または
-   `USB\VID_054C&PID_06C3` を含む項目）を選択。
-4. 右側のドライバ選択で **WinUSB** を選択。
-5. 青色の **Replace Driver** ボタンをクリック。
-6. 警告ダイアログが出たら **Yes**（または Install）を選択。
-7. 「Driver installed successfully」と表示されたら完了。
-
-> 注意: 置き換え後、USB ケーブルの抜き差しが必要な場合があります。
-
-## 4. 動作確認
-
-PowerShell で以下を実行（リーダーは PC に接続したまま）:
+**管理者 PowerShell：**
 
 ```powershell
-cd c:\oiteru_202603
-c:/oiteru_202603/.venv/Scripts/python.exe -c "import nfc; clf = nfc.ContactlessFrontend('usb'); print('OPEN OK:', clf); clf.close()"
+$ReaderBusId = Read-Host "リーダーの BUSID"
+usbipd bind --busid $ReaderBusId
+usbipd list
 ```
 
-- `OPEN OK: ...` と表示されれば成功。
-- `USBErrorNotSupported` のままなら、Zadig の手順をやり直すか、
-  デバイスマネージャーでドライバが WinUSB になっているか確認。
+その機器が共有されたことを確認します。次の attach は通常権限でも実行できます。
+別の PowerShell を開いた場合は `$ReaderBusId` をもう一度入力します。
 
-ブラウザで確認:
+```powershell
+usbipd attach --wsl --busid $ReaderBusId
+usbipd list
+```
 
-- http://localhost:5000/register を開き「再確認」を押す。
-  「ICカードリーダーが接続されていません」が消えていれば OK。
+attach 中のリーダーは Windows の他のアプリから使えなくなります。
 
-## 5. 元に戻す方法（SONY 公式ドライバに復元）
+## 3. WSL の Linux 側で確認する
 
-- デバイスマネージャー → 「NFC Port/PaSoRi 100 USB」を右クリック →
-  「ドライバーの更新」→「コンピューターを参照してドライバーを検索」→
-  「コンピューター上の利用可能なドライバーの一覧から選択」→
-  「NFC Port/PaSoRi 100 USB」を選択してインストール。
-- または Zadig で再度開き、ドライバを「NFC Port/PaSoRi 100 USB」に
-  置き換え（*USB デバイスクラスのドライバを入れ替える*場合は手動選択）。
+**ここからは WSL のターミナルです。PowerShell に貼り付けません。**
 
-## 6. 注意事項
+```bash
+sudo apt update
+sudo apt install -y usbutils libusb-1.0-0 python3-venv
+lsusb
+```
 
-- ドライバ置き換え後、おサイフケータイ連携など SONY ドライバを
-  使う他のアプリはこのリーダーを使えなくなる可能性があります。
-- 親機サーバーの再起動は不要です（カード読み取りはリクエスト時に
-  リーダーを開く実装のため）。
-- Linux / WSL2 で使う場合はこの手順は不要です
-  （この文書の冒頭にある usbipd の手順を使用）。
+接続したリーダーが一覧に出ることを確認します。
+WSL 内に取得した OITERU のフォルダへ移動し、[開発手順](onboarding.md) と同様に `.venv` と依存パッケージを用意します。
+Windows 用に作った `.venv` は流用しません。
+
+```bash
+.venv/bin/python tools/check_nfc_reader.py
+```
+
+成功時は終了コード 0、未検出・読み取り失敗時は 1 を返します。
+カードを読む確認が必要なら、次を実行してからテスト用カードを置きます。UID は表示しません。
+
+```bash
+.venv/bin/python tools/check_nfc_reader.py --read
+```
+
+権限エラーは、USB の udev ルール等を担当者と確認します。親機を root で起動して回避しないでください。
+Web 画面を使うには、同じ WSL 内で親機と MySQL の準備も必要です。
+[親機セットアップ](setup.md#setup-parent) と、WSL で systemd が使えるかを担当者と確認します。
+
+## 4. 作業後に Windows へ戻す
+
+**Windows PowerShell：**
+
+```powershell
+usbipd detach --busid $ReaderBusId
+```
+
+再起動や抜き差し後には attach が必要になることがあります。そのたびに `usbipd list` で BUSID を確認します。
+旧スクリプトの固定パス・固定 BUSID や、カード番号を表示するテストは使いません。

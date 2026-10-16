@@ -7,7 +7,7 @@
 | --- | --- |
 | `parent.sh` | 親機。`status` で状態確認、`logs` でログ確認、`restart` で再起動、`install` で初回登録 |
 | `setup_local_mysql.sh` | 親機。初回にローカル MySQL の DB とユーザーを作成 |
-| `backup_mysql.sh` / `restore_mysql.sh` | 親機。`bash scripts/backup_mysql.sh` などとして実行。鍵の渡し方は操作ガイドを参照 |
+| `backup_mysql.sh` / `restore_mysql.sh` | 親機。`bash scripts/backup_mysql.sh` などとして実行。[鍵の渡し方と復元手順](../docs/operations.md#backup)を先に確認 |
 | `init_card_reader.sh` | 親機。systemd が NFC リーダーを初期化するときに使う |
 | `setup_unit_environment.sh` | 子機。初回のソフトウェア準備 |
 | `provision_unit.sh` | 子機。`sudo bash scripts/provision_unit.sh` で秘密ファイルを作成 |

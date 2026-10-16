@@ -1,15 +1,22 @@
-# OITERU documentation
+# 説明書の入口
 
-This directory is the canonical documentation entry point. Use the smallest
-document that answers the task; do not create parallel copies of these guides.
+初めての当番は [QUICK_START.md](../QUICK_START.md) を上から読みます。
+設置・開発・復旧が必要な場合だけ、担当する説明書を開いてください。
 
-| Audience or task | Document |
+| したいこと | 説明書 |
 | --- | --- |
-| First parent-service or child-device launch | [quick_start.md](quick_start.md) |
-| Daily operation, monitoring, and incident response | [operations.md](operations.md) |
-| Developer setup and contribution rules | [onboarding.md](onboarding.md) |
-| Public-user route and administrator boundary | [user_flow.md](user_flow.md) |
-| RC-S380 use on Windows through WSL2 | [card_reader_windows.md](card_reader_windows.md) |
-| Child and sub-parent configuration values | [configuration.md](configuration.md) |
+| 仕組みや用語を知る | [プロジェクトの README](../README.md) |
+| 当番として在庫を見る・補充する | [はじめての操作ガイド](../QUICK_START.md) |
+| URL・連絡先・補充方法を先輩と確認する | [引き継ぎ票](handover.md) |
+| 自分の PC で初めてテストを動かす | [開発の第一歩](onboarding.md) |
+| 新しい親機・子機を設置する | [初回セットアップ](setup.md) |
+| 親機が止まった・応答しない | [親機のかんたん運用ガイド](runbook.md) |
+| 在庫修正・故障・バックアップ・オフライン時の動作を調べる | [運用・保守の手順](operations.md) |
+| 設定ファイルの違いを調べる | [設定ファイルの説明](configuration.md) |
+| 利用者画面と管理画面の役割を調べる | [画面と認証の境界](user_flow.md) |
+| Windows の WSL でリーダーを検証する | [Windows リーダー検証](card_reader_windows.md) |
+| 削除した旧方式を Git 履歴で調べる | [旧方式の記録](../legacy/README.md) |
+| 今回の検証範囲・結果・削除理由を確認する | [確認記録](verification.md) |
 
-The project overview is [../README.md](../README.md).
+後輩が実際に試して止まった箇所は、[引き継ぎ票](handover.md) に残してください。
+同じ手順の別コピーを増やさず、該当する説明書を更新します。

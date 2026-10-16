@@ -1,108 +1,143 @@
-# OITERU 運用手順
+# OITERU 運用・保守の手順
 
-この文書は、OITERU を学内実証で引き継ぐための運用手順です。開発手順ではなく、日常運用と障害時対応を対象にします。
+初めての当番は [QUICK_START.md](../QUICK_START.md) を使ってください。
+ここでは在庫修正、故障対応、子機の常設運用、バックアップなど、担当者向けの詳しい手順を説明します。
+新規導入は [setup.md](setup.md)、設定値は [configuration.md](configuration.md) が正本です。
 
-## 標準構成
+## まず、作業する機械と起動方法を確認する
 
-| 項目 | 標準 |
-|---|---|
-| 親機 | `db_server.py` |
-| DB | ローカル MySQL 8 (InnoDB) |
-| 子機 | Raspberry Pi / Linux + `unit.py` |
-| 親機の起動 | systemd サービス `oiteru-parent`（導入: `scripts/parent.sh install`） |
-| 子機の起動 | `tmux`（`scripts/tmux_oiteru.sh`）または systemd `oiteru-unit.service` |
+| 対象 | 標準の起動方法 | 状態確認 |
+| --- | --- | --- |
+| 親機（Linux・MySQL 8） | systemd `oiteru-parent` | 親機で `scripts/parent.sh status` |
+| 子機（初回確認） | tmux | 子機で `scripts/tmux_oiteru.sh status unit` |
+| 子機（常設・設定済みの場合） | systemd `oiteru-unit` | 子機で `systemctl status oiteru-unit` |
 
-Docker は当面の標準運用では使いません。MySQL は OS の `mysql` サービスとして起動します。
+**子機を tmux と systemd で同時に起動しません。** 使用中の方法を [引き継ぎ票](handover.md) に残してください。
+親機の起動・停止・復旧は [runbook.md](runbook.md) にまとめています。
 
-## 日常運用
+<a id="stock"></a>
 
-- 補充前に管理画面で対象子機の在庫と最終接続時刻を確認する
-- 補充後は `初期在庫数` と `現在の残り在庫` を更新する
-- 子機設定を変えた場合は、設定送信後に heartbeat 同期完了を確認する
-- 管理画面の初期認証情報は `.env` の `OITERU_ADMIN_USERNAME` / `OITERU_ADMIN_PASSWORD` で管理し、共有チャットに平文で貼らない
-- 運用ログやカード UID を画面共有・資料貼り付けに使わない
+## 在庫：補充・在庫修正・廃棄
 
-## 起動・停止
+記録の入口は管理画面の **運用管理**（`/admin/operations`）です。
+現地の実数を確かめ、対象子機・操作・数量・理由を入力して **在庫操作を登録**を押します。
+保存後は「直近の在庫操作」の日時・子機・増減前後・理由を確認します。
 
-親機は systemd で自動起動します。起動・停止・復旧の手順は [runbook.md](runbook.md) を参照してください。
+| 操作 | 数量 | 例 | 履歴の操作名 |
+| --- | --- | --- | --- |
+| 補充 | 今回追加した正の数 | `20` で 20 個追加 | `restock` |
+| 在庫修正 | 記録との差を符号付きで入力 | 画面 10 個・実物 8 個なら `-2` | `adjustment` |
+| 廃棄 | 今回捨てた正の数 | `3` で 3 個減らす | `disposal` |
 
-```bash
-scripts/parent.sh status
-scripts/parent.sh restart
+数量に合計在庫を入れません。0 や、在庫を負数にする操作は受け付けられません。
+理由は `定期補充`、`棚卸で数がずれていた`、`破損品を廃棄` など、あとで判断できる内容にします。
+利用者の名前・カード番号・連絡先は入れません。
+
+誤入力は、履歴を直接削除・編集せず、実物と最新の記録を確認して新しい修正記録を追加します。
+保存エラーや応答の遅れでは、再読込して履歴を確認してから再入力します。
+子機詳細の「現在の残り在庫」を変更する方法もありますが、初めての当番は運用管理へ入口を統一します。
+子機詳細でも理由の記入が必須で、変更は監査ログに残ります。
+
+## 故障を受付から完了まで追跡する
+
+1. 運用管理の **故障を登録**で、対象子機・分類・状況を入力する。
+2. 担当者が決まっていれば選び、わからなければ未割当のまま登録する。
+3. 対応開始時に **対応中** に更新する。
+4. 実施内容と動作確認を「復旧・対応メモ」に残し、**復旧確認** に更新する。
+5. 引き継ぎ・確認が済んだら **完了** に更新する。
+
+```text
+受付 → 対応中 → 復旧確認 → 完了
 ```
 
-子機:
+復旧確認または完了にするには対応メモが必要です。再発時は「対応を再開」で追跡します。
+記録には端末名・時刻・症状・作業内容を残し、利用者情報を入れません。
+機器を利用停止にする必要がある場合は、子機詳細の「利用可能状態」も担当者が確認します。
+通信断中の子機には画面での変更がすぐ届かないため、現地での停止方法も確認してください。
+
+## 障害時の一次対応
+
+| 症状 | 担当者が確認する順番 |
+| --- | --- |
+| 管理画面が開かない | 指定ネットワーク・VPN → URL → 親機の `scripts/parent.sh status` |
+| ログインできない | ユーザー名・入力 → HTTPS と Cookie の設定 → ログイン試行制限 → 親機ログ |
+| 子機がオフライン | 電源 → LAN 等の接続 → 最終接続 → 起動方式に合った子機ログ → 親機 URL |
+| 登録用リーダーが未接続 | 親機の USB → `tools/check_nfc_reader.py` → リーダー初期化サービス |
+| 排出されない | 実物と画面の在庫 → 利用可能状態・カードの利用条件 → 子機ログ → 配線・センサー・モーター |
+| 出たが記録がない | 再タッチや再起動を避け、時刻・子機名・受付番号を保全して履歴とログを照合 |
+
+リーダー診断は、対象機械のプロジェクトフォルダで行います。カード番号は表示しません。
 
 ```bash
-cd ~/Desktop/oiteru_202603
-scripts/tmux_oiteru.sh start unit
-scripts/tmux_oiteru.sh attach unit
+.venv/bin/python tools/check_nfc_reader.py
 ```
 
-状態確認:
+親機からの DB 接続確認は、接続情報を確認してから行います。
+`<MYSQL_USER>` と `<MYSQL_DATABASE>` は実際の値へ置き換え、パスワードはプロンプトで入力します。
 
 ```bash
-scripts/parent.sh status
-scripts/tmux_oiteru.sh status unit
+mysql -u <MYSQL_USER> -p <MYSQL_DATABASE> -e "SELECT 1;"
 ```
 
-## ラズパイ子機の systemd サービス運用（2026-08-14 実績: rpi1)
+<a id="unit-service"></a>
 
-学内実証で SSH が切れても子機が動き続けるようにするため、systemd サービス化を推奨します。
-`rpi1`（Raspberry Pi 5 / Debian 13 trixie）では以下の構成で稼働確認済みです。
+## 子機を systemd で常設運用する
 
-### サービス定義 `/etc/systemd/system/oiteru-unit.service` の要点
+SSH 切断に加え、OS 再起動後や異常終了後も子機を戻す場合は systemd を設定します。
+先に [初回セットアップ](setup.md#setup-unit) を完了し、実機で排出・記録を確認してください。
+すでにサービス運用中なら新規作成せず、現在の定義を担当者と確認します。
 
-- `User=rpi1` **必須**: `unit_client.py` は root 実行を拒否する設計（`PLATFORM == "RASPI"` かつ `geteuid() == 0` で exit 1）
-- `Environment=OITERU_STRICT_SECURITY=false`: 親機 URL が HTTP の場合に必要（HTTPS 化すれば不要にできる）
-- `Environment=LANG=C.UTF-8 LC_ALL=C.UTF-8 PYTHONIOENCODING=utf-8 PYTHONUNBUFFERED=1` + `ExecStart=... python -X utf8 ...`: systemd 環境では LANG 未設定だと Python 出力が euc_jp になり、絵文字を含む print で UnicodeEncodeError になるため
-- `Restart=always`: 異常終了時は自動再起動
+1. 子機で tmux 起動中なら `scripts/tmux_oiteru.sh stop unit` で停止する。
+2. `sudo nano /etc/systemd/system/oiteru-unit.service` で、次の定義を保存する。
+3. `<子機ユーザー名>` と `<プロジェクトの絶対パス>` を、かっこごと実際の値へ置き換える。
 
 ```ini
+[Unit]
+Description=OITERU Child Device
+Wants=network-online.target
+After=network-online.target
+
 [Service]
 Type=simple
-User=rpi1
-Group=rpi1
-WorkingDirectory=/home/rpi1/Desktop/oiteru_202603
-Environment=OITERU_STRICT_SECURITY=false
-Environment=LANG=C.UTF-8 LC_ALL=C.UTF-8 PYTHONIOENCODING=utf-8 PYTHONUNBUFFERED=1
-ExecStart=/home/rpi1/Desktop/oiteru_202603/.venv/bin/python -X utf8 /home/rpi1/Desktop/oiteru_202603/unit.py
+User=<子機ユーザー名>
+WorkingDirectory=<プロジェクトの絶対パス>
+Environment=OITERU_STRICT_SECURITY=true
+Environment=LANG=C.UTF-8
+Environment=LC_ALL=C.UTF-8
+Environment=PYTHONIOENCODING=utf-8
+Environment=PYTHONUNBUFFERED=1
+ExecStart=<プロジェクトの絶対パス>/.venv/bin/python -X utf8 <プロジェクトの絶対パス>/unit.py
 Restart=always
-RestartSec=10s
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
 ```
 
-### 運用コマンド
+例：プロジェクトの絶対パスは `/home/rpi1/oiteru_202603` のような値です。
+`User` に root を指定しません。サービスユーザーが秘密ファイルを読め、GPIO・USB を使えることを確認します。
+子機は親機の `.env` を読みません。上の定義は親機 URL が HTTPS であることを前提とします。
 
 ```bash
-sudo systemctl enable --now oiteru-unit.service   # 有効化・起動
-sudo systemctl restart oiteru-unit.service        # 再起動
-sudo systemctl status oiteru-unit.service         # 状態確認
-sudo journalctl -u oiteru-unit.service -f         # ログ確認（制御文字が混ざる場合は --output=cat | sed 's/\x1b\[[0-9;]*m//g'）
+sudo systemctl daemon-reload
+sudo systemctl enable --now oiteru-unit
+systemctl status oiteru-unit
 ```
 
-### 注意点
+管理画面の最終接続が更新されることを確認し、保守時間に OS 再起動後の復帰も確認します。
+その後、この起動方法を引き継ぎ票に記録します。
 
-- `Restart=always` で 5 回以上連続失敗すると systemd が再起動をブロックする（`Start request repeated too quickly`）。
-  設定変更後は必ず `sudo systemctl reset-failed oiteru-unit.service` を実行してから `restart` すること。
-- NFC リーダー（Sony RC-S380）を一般ユーザーで使うには udev ルールが必要:
-  `/etc/udev/rules.d/99-sony-rcs380.rules` に
-  `SUBSYSTEM=="usb", ATTRS{idVendor}=="054c", ATTRS{idProduct}=="06c1", MODE="0666", GROUP="plugdev"`
-  ※ idProduct は実機の lsusb で確認（rpi1 は 06c1）。既存のデバイスノードには反映されないため、
-  接続中の場合は `sudo chmod 666 /dev/bus/usb/001/007` で即時適用する。
-- 子機の `OITERU_STRICT_SECURITY` は `unit_client.py` が環境変数から直接読む（`.env` は子機では読み込まれない）。
-## バックアップと復元
+| 目的 | 子機で実行するコマンド |
+| --- | --- |
+| 状態 | `systemctl status oiteru-unit` |
+| ログ | `sudo journalctl -u oiteru-unit -n 100 -f --no-pager` |
+| 再起動 | `sudo systemctl restart oiteru-unit` |
+| 一時停止 | `sudo systemctl stop oiteru-unit` |
+| 自動起動も停止 | `sudo systemctl disable --now oiteru-unit` |
 
-Excel出力は管理用の集計に限定し、復旧用には MySQL 全体の暗号化 dump を使います。
-バックアップ鍵は `.env` に保存せず、保護された環境変数から渡します。
-
-```bash
-OITERU_BACKUP_KEY='十分に長いバックアップ鍵' scripts/backup_mysql.sh
-OITERU_BACKUP_KEY='同じ鍵' scripts/restore_mysql.sh backups/oiteru-<UTC時刻>.sql.gz.enc
-```
-
-復元はメンテナンス時間中にのみ実施し、復元後には親機 bootstrap・管理者ログイン・
-子機 heartbeat・架空カードでの排出状態遷移を確認してください。
-
+ログの継続表示は Ctrl + C、`systemctl status` の表示画面は Q で終了します。
+連続失敗で起動制限になったときは、原因を修正してから `sudo systemctl reset-failed oiteru-unit` と再起動を行います。
+USB・GPIO の権限エラーを、子機の root 起動で回避しないでください。
 ## スタンドアロンモード（親機が止まっても子機が排出を続ける）
 
 親機に接続できないとき、子機は最後に受け取った **照合表（offline cache）** を使い、子機だけで
@@ -152,144 +187,55 @@ OITERU_BACKUP_KEY='同じ鍵' scripts/restore_mysql.sh backups/oiteru-<UTC時刻
 再登録が必要になるため、変更手順は運用責任者が判断します）。照合表と記録のファイルは
 所有者だけが読める権限（0600）で保存されます。
 
-## 障害時の一次対応
+<a id="backup"></a>
 
-### 管理画面に入れない
+## バックアップと復元
 
-- `.env` の `OITERU_ADMIN_USERNAME` と `OITERU_ADMIN_PASSWORD` が正しいか確認する
-- 親機再起動後に `FLASK_SECRET_KEY` が変わっていないか確認する
-- ログイン試行上限に達した場合は、待機後に再試行する
-- 親機が起動しているか `scripts/parent.sh status` で確認する
+Excel のバックアップは利用者データの集計・確認用で、システム全体の復旧用ではありません。
+復旧には MySQL 全体の暗号化バックアップを使います。
+標準の DB ユーザー権限で実行できるよう、取得スクリプトは `--no-tablespaces` を指定し、
+サーバー全体のテーブルスペース情報を取得しません（[MySQL 公式の必要権限](https://dev.mysql.com/doc/refman/8.4/en/mysqldump.html)）。
+`.env`、子機の設定・秘密値などは DB に含まれないため、安全な保管先と復旧方法を別途確認します。
 
-### 子機がオフライン
-
-- 子機本体の電源、LAN/Tailscale、NFC リーダー接続を確認する
-- 管理画面で `最終接続` を確認する
-- 子機側で `scripts/tmux_oiteru.sh status unit` を確認する
-- `config.json` の `SERVER_URL` が親機 IP を指しているか確認する
-- 子機から `curl https://<親機ホスト名>/api/health` を実行する
-
-### 排出されない
-
-- 子機在庫が 0 でないか確認する
-- センサー詰まり、モーター配線、電源を確認する
-- ステッピング子機は `config.json` の `STEPPER_PINS`, `STEPPER_PHASE_ORDER`, `STEPPER_BACKEND` を確認する
-- CUI 設定メニューの `t` / `r` でステッパー単体テストを行う
-- 子機ログと heartbeat の直近時刻を確認する
-- 同一カードの短時間連打でないか確認する
-- 物理排出済みだが DB 未反映の疑いがある場合は、時刻、子機名、カード操作の有無をメモしてから調査する
-
-### DB 接続異常
-
-- `systemctl status mysql` で MySQL サービス状態を確認する
-- `.env` の `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DATABASE` を確認する
-- 親機から次を実行する
+**実行する場所：親機のプロジェクトフォルダ。** 鍵は画面に表示せず入力します。
 
 ```bash
-mysql -u oiteru_user -p oiteru -e "SELECT 1;"
+read -rsp "バックアップ鍵: " OITERU_BACKUP_KEY
+printf '\n'
+export OITERU_BACKUP_KEY
+bash scripts/backup_mysql.sh
+unset OITERU_BACKUP_KEY
 ```
 
-- 初回構築直後なら `scripts/setup_local_mysql.sh` を再確認する
+`Encrypted backup created:` と保存先が表示されることを確認します。
+標準の保存先は `backups/oiteru-<UTC時刻>.sql.gz.enc` です。
+鍵を紛失すると復号できません。ファイルと鍵の保管先、復旧確認の実施日を担当者が管理します。
 
-## 親機の NFC リーダー（カード登録用）
-
-親機 PC に NFC リーダー（Sony PaSoRi RC-S380 推奨）を接続すると、管理画面・登録ページからカードを直接読み取って利用者登録できます。
-
-### 動作確認
+復元は DB を書き換えます。保守時間を決め、親機・子機の排出と書き込みを止め、対象 DB とファイルを確認します。
+通信断だけでは子機がスタンドアロン排出を続ける可能性があるため、現地の停止も確認してください。
 
 ```bash
-# リーダー検出のみ
-python tools/check_nfc_reader.py
-
-# カードを1枚読み取る（10秒待機）
-python tools/check_nfc_reader.py --read
+read -rsp "バックアップ鍵: " OITERU_BACKUP_KEY
+printf '\n'
+export OITERU_BACKUP_KEY
+bash scripts/restore_mysql.sh backups/oiteru-<UTC時刻>.sql.gz.enc
+unset OITERU_BACKUP_KEY
 ```
 
-診断ツールは成功時に終了コード `0`、未検出・読み取り失敗時に `1` を返します。
-カード UID と例外の詳細文字列は出力せず、成功の有無とエラー種別のみ記録します。
+`<UTC時刻>` は実際のファイル名に置き換えます。確認に `RESTORE` の入力を求められます。
+管理画面の Excel 復元も既存の利用者データを置き換えるため、補充の誤入力修正には使いません。
+復元後は親機の再起動、管理者ログイン、子機 heartbeat、テストカードの排出・履歴を確認して運用へ戻します。
 
-### Windows 固有の注意
+## 設定変更・記録の保全
 
-- `server.py` の NFC 読み取りは nfcpy（libusb 経由）を使います。`pip install libusb` を入れておくと nfcpy が DLL を自動で見つけます。
-- リーダーが Windows に認識されない場合は、USB ポートの挿し直し・別ポートを試します。
-- デバイスマネージャーで「その他のデバイス」に出る場合、Zadig (https://zadig.akeo.ie) で当該デバイスに **WinUSB** ドライバを割り当ててください（Sony 公式 PC/SC ドライバが入っていると libusb から使えないため注意）。
-- Linux ではリーダーを挿すだけで認識され、`libusb` パッケージのみ必要です。
+自動登録モードは標準で無効です。利用上限・期間・自動登録の変更は、実証責任者と確認してから行います。
+子機への設定は heartbeat で同期されるため、管理画面で反映完了を確認します。
+運用履歴がある子機は削除せず、利用停止にして履歴を保全します。
 
-## プライバシー運用
+- `stock_movements` は補充・在庫修正・廃棄の履歴です。直接更新・削除しません。
+- `maintenance_tickets` は故障の受付・状態・復旧メモを保持します。
+- `admin_audit_logs` は管理者の操作記録です。
+- `.env`、秘密値、実 DB、照合表、未送信記録、ログ、バックアップを Git や共有資料へ含めません。
+- 外部に利用状況を出す場合は、個人ごとの履歴ではなく集計値を使います。
 
-- `.env`, `config.json`, `logs/`, `*.log`, `*.sqlite3`, バックアップファイルは Git に含めない
-- 利用履歴を外部共有する場合は、個票ではなく集計値を使う
-- ユーザー名、カード UID、トークン、パスワードをログや資料に平文で出さない
-- スクリーンショットを共有する場合は、カード ID と認証情報を隠す
-
-## 日常運用: 補充・故障対応
-
-管理画面の **運用管理**（/admin/operations）を、補充・在庫修正・廃棄・故障対応の
-唯一の記録入口として使います。利用者のカード UID や個人別利用履歴を、この画面で確認する
-必要はありません。
-
-### 開始時の確認
-
-1. 「補充必須（在庫 0）」を確認し、対象端末を選ぶ。
-2. 「heartbeat 超過」を確認する。ここでは既存の監視と同じ **60 秒** を表示基準とする。
-   60 秒は初期の監視基準であり、端末ごとの heartbeat 間隔を変える場合は運用責任者が
-   基準を見直す。
-3. 「対応中・復旧確認のチケット」を確認し、同じ端末に未処理の事象がないか見る。
-
-### 補充・在庫修正・廃棄
-
-1. 対象端末を選び、操作種別（補充 / 在庫修正 / 廃棄）と数量を入力する。
-2. 理由には「定期補充」「棚卸差異」「破損品の廃棄」など、後から判断できる内容を記す。
-3. 保存後、「直近の在庫操作」で **増減前・増減後・理由** を確認する。
-
-補充は正数、廃棄は正数（システムが減算として記録）、在庫修正は増減を符号付きで入力します。
-在庫を負数にする操作は拒否されます。排出処理と同時に在庫が変化した場合も、古い値で上書き
-せず、画面を再読込してから記録し直します。
-
-子機詳細画面から在庫数を変更する場合も、理由の入力が必須です。保存された変更は
-stock_movements と管理者監査ログの両方に記録されます。
-
-### 故障チケット
-
-1. 故障を見つけたら、対象端末・分類（在庫切れ / 詰まり / 機器故障 / 通信不良 / その他）・担当者・状況を登録する。
-2. 対応を始めたら **対応中** に更新する。
-3. 動作確認ができたら、実施内容を「復旧・対応メモ」に残して **復旧確認** に更新する。
-4. 引継ぎまたは確認が済んだら **完了** にする。再発時は **対応を再開** して同じチケットを追跡する。
-
-状態遷移は「受付 → 対応中 → 復旧確認 → 完了」を基本とします。復旧確認または完了には、
-何を確認・修復したかを必ず残します。
-
-### 記録してはいけないもの
-
-在庫理由、故障状況、復旧メモには、利用者の氏名、カード UID、メールアドレス、電話番号を
-入力しません。運用記録は端末・時刻・作業内容だけで完結させます。
-
-### 利用者からの匿名報告
-
-匿名の「出ない・詰まった・空」報告は有効な次段階の改善候補ですが、公開入力にはレート制限、
-悪用対策、掲示場所の運用責任者が必要です。これらが未決定の間は公開 API を設けず、運用担当者が
-故障チケットとして登録してください。
-
-## 運用データと復旧
-
-- stock_movements は補充・在庫修正・廃棄の不変履歴です。内容を直接更新・削除しません。
-- maintenance_tickets は故障の受付、状態、復旧メモを保持します。
-- admin_audit_logs は管理者の操作証跡です。
-- 運用履歴がある子機は削除せず、利用停止にして履歴を保全します。
-
-MySQL のバックアップ・復元時には、これらの表も通常の DB バックアップに含まれます。手書き
-DDL で本番 DB を変更せず、アプリケーション起動時の migration 010_add_operations_management
-で作成されることを確認してください。
-
-## 引き継ぎ時チェックリスト
-
-- `.env.example` を元に新しい `.env` を作成した
-- `config.example.json` を元に各子機の `config.json` を作成した
-- `scripts/setup_local_mysql.sh` でローカル MySQL を準備した
-- `scripts/parent.sh install` で親機を systemd に登録し、起動した
-- 後任者に [runbook.md](runbook.md) の「はじめての人へ」を一緒にやってもらった
-- 管理画面ログインを確認した
-- 子機 heartbeat を確認した
-- 補充手順と障害時一次対応を担当者へ説明した
-
-最終更新: 2026-08-11
+本番 DB の構造は、親機起動時の migration で管理します。手書き DDL を直接適用しません。

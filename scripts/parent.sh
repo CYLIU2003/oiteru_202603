@@ -144,9 +144,9 @@ cmd_install() {
     fi
     id "$service_user" >/dev/null 2>&1 || need "利用者が存在しません: $service_user"
     [ -x "$service_root/.venv/bin/gunicorn" ] \
-        || need "$service_root/.venv/bin/gunicorn がありません。QUICK_START.md の 1-3 を先に実行してください"
+        || need "$service_root/.venv/bin/gunicorn がありません。docs/setup.md の 1-3 を先に実行してください"
     [ -f "$service_root/.env" ] \
-        || need "$service_root/.env がありません。QUICK_START.md の 1-2 を先に実行してください"
+        || need "$service_root/.env がありません。docs/setup.md の 1-2 を先に実行してください"
     if [ "$errors" -gt 0 ]; then
         exit 1
     fi

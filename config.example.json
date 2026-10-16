@@ -1,5 +1,5 @@
 {
-    "SERVER_URL": "http://127.0.0.1:5000",
+    "SERVER_URL": "https://oiteru-parent.example",
     "UNIT_NAME": "unit-01",
     "UNIT_SECRET_FILE": "/etc/oiteru/unit-secret",
     "MOTOR_TYPE": "STEPPER",
@@ -25,7 +25,6 @@
     "JAM_CLEAR_ATTEMPTS": 1,
     "SENSOR_STABILIZE_TIME": 0.3,
     "UNIT_LOCATION": "1号館1階",
-    "IS_SECONDARY": true,
     "PCA9685_CHANNEL": 15,
     "HEARTBEAT_INTERVAL": 30,
     "OFFLINE_MODE_ENABLED": true,

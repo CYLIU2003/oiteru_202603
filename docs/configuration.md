@@ -8,7 +8,7 @@
 | 子機の公開設定 | [`config.example.json`](../config.example.json) | `config.json` | 親機 URL、子機名、配線、モーター設定 |
 | 子機の秘密値 | なし | `/etc/oiteru/unit-secret` | 子機認証用の秘密値 |
 
-初回導入は [操作ガイドのセットアップ](../QUICK_START.md#setup) の順に進めます。
+初回導入は [セットアップの説明書](setup.md) の順に進めます。
 すでに稼働している機械の設定を、見本で上書きしないでください。
 
 ## 子機の主な設定
