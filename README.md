@@ -1,110 +1,141 @@
-# OITERU
+# OITERU（オイテル）
 
-NFC card-based sanitary-product dispensing system for campus operation. The
-standard deployment is a Flask parent service with MySQL 8 (InnoDB) and
-Raspberry Pi child devices. The child device supports a servo or a directly
-connected ULN2003AN/28BYJ-48 stepper motor.
+**学生証をタッチすると、生理用品を無料で受け取れる学内のシステムです。**
+専用のスマートフォンアプリは使いません。カードを読み取る機械と、利用回数・在庫を管理する仕組みを組み合わせています。
 
-## Start here
+この README は「どんな仕組みで、何を引き継ぐのか」を知るための入口です。
+実際に操作するときは [QUICK_START.md](QUICK_START.md) を開いてください。
+開発が初めてでも、まずは在庫を見て、補充して、記録できれば大丈夫です。
 
-Choose the path that matches your role:
+## やりたいことから読む
 
-| Goal | Read next |
+| やりたいこと | 読む場所 |
 | --- | --- |
-| Run the parent service or a child device | [Quick start](docs/quick_start.md) |
-| Find an operational or recovery procedure | [Operations guide](docs/operations.md) |
-| Understand public and administrator access | [User-flow and access boundary](docs/user_flow.md) |
-| Join development | [Developer onboarding](docs/onboarding.md) |
-| Set up the Windows RC-S380 reader | [Windows card reader guide](docs/card_reader_windows.md) |
-| Find a configuration template | [Configuration templates](config_templates/README.md) |
+| 初めて当番をする・補充する | [クイックスタート：日常運用](QUICK_START.md#daily) |
+| 出てこない・子機がオフラインになった | [クイックスタート：困ったとき](QUICK_START.md#help) |
+| 親機が動いているか確かめる | [親機のかんたん運用ガイド](docs/runbook.md) |
+| 自分の PC で開発を体験する | [クイックスタート：テストを動かす](QUICK_START.md#development) |
+| 新しい親機・子機を設置する | [クイックスタート：初回セットアップ](QUICK_START.md#setup) |
+| 詳しい運用手順や設定を調べる | [資料の一覧](docs/README.md) |
 
-## Architecture and security boundary
+すでに動いている機械の当番をする場合は、初回セットアップをやり直す必要はありません。
+
+## 使う人から見ると、3 ステップ
+
+1. **登録する**：最初の 1 回、登録用の画面とカードリーダーで学生証を登録します。
+2. **タッチする**：トイレにある子機に学生証をかざします。
+3. **受け取る**：利用条件を満たしていれば、生理用品が 1 個出ます。
+
+登録画面は `/register`、自分の利用状況を確かめる画面は `/usage` です。
+この 2 つに管理者ログインは必要ありません。カードの読み取りには、**親機に接続したリーダー**を使います。
+管理者だけが使う画面は `/admin` からログインします。
+
+## 中身は「親機」と「子機」
 
 ```text
-Public user browser ── /, /register, /usage ──> Parent service ──> MySQL 8
-                                              ^
-Raspberry Pi child ── NFC / motor / heartbeat ┘
-
-Administrator browser ── /admin/* and /api/v1/admin/* (authenticated only)
+トイレの子機                         研究室などの親機
+カードリーダー・モーター  ← 通信 →  利用できるか判断するプログラム
+センサー・LED                        ＋ MySQL（名簿や記録を保存）
+                                           ↑
+                                  担当者の PC・スマートフォン
+                                  ブラウザで管理画面を見る
 ```
 
-- Public users can register a card and check their own usage without an
-  administrator login.
-- The registration screen uses the [Campus Welcome design system](DESIGN.md)
-  and a locally served official Tokyo City University logo. See the
-  [screen design and asset source](docs/user_flow.md#登録画面のデザイン).
-- Administrative screens and administrative APIs require an authenticated
-  administrator session.
-- The only supported database is MySQL 8 (InnoDB). SQLite has been removed;
-  the parent refuses to start when `DB_TYPE` is set to anything but `mysql`.
-- Store parent secrets in `.env`; store a child-device secret in its separate
-  `UNIT_SECRET_FILE`. Never commit either file.
+**子機は「受け取り口」、親機は「受付の係」**と考えるとわかりやすくなります。
+普段の補充や故障の記録は、担当者のブラウザで行います。
 
-## Minimal Linux deployment
+通常、カードをタッチしてから排出が終わるまでは、次のように動きます。
 
-The full, verified sequence is in [docs/quick_start.md](docs/quick_start.md).
-In outline:
+1. 子機が親機に「このカードで 1 個出してよいか」を聞く。
+2. 親機が登録・利用回数・在庫などを確認し、受付番号（`event_id`）を発行する。
+3. 許可された子機がモーターを動かす。
+4. 子機が「出せた／出せなかった」を親機へ報告し、結果を記録する。
 
-```bash
-cp .env.example .env
-# Edit .env and replace every change-this value.
-python3 -m venv .venv
-.venv/bin/python -m pip install --upgrade pip
-.venv/bin/python -m pip install -r requirements.txt
-scripts/setup_local_mysql.sh --install
-scripts/parent.sh install
-```
+受付番号で、許可と排出結果を結び付けて追跡します。
+実物が出たのに記録が更新されないときは、時刻と子機名を残して担当者へ連絡してください。
 
-The parent runs as the `oiteru-parent` systemd service and restarts on its own
-after a reboot or crash. Day-to-day start, stop and recovery steps for operators
-are in [docs/runbook.md](docs/runbook.md).
+親機との通信が途切れたときは、条件を満たすカードに限り、子機が保存済みの照合表で判断する
+「スタンドアロンモード」もあります。使える回数や有効期限があり、復旧後に記録を同期します。
+詳しくは [運用手順](docs/operations.md#スタンドアロンモード親機が止まっても子機が排出を続ける) を参照してください。
 
-Open `http://localhost:5000/` for the public flow. Open
-`http://localhost:5000/admin` only to sign in as an administrator.
+## まず覚える言葉は 5 つ
 
-## Development checks
-
-```powershell
-.\.venv\Scripts\python.exe -m pytest -q
-.\.venv\Scripts\python.exe -m ruff check .
-git diff --check
-```
-
-On Linux, replace the Python path with `.venv/bin/python`. Hardware tests use
-mocks; run real NFC, GPIO, and motor checks only on the intended Raspberry Pi.
-
-Database tests run against a real MySQL 8 and are skipped unless
-`OITERU_TEST_MYSQL=1`. Each test recreates a throwaway database whose name must
-end in `_test` (default `oiteru_test`), so point it at a development MySQL,
-never at production. CI runs them automatically:
-
-```bash
-OITERU_TEST_MYSQL=1 OITERU_TEST_MYSQL_USER=root OITERU_TEST_MYSQL_PASSWORD=...   .venv/bin/python -m pytest -q
-```
-
-## Repository map
-
-| Path | Responsibility |
+| 言葉 | 意味 |
 | --- | --- |
-| `app/api/` | HTTP routes, validation, and response formatting |
-| `app/services/` | Business rules |
-| `app/repositories/` | Database access |
-| `app/models/` | DTOs, schemas, and enums |
-| `app/auth/` | Administrator and child-device authentication |
-| `unit/` | Child-device client (`unit_client.py`), hardware abstractions, and safe child configuration |
-| `scripts/` | Setup, start, provisioning, and recovery commands (`scripts/parent.sh` for the parent) |
-| `systemd/` | Parent service templates installed by `scripts/parent.sh install` |
-| `legacy/` | Retired Docker, launcher and SQLite-era files; not used by the standard setup |
-| `docs/` | Canonical user, operator, and developer documentation |
-| `tests/` | Unit and integration-style regression tests |
+| 親機（おやき） | 名簿や記録を持ち、利用できるか判断する PC |
+| 子機（こき） | カードを読み、生理用品を出す機械。Raspberry Pi という小さな PC を使う |
+| NFC | カードをかざして読み取る仕組み |
+| データベース（DB） | 名簿・在庫・記録を保存する箱。このプロジェクトでは MySQL 8 を使う |
+| heartbeat（ハートビート） | 子機が親機に送る「動いているよ」という定期連絡 |
 
-## Important constraints
+「最終接続」の時刻が更新されていなければ、子機の電源や通信を確認する目印になります。
 
-- Do not put SQL in route handlers or access the database from templates.
-- Use migrations; do not apply handwritten DDL directly to production.
-- Treat dispensing as a tracked state transition and preserve event history.
-- Keep each change focused, update the relevant documentation, and run the
-  affected tests before merging.
+## 引き継ぐ仕事は 3 種類
 
-The documentation index in [docs/README.md](docs/README.md) is the canonical
-map; older duplicate manuals and bundled installers have been removed.
+| 段階 | すること | 最初の目標 |
+| --- | --- | --- |
+| 見守る | 在庫・最終接続・故障の記録を見て、補充する | 先輩と一緒に補充し、管理画面へ記録できる |
+| 直す | 決まった順番で状態を確かめ、故障を記録する | 自分で判断できないところを担当者へ伝えられる |
+| 良くする | プログラムや機械を改良する | 自分の PC でテストを動かせる |
+
+最初の 1 か月は、1 週目に実物を見て使い、2 週目に先輩の補充を見て、
+3 週目に一緒に補充を記録し、4 週目に困ったときの確認を練習する、というペースが目安です。
+担当日・連絡先・管理画面の URL は、引き継ぎ時に先輩と確認してください。
+
+## 使う人の情報を守る
+
+カードの識別子は、そのまま DB に保存せず、専用の鍵を使った疑似 ID に変換します。
+ただし、画面やログ、子機内のデータにも取り扱いの注意が必要です。
+
+- パスワード、カード番号、秘密の設定ファイルをチャットや資料へ貼らない。
+- スクリーンショットを送る前に、カード識別子や認証情報を隠す。
+- 補充・故障の記録は「どの機械・いつ・何をしたか」で書き、利用者の名前やカード番号を入れない。
+- 利用状況を外部へ共有するときは、個人ごとの履歴ではなく集計値を使う。
+
+## 開発してみたい人へ
+
+最初はコードを書かずに、自分の PC で **テスト（壊れていないかを自動で確かめる仕組み）**を動かしてみてください。
+[Windows / macOS / Linux の手順](QUICK_START.md#development) を用意しています。
+実機なしで動くテストがあり、MySQL が必要なテストは通常スキップされます。
+
+プログラムは、レストランの係のように仕事を分けています。
+
+| 場所 | たとえるなら | 担当すること |
+| --- | --- | --- |
+| `app/api/` | ホール係 | 通信の受付、入力の確認、返事を作る |
+| `app/services/` | 厨房 | 出してよいかなどの業務ルールを判断する |
+| `app/repositories/` | 倉庫係 | DB への保存・読み出しを担当する |
+| `app/models/` | 伝票の書式 | やり取りするデータの形や状態を定義する |
+| `app/auth/` | 鍵の管理係 | 管理者や子機の認証を扱う |
+| `unit/` | 受け取り口の裏側 | 子機の通信、モーターやセンサーの制御を担当する |
+| `tests/` | 味見係 | プログラムの動作を自動で確認する |
+| `docs/` | 説明書 | 運用・開発・復旧の手順をまとめる |
+| `scripts/` / `systemd/` | 開店準備の道具 | 設置・起動・状態確認を行う |
+| `legacy/` | 以前の資料棚 | 旧 Docker 構成や起動方法など。標準の起動手順では使わない |
+
+改修するときは [AGENTS.md](AGENTS.md) と [開発の案内](docs/onboarding.md) を確認してください。
+特に次の方針を守ります。
+
+- 標準 DB は **MySQL 8（InnoDB）**。SQLite は使いません。
+- 画面や通信の受付から直接 SQL を書かず、業務処理と DB 操作を分けます。
+- DB の構造変更は migration（変更履歴付きの更新処理）で行います。
+- 実機の制御はモック（実機の代役）に置き換えてテストできるようにします。
+- 排出の受付番号と状態を残し、二重排出や「出たのに記録がない」を調べられるようにします。
+- 親機の秘密は `.env`、子機の秘密は別の `UNIT_SECRET_FILE` に保存し、Git に含めません。
+- 新しい API は `/api/v1/...` にそろえます。既存の `/api/health` などは現在の実装に合わせて使います。
+- 変更は 1 つの目的に絞り、関係するテストと説明書も更新します。
+
+## 困ったときの伝え方
+
+質問は、次の 3 点があれば伝わります。
+
+1. 何をしようとしていたか。
+2. 何をしたか。
+3. 何が起きたか。
+
+例：「unit-01 の補充を記録しようとして、保存を押したら赤いエラーが出ました。発生は 14:20 頃です。」
+画像を添える場合は、カード識別子やパスワードを隠してください。
+連絡先は引き継ぎ担当者に確認し、わからないまま設定や配線を変えずに相談してください。
+
+この README とクイックスタートは、引き継ぎ資料「オイテル引き継ぎオリエンテーション (1).pptx」の
+「見守る → 直す → 良くする」の順に沿って構成しています。操作名とコマンドは現在の実装を基準にしています。
