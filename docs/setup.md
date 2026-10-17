@@ -137,8 +137,8 @@ MySQL がすでに導入済みなら、最後は `scripts/setup_local_mysql.sh` 
 スクリプトは `.env` を読み、ローカル MySQL の起動、DB・ユーザーの作成、接続確認を行います。
 使用するのが MySQL 8 であることを `mysql --version` でも確認してください。
 
-**できた目印：** `OITERU local MySQL is ready` と `Local MySQL setup completed.` が表示されます。
-末尾に tmux で親機を起動する案内が出ても、標準構成では次の `parent.sh install` へ進みます。
+**できた目印：** `OITERU local MySQL is ready` と `Local MySQL setup completed.` が表示され、
+最後の行が `Next: scripts/parent.sh install` になります。そのまま次の 1-4 へ進みます。
 
 ### 1-4. 親機を起動して確認する
 

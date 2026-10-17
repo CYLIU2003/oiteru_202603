@@ -171,9 +171,12 @@ cmd_install() {
         exit 1
     fi
 
-    local tmp timestamp
-    tmp="$(mktemp -d)"
-    trap 'rm -rf "$tmp"' EXIT
+    # EXIT の trap は関数を抜けた後に動くので、local ではなくグローバル変数で持つ
+    # （local だと set -u で "tmp: unbound variable" になり、成功しても終了コードが 1 になる）
+    local timestamp
+    OITERU_INSTALL_TMP="$(mktemp -d)"
+    trap 'rm -rf "${OITERU_INSTALL_TMP:-}"' EXIT
+    local tmp="$OITERU_INSTALL_TMP"
     timestamp="$(date +%Y%m%d%H%M%S)"
     for unit in "${UNITS[@]}"; do
         render "$unit" > "$tmp/$unit"

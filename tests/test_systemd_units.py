@@ -83,3 +83,48 @@ def test_parent_help_and_unknown_command():
     unknown = subprocess.run(["bash", str(PARENT), "start"], capture_output=True, text=True, check=False)
     assert unknown.returncode == 1
     assert "不明なコマンド" in unknown.stderr
+
+
+def _stub(bin_dir: Path, name: str, body: str) -> None:
+    path = bin_dir / name
+    path.write_text("#!/usr/bin/env bash\n" + body + "\n", encoding="utf-8")
+    path.chmod(0o755)
+
+
+def test_install_succeeds_with_exit_code_zero(tmp_path):
+    """A successful install must end with exit code 0 and no shell error.
+
+    Real sudo/systemctl/curl are replaced so the whole install path runs
+    without touching the machine. Regression: the EXIT trap read a function
+    local variable after it went out of scope and failed with "unbound
+    variable" right after printing that everything was fine.
+    """
+    import getpass
+
+    user = getpass.getuser()
+    if not user or not user[0].isalpha() or user != user.lower() or user == "root":
+        pytest.skip("needs an ordinary lowercase login user")
+
+    root = tmp_path / "repo"
+    (root / ".venv" / "bin").mkdir(parents=True)
+    _stub(root / ".venv" / "bin", "gunicorn", "exit 0")
+    (root / ".env").write_text("DB_TYPE=mysql\n", encoding="utf-8")
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _stub(bin_dir, "sudo", "exit 0")
+    _stub(bin_dir, "systemctl", "exit 0")
+    _stub(bin_dir, "tmux", "exit 1")
+    _stub(bin_dir, "curl", "echo '{\"status\":\"ok\"}'")
+
+    env = {"PATH": f"{bin_dir}:/usr/bin:/bin", "HOME": str(tmp_path)}
+    result = subprocess.run(
+        ["bash", str(PARENT), "install", "--user", user, "--root", str(root)],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=env,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "unbound variable" not in result.stderr
+    assert "問題ありません。" in result.stdout
