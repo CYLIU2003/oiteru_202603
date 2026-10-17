@@ -21,23 +21,50 @@ SSH は「別の PC のターミナルへ入る」操作です。
 `https://<親機ホスト名>` も同様です。URL には `https://` を 1 回だけ付けます。
 
 コマンドは、対象の機械にある **`oiteru_202603` フォルダの中**で実行します。
-現在の親機での場所は `~/デスクトップ/oiteru_202603` です。
-新規設置でホームフォルダに取得した場合は `~/oiteru_202603` になります。
+GitHub と同じ内容のこのフォルダは、**どの機械でもデスクトップに置きます。**
+
+| 機械 | 入り方（SSH 設定済みの研究室 PC から） | フォルダの場所 |
+| --- | --- | --- |
+| 親機 hirameki-3（日本語版 Ubuntu） | `ssh hirameki-3` | `~/デスクトップ/oiteru_202603` |
+| 子機 rpi1（Raspberry Pi） | `ssh rpi1` | `~/Desktop/oiteru_202603` |
+| 子機 rpi2（Raspberry Pi） | `ssh rpi2` | `~/Desktop/oiteru_202603` |
+
+日本語版 Ubuntu ではデスクトップのフォルダ名が日本語（`デスクトップ`）、Raspberry Pi では英語（`Desktop`）です。
 
 ```bash
-# 現在の親機へ、SSH 設定済みの担当者 PC から入る例
+# 例：親機に入ってフォルダへ移動する
 ssh hirameki-3
 cd ~/デスクトップ/oiteru_202603
 ```
 
-新規の親機・子機にまだファイルがなければ、その機械で Git を準備して取得します。
+新規の親機・子機にまだファイルがなければ、その機械で Git を準備し、デスクトップに取得します。
+2 行目の `cd` は、日本語版 Ubuntu なら `cd ~/デスクトップ`、Raspberry Pi なら `cd ~/Desktop` を使います。
 
 ```bash
 sudo apt update
 sudo apt install -y git
-cd ~
+cd ~/Desktop
 git clone https://github.com/CYLIU2003/oiteru_202603.git
 cd oiteru_202603
+```
+
+<a id="utf8"></a>
+
+### 文字化けを防ぐ（どの機械でも最初に 1 回）
+
+Raspberry Pi などは、文字コードが EUC-JP になっていることがあります。
+そのままだと、日本語のログや画面の表示が化けます。取得した直後に 1 回だけ次を実行し、SSH をつなぎ直します。
+
+```bash
+scripts/setup_terminal_utf8.sh
+exit
+```
+
+`sudo` は不要です。この機械のあなたのユーザーだけを UTF-8 にします（OS 全体の設定は変えません）。
+つなぎ直した後、次の結果が `UTF-8` で終わっていれば完了です。
+
+```bash
+echo $LC_ALL
 ```
 
 設定する URL・子機名・機器の場所は [引き継ぎ票](handover.md) に残します。
@@ -182,10 +209,9 @@ Windows の開発環境で使う場合は [専用のリーダー設定手順](ca
 
 ```bash
 ssh <子機ユーザー名>@<子機ホスト名>
-cd ~/oiteru_202603
+cd ~/Desktop/oiteru_202603
 ```
 
-保存先が Desktop やデスクトップの場合は、その実際の場所へ読み替えてください。
 子機プログラムは Raspberry Pi 上で root 実行を拒否します。起動に `sudo` を付けないでください。
 
 ### 2-2. 必要なソフトウェアを準備する
@@ -204,16 +230,7 @@ sudo reboot
 
 再起動すると SSH 接続は切れます。起動を待ち、もう一度接続してプロジェクトへ移動してください。
 
-文字コードの設定も確認します。
-
-```bash
-locale | head -1
-```
-
-`LANG=ja_JP.UTF-8` や `LANG=en_GB.UTF-8` のように `UTF-8` で終わっていれば問題ありません。
-`EUC-JP` などの場合も子機は動きます（起動スクリプトが Python を UTF-8 で動かします）が、
-ログの日本語が文字化けして読みにくくなります。設置担当者と相談し、`sudo raspi-config` の
-Localisation Options → Locale で UTF-8 のロケールに変更してください。
+まだなら、[文字化けを防ぐ設定](#utf8) もここで行います。
 
 ### 2-3. 子機の設定を確認する
 
