@@ -94,3 +94,62 @@ def test_stock_movement_api_returns_created_record_without_unit_password(monkeyp
 def test_stock_movement_form_rejects_negative_quantity(movement_type):
     with pytest.raises(operations_api.operations_service.OperationsValidationError):
         operations_api._movement_delta_from_form(movement_type, -1)
+
+
+def test_operations_page_uses_japanese_labels_and_links_back(monkeypatch):
+    """The duty guide tells newcomers to read these words and press this link."""
+    import server
+    from app.models.schemas import MaintenanceTicketRecord
+
+    @contextmanager
+    def fake_connection():
+        yield object()
+
+    dashboard = {
+        "units": [],
+        "out_of_stock_units": [],
+        "heartbeat_overdue_units": [],
+        "active_tickets": [
+            MaintenanceTicketRecord(
+                id=1,
+                unit_id=3,
+                category="jam",
+                status="open",
+                source="admin",
+                description="motor runs but nothing comes out",
+                unit_name="unit-03",
+            )
+        ],
+        "active_ticket_count_by_unit_id": {3: 1},
+        "recent_stock_movements": [
+            StockMovementRecord(
+                id=11,
+                unit_id=3,
+                unit_name="unit-03",
+                movement_type="restock",
+                quantity_delta=20,
+                stock_before=3,
+                stock_after=23,
+                reason="定期補充",
+                created_at="2026-10-17 13:36:40",
+            )
+        ],
+        "heartbeat_timeout_seconds": 60,
+    }
+    monkeypatch.setattr(operations_api, "get_connection", fake_connection)
+    monkeypatch.setattr(
+        operations_api.operations_service, "get_operations_dashboard", lambda _conn: dashboard
+    )
+    monkeypatch.setattr(operations_api.operations_service, "list_active_operators", lambda _conn: [])
+    client = server.app.test_client()
+    with client.session_transaction() as session:
+        session["admin_logged_in"] = True
+
+    page = client.get("/admin/operations").get_data(as_text=True)
+
+    assert "詰まり / 受付" in page
+    assert "jam / open" not in page
+    assert "<td>補充</td>" in page
+    assert "<td>restock</td>" not in page
+    assert 'href="/admin/dashboard"' in page
+    assert "管理者メニューに戻る" in page

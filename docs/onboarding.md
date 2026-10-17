@@ -12,8 +12,8 @@
 | Python | プログラムとテストを実行する | [Python 公式](https://www.python.org/downloads/) |
 | インターネット接続 | プログラムと必要なパッケージを取得する | 学内等で利用できる接続 |
 
-Python は CI（GitHub の自動チェック）と同じ 3.12 系を基準にします。
-別のバージョンがすでにある場合は、まず先輩と確認し、既存の Python を消さずに進めてください。
+Python は **3.12 以上**を使います（CI＝GitHub の自動チェックは 3.12。3.12・3.13・3.14 で動作を確認済み）。
+すでに 3.12 以上が入っていれば、新しく入れる必要はありません。既存の Python は消さないでください。
 Windows のインストーラーでは、`Add python.exe to PATH` がある場合はチェックを付けます。
 [公式の Windows インストール説明](https://docs.python.org/3.12/using/windows.html#installation-steps) も参照できます。
 
@@ -43,9 +43,16 @@ git --version
 python3 --version
 ```
 
-**できた目印：** `git version ...` と `Python 3.12...` などのバージョンが出ます。
-見つからない、またはストア画面が開く場合は、インストールを確認し、入力画面を開き直します。
-Windows の Python Launcher を使っている場合は、先輩と `py -3.12` での実行を確認してください。
+**できた目印：** `git version ...` と、`Python 3.12.x`・`Python 3.13.x`・`Python 3.14.x` のどれかが出ます。
+
+| `Python ...` の表示 | すること |
+| --- | --- |
+| 3.12 以上 | そのまま手順 2 へ進む |
+| 3.11 以下 | 公式サイトから 3.12 以上を追加で入れ、コマンドの画面（Windows は PowerShell、macOS / Linux はターミナル）を開き直してもう一度確認する |
+| 見つからない・ストア画面が開く | インストールを確認し、コマンドの画面（Windows は PowerShell、macOS / Linux はターミナル）を開き直す |
+
+Windows で `python --version` が古いままでも、`py -0` の一覧に `3.12` 以上があれば使えます。
+その場合は手順 3 の `python -m venv .venv` を `py -3.12 -m venv .venv` に置き換えます（`3.12` は一覧にある番号）。
 
 ## 2. プロジェクトをコピーする
 
@@ -92,8 +99,9 @@ python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements-dev.txt
 ```
 
-初回はダウンロードに時間がかかります。入力待ちに戻るまで待ってください。
+初回はダウンロードに 1〜3 分ほどかかります。入力待ちに戻るまで待ってください。
 **できた目印：** インストールの最後に `ERROR` がなく、入力待ちに戻ります。
+最後に `[notice] A new release of pip is available` と出ることがありますが、無視して構いません（案内されたコマンドも実行不要です）。
 すでに導入済みなら `Requirement already satisfied` と出ることもあります。
 Ubuntu などで `venv` がないと案内されたら、先輩と `python3-venv` の導入を確認します。
 
