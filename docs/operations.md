@@ -96,6 +96,8 @@ SSH 切断に加え、OS 再起動後や異常終了後も子機を戻す場合�
 Description=OITERU Child Device
 Wants=network-online.target
 After=network-online.target
+# NFC リーダーが一時的に抜けても、あきらめずに 10 秒ごとに起動し直す
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
@@ -114,7 +116,7 @@ RestartSec=10
 WantedBy=multi-user.target
 ```
 
-例：プロジェクトの絶対パスは `/home/rpi1/oiteru_202603` のような値です。
+例：プロジェクトの絶対パスは `/home/rpi1/Desktop/oiteru_202603` のような値です（フォルダはデスクトップに置きます）。
 `User` に root を指定しません。サービスユーザーが秘密ファイルを読め、GPIO・USB を使えることを確認します。
 子機は親機の `.env` を読みません。上の定義は親機 URL が HTTPS であることを前提とします。
 
@@ -125,6 +127,21 @@ systemctl status oiteru-unit
 ```
 
 管理画面の最終接続が更新されることを確認し、保守時間に OS 再起動後の復帰も確認します。
+
+### 子機のサービスが止まったまま戻らないとき
+
+`systemctl status oiteru-unit` が `failed`、理由が `start-limit-hit` のときは、短時間に失敗を繰り返して
+systemd が再起動をあきらめた状態です。2026-10-17 に rpi1 で、起動時に NFC リーダーが挿さっていなかったために発生しました。
+
+```bash
+lsusb | grep -i sony                       # RC-S380 が見えるか（見えなければ USB を挿し直す）
+journalctl -u oiteru-unit -n 30 --no-pager  # 止まる直前の理由を見る
+sudo systemctl reset-failed oiteru-unit
+sudo systemctl start oiteru-unit
+```
+
+ログに `NFC: ✅ リーダー接続完了` が出れば戻りました。
+上の定義のように `StartLimitIntervalSec=0` が入っていれば、この状態にはなりません。古い定義のままの子機は、入れておきます。
 その後、この起動方法を引き継ぎ票に記録します。
 
 | 目的 | 子機で実行するコマンド |

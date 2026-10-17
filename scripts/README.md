@@ -12,6 +12,7 @@
 | `setup_unit_environment.sh` | 子機。初回のソフトウェア準備 |
 | `provision_unit.sh` | 子機。`sudo bash scripts/provision_unit.sh` で秘密ファイルを作成 |
 | `tmux_oiteru.sh` | 子機の起動・停止。親機では保守で手動起動するときだけ使う |
+| `setup_terminal_utf8.sh` | どの機械でも最初に 1 回。端末・tmux・ログの文字化けを防ぐ（sudo 不要） |
 
 設定の見本と役割は [設定ファイルの説明](../docs/configuration.md) を参照してください。
 旧 Docker・launcher・設定ウィザード・特定の Windows PC 用自動起動スクリプトは削除しました。
