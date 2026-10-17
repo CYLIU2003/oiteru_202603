@@ -204,6 +204,17 @@ sudo reboot
 
 再起動すると SSH 接続は切れます。起動を待ち、もう一度接続してプロジェクトへ移動してください。
 
+文字コードの設定も確認します。
+
+```bash
+locale | head -1
+```
+
+`LANG=ja_JP.UTF-8` や `LANG=en_GB.UTF-8` のように `UTF-8` で終わっていれば問題ありません。
+`EUC-JP` などの場合も子機は動きます（起動スクリプトが Python を UTF-8 で動かします）が、
+ログの日本語が文字化けして読みにくくなります。設置担当者と相談し、`sudo raspi-config` の
+Localisation Options → Locale で UTF-8 のロケールに変更してください。
+
 ### 2-3. 子機の設定を確認する
 
 ```bash
