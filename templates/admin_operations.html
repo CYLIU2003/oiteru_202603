@@ -1,5 +1,8 @@
 {% extends "base.html" %}
 {% block content %}
+{% set movement_labels = {'restock': '補充', 'adjustment': '在庫修正', 'disposal': '廃棄'} %}
+{% set category_labels = {'empty': '在庫切れ', 'jam': '詰まり', 'hardware': '機器故障', 'network': '通信不良', 'other': 'その他'} %}
+{% set status_labels = {'open': '受付', 'in_progress': '対応中', 'resolved': '復旧確認', 'closed': '完了'} %}
 <div class="admin-dashboard">
   <h2><span class="material-symbols-outlined">assignment</span> 運用管理</h2>
   <p>補充・在庫修正・廃棄・故障対応を、利用者情報を表示せずに記録します。</p>
@@ -119,7 +122,7 @@
             <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;">
               <div>
                 <strong>#{{ ticket.id }} {{ ticket.unit_name or ('子機 ID ' ~ ticket.unit_id) }}</strong>
-                <div class="form-help">{{ ticket.category }} / {{ ticket.status }} / 登録: {{ ticket.created_at }}</div>
+                <div class="form-help">{{ category_labels.get(ticket.category, ticket.category) }} / {{ status_labels.get(ticket.status, ticket.status) }} / 登録: {{ ticket.created_at }}</div>
               </div>
               {% if active_ticket_count_by_unit_id.get(ticket.unit_id, 0) > 1 %}
                 <span class="status-badge">同一端末の作業中・復旧確認 {{ active_ticket_count_by_unit_id.get(ticket.unit_id) }} 件</span>
@@ -220,7 +223,7 @@
               <tr>
                 <td>{{ movement.created_at }}</td>
                 <td>{{ movement.unit_name or ('子機 ID ' ~ movement.unit_id) }}</td>
-                <td>{{ movement.movement_type }}</td>
+                <td>{{ movement_labels.get(movement.movement_type, movement.movement_type) }}</td>
                 <td>{{ '%+d'|format(movement.quantity_delta) }}</td>
                 <td>{{ movement.stock_before }} → {{ movement.stock_after }}</td>
                 <td>{{ movement.reason }}</td>
@@ -233,5 +236,11 @@
       <p>まだ在庫操作の記録はありません。</p>
     {% endif %}
   </section>
+
+  <div class="btn-group" style="margin-top:24px;">
+    <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary btn-icon">
+      <span class="material-symbols-outlined">arrow_back</span> 管理者メニューに戻る
+    </a>
+  </div>
 </div>
 {% endblock %}
