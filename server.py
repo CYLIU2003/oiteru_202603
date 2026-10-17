@@ -1466,20 +1466,17 @@ def api_unregistered_units():
         pending_units = state.get_pending_units(conn)
     for info in pending_units:
         name = info["unit_name"]
-        # 最終通信からの秒数を計算
-        try:
-            last_seen_dt = datetime.strptime(info["last_seen"], "%Y-%m-%d %H:%M:%S")
-            seconds_ago = (now - last_seen_dt).total_seconds()
-        except:
-            seconds_ago = 9999
+        # 最終通信からの秒数を計算（MySQL は datetime、旧データは文字列で返る）
+        last_seen_dt = state.as_datetime(info.get("last_seen"))
+        seconds_ago = (now - last_seen_dt).total_seconds() if last_seen_dt else None
 
         units.append(
             {
                 "name": name,
                 "ip_address": info.get("ip_address", "不明"),
-                "first_seen": info.get("first_seen", ""),
-                "last_seen": info.get("last_seen", ""),
-                "seconds_ago": round(seconds_ago, 1),
+                "first_seen": state.format_db_time(info.get("first_seen")) or "",
+                "last_seen": state.format_db_time(info.get("last_seen")) or "",
+                "seconds_ago": round(seconds_ago, 1) if seconds_ago is not None else None,
                 "heartbeat_count": info.get("heartbeat_count", 0),
                 "credential_conflict": bool(info.get("credential_conflict")),
             }

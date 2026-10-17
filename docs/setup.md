@@ -137,8 +137,8 @@ MySQL がすでに導入済みなら、最後は `scripts/setup_local_mysql.sh` 
 スクリプトは `.env` を読み、ローカル MySQL の起動、DB・ユーザーの作成、接続確認を行います。
 使用するのが MySQL 8 であることを `mysql --version` でも確認してください。
 
-**できた目印：** `OITERU local MySQL is ready` と `Local MySQL setup completed.` が表示されます。
-末尾に tmux で親機を起動する案内が出ても、標準構成では次の `parent.sh install` へ進みます。
+**できた目印：** `OITERU local MySQL is ready` と `Local MySQL setup completed.` が表示され、
+最後の行が `Next: scripts/parent.sh install` になります。そのまま次の 1-4 へ進みます。
 
 ### 1-4. 親機を起動して確認する
 
@@ -203,6 +203,17 @@ sudo reboot
 ```
 
 再起動すると SSH 接続は切れます。起動を待ち、もう一度接続してプロジェクトへ移動してください。
+
+文字コードの設定も確認します。
+
+```bash
+locale | head -1
+```
+
+`LANG=ja_JP.UTF-8` や `LANG=en_GB.UTF-8` のように `UTF-8` で終わっていれば問題ありません。
+`EUC-JP` などの場合も子機は動きます（起動スクリプトが Python を UTF-8 で動かします）が、
+ログの日本語が文字化けして読みにくくなります。設置担当者と相談し、`sudo raspi-config` の
+Localisation Options → Locale で UTF-8 のロケールに変更してください。
 
 ### 2-3. 子機の設定を確認する
 
