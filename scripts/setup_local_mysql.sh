@@ -117,4 +117,4 @@ mysql \
     -e "SELECT 'OITERU local MySQL is ready' AS status;"
 
 echo "Local MySQL setup completed."
-echo "Next: scripts/tmux_oiteru.sh start parent"
+echo "Next: scripts/parent.sh install"
