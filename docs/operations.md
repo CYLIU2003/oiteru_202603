@@ -3,6 +3,7 @@
 初めての当番は [QUICK_START.md](../QUICK_START.md) を使ってください。
 ここでは在庫修正、故障対応、子機の常設運用、バックアップなど、担当者向けの詳しい手順を説明します。
 新規導入は [setup.md](setup.md)、設定値は [configuration.md](configuration.md) が正本です。
+わからない言葉は [用語集](glossary.md) で調べられます。
 
 ## まず、作業する機械と起動方法を確認する
 
