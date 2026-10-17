@@ -224,7 +224,7 @@ async function scanUnregisteredUnits() {
             <div class="unit-details">
               <span><strong>IP:</strong> ${unit.ip_address}</span>
               <span><strong>初回検出:</strong> ${unit.first_seen}</span>
-              <span><strong>最終通信:</strong> ${unit.seconds_ago}秒前</span>
+              <span><strong>最終通信:</strong> ${unit.seconds_ago === null ? '不明' : Math.round(unit.seconds_ago) + '秒前'}</span>
               <span><strong>通信回数:</strong> ${unit.heartbeat_count}回</span>
             </div>
           </div>

@@ -251,9 +251,8 @@ def _pending_unit_expired(pending: dict) -> bool:
         ttl_seconds = int(os.getenv("PENDING_UNIT_TTL_SECONDS", "86400"))
     except ValueError:
         ttl_seconds = 86400
-    try:
-        first_seen = datetime.strptime(pending["first_seen"], "%Y-%m-%d %H:%M:%S")
-    except (KeyError, TypeError, ValueError):
+    first_seen = state.as_datetime(pending.get("first_seen"))
+    if first_seen is None:
         return True
     return first_seen + timedelta(seconds=max(60, ttl_seconds)) < datetime.now()
 
@@ -270,10 +269,11 @@ def api_list_pending_devices():
         "devices": [
             {
                 key: item.get(key)
-                for key in (
-                    "unit_name", "ip_address", "first_seen", "last_seen",
-                    "heartbeat_count", "credential_conflict", "credential_conflict_at",
-                )
+                for key in ("unit_name", "ip_address", "heartbeat_count", "credential_conflict")
+            }
+            | {
+                key: state.format_db_time(item.get(key))
+                for key in ("first_seen", "last_seen", "credential_conflict_at")
             }
             | {"expired": _pending_unit_expired(item)}
             for item in pending

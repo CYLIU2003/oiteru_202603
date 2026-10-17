@@ -109,6 +109,35 @@ def ensure_state_tables(conn):
 # Pending (unregistered) unit operations
 # ---------------------------------------------------------------------------
 
+_DB_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+
+def as_datetime(value: Any) -> Optional[datetime]:
+    """Return a DATETIME column value as ``datetime``.
+
+    PyMySQL returns ``datetime`` objects, while older code and tests pass
+    ``"YYYY-MM-DD HH:MM:SS"`` strings. Anything else yields ``None``.
+    """
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        try:
+            return datetime.strptime(value, _DB_TIME_FORMAT)
+        except ValueError:
+            return None
+    return None
+
+
+def format_db_time(value: Any) -> Optional[str]:
+    """Format a DATETIME value as local ``YYYY-MM-DD HH:MM:SS`` for JSON.
+
+    Without this, Flask serialises ``datetime`` as an RFC 1123 string with a
+    misleading "GMT" suffix although the value is local server time.
+    """
+    parsed = as_datetime(value)
+    return parsed.strftime(_DB_TIME_FORMAT) if parsed else None
+
+
 def get_pending_units(conn) -> List[Dict[str, Any]]:
     rows = _db.fetchall(conn, "SELECT * FROM pending_units ORDER BY last_seen DESC")
     return [dict(r) for r in rows] if rows else []
