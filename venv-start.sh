@@ -4,6 +4,11 @@
 
 cd "$(dirname "$0")"
 
+# OS の文字コードに関係なく、Python を UTF-8 で動かす。
+# rpi2 のように LANG=ja_JP.EUC-JP の Raspberry Pi では、これがないと
+# 子機が「✓」や絵文字を表示した時点で UnicodeEncodeError で止まる。
+export PYTHONUTF8=1
+
 PYTHON_PATH="./.venv/bin/python"
 ENV_FILE="./.env"
 ENV_EXAMPLE_FILE="./.env.example"
