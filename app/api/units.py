@@ -14,7 +14,7 @@ from app.auth.auth_manager import verify_secret
 from app.auth.unit_auth import issue_unit_session_token, validate_unit_token
 from app.logger import get_logger
 from app.repositories.unit_repository import UnitRepository
-from app.services.unit_service import heartbeat_update
+from app.services.unit_service import get_unit_monitor_dashboard, heartbeat_update
 from db_adapter import get_connection
 from unit.configuration import validate_gpio_config
 
@@ -162,7 +162,7 @@ def api_unit_heartbeat():
             config_ack = {
                 "config_update_id": str(config_ack.get("config_update_id") or ""),
                 "config_version": int(config_ack.get("config_version")),
-                "applied": bool(config_ack.get("applied")),
+                "applied": _parse_bool(config_ack.get("applied")),
                 "error": str(config_ack.get("error") or ""),
             }
         except (TypeError, ValueError):
@@ -242,8 +242,34 @@ def api_add_log():
 
 def _require_admin():
     if not session.get("admin_logged_in"):
-        return jsonify({"error": "Unauthorized"}), 401
+        return jsonify({"success": False, "error": "Unauthorized", "code": "UNAUTHORIZED"}), 401
     return None
+
+
+@unit_bp.route("/api/v1/admin/units/monitor", methods=["GET"])
+def api_unit_monitor_dashboard():
+    """Return read-only child-unit monitoring state without exposing credentials."""
+    err = _require_admin()
+    if err:
+        return err
+    try:
+        with get_connection() as conn:
+            dashboard = get_unit_monitor_dashboard(conn)
+    except Exception:
+        logger.exception("Failed to fetch unit monitor dashboard")
+        response = jsonify(
+            {
+                "success": False,
+                "error": "子機監視データの取得に失敗しました",
+                "code": "MONITOR_FETCH_FAILED",
+            }
+        )
+        response.headers["Cache-Control"] = "no-store"
+        return response, 500
+
+    response = jsonify({"success": True, **dashboard})
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 def _pending_unit_expired(pending: dict) -> bool:

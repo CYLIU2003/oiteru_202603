@@ -431,13 +431,16 @@
 </div>
 
 <script>
+const UNIT_ID = {{ unit['id'] | tojson }};
+const UNIT_NAME = {{ unit['name'] | tojson }};
+
 async function toggleAvailable(checkbox) {
   const label = document.getElementById('available-label');
   const hiddenInput = document.getElementById('available-input');
   const originalChecked = !checkbox.checked;
 
   try {
-    const response = await fetch(`/api/unit/{{ unit['id'] }}/toggle_available`, {
+    const response = await fetch(`/api/unit/${encodeURIComponent(UNIT_ID)}/toggle_available`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     });
@@ -548,7 +551,7 @@ async function saveUnitConfig() {
   };
 
   try {
-    const response = await fetch(`/api/unit/{{ unit['name'] }}/config`, {
+    const response = await fetch(`/api/unit/${encodeURIComponent(UNIT_NAME)}/config`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(config)
@@ -591,28 +594,68 @@ function toggleSection(sectionId) {
   }
 }
 
-// ログを取得して表示
+// ログを取得して表示（DOM生成・textContentでStored XSSを防止）
 async function refreshLogs() {
   const container = document.getElementById('log-container');
   const countEl = document.getElementById('log-count');
+  if (!container || !countEl) return;
+
+  function renderLogMessage(text, isError) {
+    const p = document.createElement('p');
+    if (isError) {
+      p.style.color = '#c62828';
+    } else {
+      p.style.color = 'var(--md-on-surface-variant)';
+      p.style.fontStyle = 'italic';
+    }
+    p.textContent = text;
+    container.replaceChildren(p);
+  }
 
   try {
-    const response = await fetch(`/api/unit/{{ unit['name'] }}/logs`);
-    const data = await response.json();
+    const response = await fetch(`/api/unit/${encodeURIComponent(UNIT_NAME)}/logs`, {
+      cache: 'no-store',
+      headers: { 'Accept': 'application/json' }
+    });
+    const data = await response.json().catch(() => null);
 
-    if (data.logs && data.logs.length > 0) {
-      countEl.textContent = `ログ: ${data.count}件`;
-      container.innerHTML = data.logs.map(log =>
-        `<div style="padding:4px 0;border-bottom:1px solid #eee;">
-          <span style="color:#888;">[${log.time}]</span> ${log.message}
-        </div>`
-      ).reverse().join('');
+    if (!response.ok || !data || data.success === false) {
+      countEl.textContent = 'ログ: 取得失敗';
+      const errMsg = (data && data.error)
+        ? `ログの取得に失敗しました: ${data.error}`
+        : 'ログの取得に失敗しました。';
+      renderLogMessage(errMsg, true);
+      return;
+    }
+
+    const logs = Array.isArray(data.logs) ? data.logs : [];
+    if (logs.length > 0) {
+      const totalCount = Number.isFinite(Number(data.count)) ? Number(data.count) : logs.length;
+      countEl.textContent = `ログ: ${totalCount}件`;
+      const fragment = document.createDocumentFragment();
+      logs.slice().reverse().forEach((log) => {
+        const row = document.createElement('div');
+        row.style.padding = '4px 0';
+        row.style.borderBottom = '1px solid #eee';
+
+        const timeSpan = document.createElement('span');
+        timeSpan.style.color = '#888';
+        const timeText = log && log.time != null ? String(log.time) : '';
+        timeSpan.textContent = `[${timeText}]`;
+
+        const msgText = log && log.message != null ? String(log.message) : '';
+        row.appendChild(timeSpan);
+        row.appendChild(document.createTextNode(` ${msgText}`));
+        fragment.appendChild(row);
+      });
+      container.replaceChildren(fragment);
     } else {
       countEl.textContent = 'ログ: 0件';
-      container.innerHTML = '<p style="color:var(--md-on-surface-variant);font-style:italic;">この子機からのログはまだ記録されていません。</p>';
+      renderLogMessage('この子機からのログはまだ記録されていません。', false);
     }
   } catch (error) {
-    container.innerHTML = '<p style="color:#c62828;">ログの取得に失敗しました。</p>';
+    countEl.textContent = 'ログ: 取得失敗';
+    renderLogMessage('ログの取得に失敗しました。', true);
   }
 }
 
@@ -625,7 +668,7 @@ async function sendCommand(command) {
   outputPre.textContent = `コマンド "${command}" を送信中...`;
 
   try {
-    const response = await fetch(`/api/unit/{{ unit['name'] }}/command`, {
+    const response = await fetch(`/api/unit/${encodeURIComponent(UNIT_NAME)}/command`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ command: command })
@@ -647,10 +690,15 @@ async function sendCommand(command) {
   }
 }
 
-// ページ読み込み時にログを取得
+// ページ読み込み時にログを取得（#log-section 指定時は自動で開いて読み込む）
 document.addEventListener('DOMContentLoaded', function() {
-  // 初回ログ取得（ログセクションが開かれている場合のみ）
-  // refreshLogs();  // 必要なら有効化
+  if (window.location.hash === '#log-section') {
+    const logSection = document.getElementById('log-section');
+    if (logSection && logSection.style.display === 'none') {
+      toggleSection('log-section');
+    }
+    refreshLogs();
+  }
 });
 </script>
 
