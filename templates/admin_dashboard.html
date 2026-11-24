@@ -79,7 +79,7 @@
     <a class="ops-metric" href="{{ url_for('operations.admin_operations') }}">在庫切れ<strong id="ops-stock">—</strong></a>
     <a class="ops-metric" href="{{ url_for('admin_units') }}">通信を確認<strong id="ops-connection">—</strong></a>
     <a class="ops-metric" href="{{ url_for('operations.admin_operations') }}">未完了の保守<strong id="ops-tickets">—</strong></a>
-    <a class="ops-metric" href="{{ url_for('admin_units') }}#pending-units-card">承認待ち<strong id="ops-pending">—</strong></a>
+    <a class="ops-metric" href="{{ url_for('admin_units') }}#pending-units-card">登録要求<strong id="ops-pending">—</strong></a>
   </div>
 
   <div class="ops-columns">
@@ -208,10 +208,13 @@
     connection.dataset.tone = unit.connection_status || '';
     row.append(link(unit.name, unitLink(unit.id), String(unit.id)), document.createTextNode(' '), connection);
     const stock = unit.stock == null ? '未取得' : String(unit.stock) + ' 個';
-    row.append(node('p', '在庫 ' + stock + ' · 設定 ' + (unit.config_sync_label || '未取得')));
+    const availability = unit.available === true ? '許可' : unit.available === false ? '停止' : '未確認';
+    row.append(node('p', '利用設定 ' + availability + ' · 在庫 ' + stock + ' · 設定同期 ' + (unit.config_sync_label || '未取得')));
     const nfc = capabilityLabel[unit.nfc_status] || '未確認';
     const motor = capabilityLabel[unit.motor_status] || '未確認';
-    row.append(node('p', 'NFC ' + nfc + ' · モーター ' + motor + ' · 最終受信 ' + (unit.last_seen || '未受信'), 'ops-subtle'));
+    const sensor = capabilityLabel[unit.sensor_status] || '未確認';
+    row.append(node('p', 'NFC ' + nfc + ' · モーター ' + motor + ' · センサー ' + sensor, 'ops-subtle'));
+    row.append(node('p', '最終受信 ' + (unit.last_seen || '未受信'), 'ops-subtle'));
     return row;
   }
 

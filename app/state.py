@@ -324,15 +324,15 @@ def queue_config_update(conn, unit_name: str, config: Dict[str, Any]) -> Dict[st
 
 
 def get_config_update_for_delivery(conn, unit_name: str) -> Optional[Dict[str, Any]]:
-    """Return the latest unacknowledged update and retain it for retry."""
+    """Return the newest version only, retaining it until the child acknowledges it."""
     row = _db.fetchone(
         conn,
         """SELECT * FROM device_config_updates
-             WHERE unit_name = ? AND status IN ('pending', 'delivered')
-             ORDER BY config_version DESC LIMIT 1""",
+             WHERE unit_name = ?
+             ORDER BY config_version DESC, id DESC LIMIT 1 FOR UPDATE""",
         (unit_name,),
     )
-    if not row:
+    if not row or row["status"] not in ("pending", "delivered"):
         return None
     result = dict(row)
     now = _now()

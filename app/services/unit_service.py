@@ -641,6 +641,24 @@ def build_unit_monitor_alerts(
                 )
             )
 
+        unavailable = [
+            label
+            for label, status in (("NFC", item.nfc_status), ("モーター", item.motor_status))
+            if status == "unavailable"
+        ]
+        if item.connection_status == "online" and unavailable:
+            level = "serious" if item.available else "warning"
+            alerts.append(
+                UnitMonitorAlert(
+                    level=level,
+                    level_label=ALERT_LEVEL_LABELS[level],
+                    unit_id=item.id,
+                    unit_name=item.name,
+                    code="HARDWARE_UNAVAILABLE",
+                    message=f"子機が利用不可を報告: {'・'.join(unavailable)}",
+                )
+            )
+
         if item.config_sync_status == "failed":
             err_detail = f": {item.config_sync_error}" if item.config_sync_error else ""
             alerts.append(

@@ -22,6 +22,7 @@ from app.models.schemas import (
 from app.services import unit_service
 from app.services.unit_service import (
     _optional_bool,
+    build_unit_monitor_alerts,
     build_unit_monitor_item,
     evaluate_unit_heartbeat,
     get_unit_monitor_dashboard,
@@ -171,12 +172,24 @@ class TestBuildUnitMonitorItemHeartbeatInterval:
         assert item.sensor_status == "unknown"
         assert not item.can_dispense
         assert item.monitor_status == "ATTENTION"
+        hardware_alerts = [
+            alert
+            for alert in build_unit_monitor_alerts([item], [])
+            if alert.code == "HARDWARE_UNAVAILABLE"
+        ]
+        assert len(hardware_alerts) == 1
+        assert hardware_alerts[0].level == "serious"
+        assert "NFC・モーター" in hardware_alerts[0].message
 
         stale = build_unit_monitor_item(
             unit, reference_time=ref + timedelta(minutes=5), config_snapshot=snapshot
         )
         assert stale.connection_status == "offline"
         assert stale.nfc_status == stale.motor_status == stale.sensor_status == "unknown"
+        assert all(
+            alert.code != "HARDWARE_UNAVAILABLE"
+            for alert in build_unit_monitor_alerts([stale], [])
+        )
 
     def test_heartbeat_interval_over_60s_uses_double_threshold_without_false_offline(self):
         ref = datetime(2026, 11, 23, 12, 0, 0)
