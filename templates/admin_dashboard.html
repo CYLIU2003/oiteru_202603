@@ -147,6 +147,8 @@
   let signedOut = false;
   let lastSuccess = 0;
   let interval = 10000;
+  const linkPointers = new Set();
+  let pendingSnapshot;
 
   function node(tag, text, cssClass) {
     const result = document.createElement(tag);
@@ -242,6 +244,16 @@
     }
   }
 
+  function renderAfterPointerRelease() {
+    // The browser dispatches the link's click after pointerup.
+    setTimeout(() => {
+      if (!signedOut && !linkPointers.size && pendingSnapshot) {
+        render(pendingSnapshot);
+        pendingSnapshot = null;
+      }
+    }, 0);
+  }
+
   function schedule() {
     clearTimeout(timer);
     if (!document.hidden && !signedOut) timer = setTimeout(update, interval);
@@ -262,6 +274,7 @@
       });
       if (response.status === 401 || response.status === 403) {
         signedOut = true;
+        pendingSnapshot = null;
         notice.textContent = 'セッションが終了しました。ログインし直してください。';
         notice.hidden = false;
         find('login').hidden = false;
@@ -278,7 +291,12 @@
       if (!data.success || !data.summary || !Array.isArray(data.alerts) || !Array.isArray(data.units)) {
         throw new Error('Invalid monitor data');
       }
-      render(data);
+      if (linkPointers.size) {
+        pendingSnapshot = data;
+      } else {
+        pendingSnapshot = null;
+        render(data);
+      }
       lastSuccess = Date.now();
       notice.hidden = true;
     } catch {
@@ -303,6 +321,19 @@
 
   refresh.hidden = false;
   refresh.addEventListener('click', update);
+  root.addEventListener('pointerdown', event => {
+    if (event.target.closest('.ops-list a')) linkPointers.add(event.pointerId);
+  });
+  for (const type of ['pointerup', 'pointercancel']) {
+    document.addEventListener(type, event => {
+      if (linkPointers.delete(event.pointerId) && !linkPointers.size) renderAfterPointerRelease();
+    }, true);
+  }
+  window.addEventListener('blur', () => {
+    if (!linkPointers.size) return;
+    linkPointers.clear();
+    renderAfterPointerRelease();
+  });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) clearTimeout(timer);
     else update();

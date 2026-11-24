@@ -334,28 +334,20 @@ def apply_remote_config(remote_config, current_config):
         print(f"[設定更新] 危険なGPIO設定を拒否しました: {exc}")
         return False
 
-    updated_keys = []
-    for remote_key, local_key in key_mapping.items():
-        if remote_key in remote_config:
-            old_value = current_config.get(local_key)
-            new_value = remote_config[remote_key]
-            
-            # 値が変更された場合のみ更新
-            if old_value != new_value:
-                current_config[local_key] = new_value
-                updated_keys.append(f"{local_key}: {old_value} → {new_value}")
-    
-    if updated_keys:
-        print(f"[設定更新] 以下の設定が変更されました:")
-        for key in updated_keys:
-            print(f"  - {key}")
-        
-        # 設定をファイルに保存
-        if save_config(current_config):
-            print("[設定更新] config.json に保存し、即座に反映されます ✓")
-        else:
+    changes = {
+        key: candidate_config[key]
+        for key in key_mapping.values()
+        if candidate_config.get(key) != current_config.get(key)
+    }
+    if changes:
+        if not save_config(candidate_config):
             print("[設定更新] config.json の保存に失敗しました")
             return False
+        print(f"[設定更新] 以下の設定が変更されました:")
+        for key, value in changes.items():
+            print(f"  - {key}: {current_config.get(key)} → {value}")
+        current_config.update(changes)
+        print("[設定更新] config.json に保存し、即座に反映されます ✓")
     else:
         print("[設定更新] 変更なし")
     return True
