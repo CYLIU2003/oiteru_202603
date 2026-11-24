@@ -350,6 +350,9 @@ class UnitMonitorItem:
     motor_type: Optional[str] = None
     control_method: Optional[str] = None
     use_sensor: Optional[bool] = None
+    nfc_status: str = "unknown"
+    motor_status: str = "unknown"
+    sensor_status: str = "unknown"
     hardware_telemetry_status: str = "unacquired"
     hardware_telemetry_label: str = "追加telemetry未取得"
     mcu_status: str = "unacquired"

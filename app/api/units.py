@@ -151,6 +151,17 @@ def api_unit_heartbeat():
     ip_address = request.remote_addr
     unit_config = data.get("config", {})
     config_ack = data.get("config_update_ack")
+    capabilities = data.get("capabilities")
+    if isinstance(unit_config, dict):
+        unit_config = dict(unit_config)
+        unit_config.pop("_capabilities", None)
+        if isinstance(capabilities, dict):
+            unit_config["_capabilities"] = {
+                name: status
+                for name in ("nfc", "motor", "sensor")
+                if isinstance(status := capabilities.get(name), str)
+                and status in {"unknown", "ready", "unavailable"}
+            }
 
     unit_token = data.get("unit_token")
     if not unit_name or not (unit_password or unit_token):
@@ -374,12 +385,15 @@ def api_get_unit_config(unit_name):
         reported = state.get_unit_config_snapshot(conn, unit_name)
         desired = state.get_desired_unit_config(conn, unit_name)
     if reported or desired:
+        reported_config = dict(reported["config"]) if reported else None
+        if reported_config is not None:
+            reported_config.pop("_capabilities", None)
         return jsonify(
             {
                 "success": True,
                 "unit_name": unit_name,
-                "config": reported["config"] if reported else desired["config"],
-                "reported_config": reported["config"] if reported else None,
+                "config": reported_config if reported else desired["config"],
+                "reported_config": reported_config,
                 "reported_at": reported.get("last_updated") if reported else None,
                 "desired_config": desired["config"] if desired else None,
                 "desired_version": desired.get("config_version") if desired else None,

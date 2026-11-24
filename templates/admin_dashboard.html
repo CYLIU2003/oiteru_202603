@@ -1,90 +1,310 @@
 {% extends "base.html" %}
+
+{% block page_styles %}
+<style>
+  .ops-home { --ops-ink: #172d3d; --ops-muted: #536776; --ops-edge: #d5e0e7; --ops-teal: #075f56; color: var(--ops-ink); }
+  .ops-home a { color: var(--ops-teal); }
+  .ops-home a:focus-visible, .ops-home button:focus-visible, .ops-home summary:focus-visible { outline: 3px solid #167464; outline-offset: 3px; }
+  .ops-home .ops-nav { display: flex; flex-wrap: wrap; gap: .5rem 1.3rem; margin-bottom: 1rem; }
+  .ops-home .ops-nav a[aria-current] { color: var(--ops-ink); font-weight: 700; }
+  .ops-home .ops-intro { display: flex; justify-content: space-between; align-items: end; gap: 1rem; flex-wrap: wrap; padding: 1.4rem; border-radius: .9rem; background: #e9f4f1; }
+  .ops-home .ops-intro h2 { margin: .15rem 0 0; font-size: clamp(1.7rem, 3vw, 2.45rem); }
+  .ops-home .ops-intro p { margin: 0; }
+  .ops-home .ops-live { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+  .ops-home button { font: inherit; }
+  .ops-home .ops-refresh { color: var(--ops-teal); background: #fff; border: 1px solid var(--ops-teal); border-radius: .45rem; padding: .45rem .7rem; cursor: pointer; }
+  .ops-home .ops-refresh:disabled { opacity: .65; cursor: default; }
+  .ops-home .ops-note { margin: .75rem 0; padding: .7rem .85rem; border: 1px solid #e7c991; border-radius: .55rem; background: #fff6e4; color: #643e0b; }
+  .ops-home [hidden] { display: none !important; }
+  .ops-home .ops-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .7rem; margin: .9rem 0; }
+  .ops-home .ops-card, .ops-home .ops-metric { background: #fff; border: 1px solid var(--ops-edge); border-radius: .7rem; padding: 1rem; min-width: 0; }
+  .ops-home .ops-metric { display: grid; gap: .2rem; text-decoration: none; }
+  .ops-home .ops-metric:hover { background: #f3faf8; }
+  .ops-home .ops-metric strong { color: var(--ops-ink); font-size: 1.7rem; font-variant-numeric: tabular-nums; }
+  .ops-home .ops-columns { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 4fr); gap: .9rem; }
+  .ops-home .ops-card h3 { margin: 0; font-size: 1.25rem; }
+  .ops-home .ops-heading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: .5rem; margin: 0 0 .6rem; }
+  .ops-home .ops-list { list-style: none; margin: 0; padding: 0; }
+  .ops-home .ops-row { padding: .75rem 0; border-top: 1px solid var(--ops-edge); overflow-wrap: anywhere; }
+  .ops-home .ops-row p { margin: .22rem 0; }
+  .ops-home .ops-label { display: inline-block; background: #eef2f5; color: var(--ops-ink); border-radius: .35rem; font-size: .84rem; padding: .15rem .4rem; }
+  .ops-home .ops-label[data-tone="critical"], .ops-home .ops-label[data-tone="offline"] { color: #8a2020; background: #fde8e8; }
+  .ops-home .ops-label[data-tone="serious"], .ops-home .ops-label[data-tone="warning"] { color: #694606; background: #fff1cf; }
+  .ops-home .ops-label[data-tone="online"] { color: #145c43; background: #e5f6eb; }
+  .ops-home .ops-subtle { color: var(--ops-muted); font-size: .92rem; }
+  .ops-home .ops-secondary { margin-top: .9rem; }
+  .ops-home .ops-secondary summary { cursor: pointer; font-weight: 700; }
+  .ops-home .ops-links { display: flex; gap: .65rem 1rem; flex-wrap: wrap; margin-top: .55rem; }
+  .ops-home .ops-signout { margin: .9rem 0 0; }
+  @media (max-width: 900px) {
+    .ops-home .ops-columns { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 520px) {
+    .ops-home .ops-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .ops-home .ops-intro, .ops-home .ops-card, .ops-home .ops-metric { padding: .75rem; }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="admin-dashboard">
-  <h2><span class="material-symbols-outlined">dashboard</span> 管理者ダッシュボード</h2>
-  
-  <!-- サーバー情報 -->
-  {% if server_info %}
-  <div class="info-card">
-    <h3><span class="material-symbols-outlined">dns</span> このサーバーの情報</h3>
-    <div class="info-grid">
-      <strong>サーバー名:</strong> <span>{{ server_info.name }}</span>
-      <strong>設置場所:</strong> <span>{{ server_info.location }}</span>
-      <strong>サーバーID:</strong> <span><code>{{ server_info.id }}</code></span>
-      <strong>データベース:</strong> <span>{{ server_info.db_type }}</span>
-    </div>
-  </div>
-  
-  <!-- 自動登録モード状態 -->
-  <div class="info-card {% if server_info.auto_register %}success{% else %}warning{% endif %}">
-    <h3>
-      {% if server_info.auto_register %}
-        <span class="material-symbols-outlined">check_circle</span> 自動登録モード: 有効
-      {% else %}
-        <span class="material-symbols-outlined">warning</span> 自動登録モード: 無効
-      {% endif %}
-    </h3>
+<div class="ops-home" id="ops-home"
+     data-monitor-url="{{ url_for('unit.api_unit_monitor_dashboard') }}"
+     data-unit-url="{{ url_for('admin_unit_detail', uid=0) }}"
+     data-units-url="{{ url_for('admin_units') }}"
+     data-operations-url="{{ url_for('operations.admin_operations') }}">
+  <nav class="ops-nav" aria-label="管理画面">
+    <a href="{{ url_for('admin_dashboard') }}" aria-current="page">業務トップ</a>
+    <a href="{{ url_for('operations.admin_operations') }}">運用管理</a>
+    <a href="{{ url_for('admin_units') }}">子機監視</a>
+    <a href="{{ url_for('admin_users') }}">利用者一覧</a>
+    <a href="{{ url_for('admin_history') }}">利用履歴</a>
+  </nav>
+
+  <header class="ops-intro">
     <div>
+      <p>{{ server_info.name }}{% if server_info.location %} / {{ server_info.location }}{% endif %}</p>
+      <h2>業務ダッシュボード</h2>
+    </div>
+    <div class="ops-live">
+      <span class="ops-subtle" id="ops-checked-at">最終取得 —</span>
+      <button class="ops-refresh" id="ops-refresh" type="button" hidden>更新</button>
+    </div>
+  </header>
+
+  <p class="ops-note" id="ops-notice" role="status">子機の状態を取得しています。</p>
+  <p id="ops-login" hidden><a href="{{ url_for('admin_login') }}">管理者ログインへ</a></p>
+  <noscript><p class="ops-note">自動更新にはJavaScriptが必要です。運用管理と子機監視は上のリンクから開けます。</p></noscript>
+
+  <div class="ops-metrics" aria-label="対応件数">
+    <a class="ops-metric" href="{{ url_for('operations.admin_operations') }}">在庫切れ<strong id="ops-stock">—</strong></a>
+    <a class="ops-metric" href="{{ url_for('admin_units') }}">通信を確認<strong id="ops-connection">—</strong></a>
+    <a class="ops-metric" href="{{ url_for('operations.admin_operations') }}">未完了の保守<strong id="ops-tickets">—</strong></a>
+    <a class="ops-metric" href="{{ url_for('admin_units') }}#pending-units-card">承認待ち<strong id="ops-pending">—</strong></a>
+  </div>
+
+  <div class="ops-columns">
+    <section class="ops-card" aria-labelledby="ops-alert-heading">
+      <div class="ops-heading">
+        <h3 id="ops-alert-heading">対応すること</h3>
+        <a href="{{ url_for('operations.admin_operations') }}">運用管理を開く</a>
+      </div>
+      <p class="ops-subtle" id="ops-alert-description">対応状況を取得中</p>
+      <ul class="ops-list" id="ops-alert-list"></ul>
+    </section>
+
+    <section class="ops-card" aria-labelledby="ops-unit-heading">
+      <div class="ops-heading">
+        <h3 id="ops-unit-heading">子機の状態</h3>
+        <a href="{{ url_for('admin_units') }}">子機監視を開く</a>
+      </div>
+      <p class="ops-subtle" id="ops-unit-description">登録済みの子機を取得中</p>
+      <ul class="ops-list" id="ops-unit-list"></ul>
+    </section>
+  </div>
+
+  <section class="ops-card ops-secondary" aria-labelledby="ops-users">
+    <h3 id="ops-users">利用者対応</h3>
+    <p class="ops-subtle">
+      登録利用者 {{ stats.user_count }} 人
       {% if server_info.auto_register %}
-        <p style="margin: 0;">未登録カードがタッチされると自動でユーザー登録されます。初期残数: <strong>{{ server_info.auto_register_stock }}</strong></p>
+      · カード自動登録は有効（初期残数 {{ server_info.auto_register_stock }}）
       {% else %}
-        <p style="margin: 0;">事前にカード登録が必要です。<a href="{{ url_for('admin_settings') }}">設定を変更 →</a></p>
+      · カードは事前登録が必要
       {% endif %}
+    </p>
+    <div class="ops-links">
+      <a href="{{ url_for('admin_users') }}">利用者一覧</a>
+      <a href="{{ url_for('admin_history') }}">利用履歴</a>
     </div>
-  </div>
-  {% endif %}
-  
-  <!-- 統計情報 -->
-  <div class="stats-grid">
-    <div class="stat-card">
-      <span class="material-symbols-outlined">group</span>
-      <div class="stat-value">{{ stats.user_count }}</div>
-      <div class="stat-label">登録ユーザー</div>
+  </section>
+
+  <details class="ops-card ops-secondary">
+    <summary>集計・システム保守</summary>
+    <p class="ops-subtle">登録子機 {{ stats.unit_count }} 台 · 実排出 {{ total_dispensed }} 件（{{ dispense_count_since }} 以降）</p>
+    <p class="ops-subtle">サーバーID {{ server_info.id }} · {{ server_info.db_type }}</p>
+    <div class="ops-links">
+      <a href="{{ url_for('admin_visuals') }}">利用統計</a>
+      <a href="{{ url_for('admin_settings') }}">システム設定</a>
+      <a href="{{ url_for('admin_backup_download') }}">バックアップ</a>
+      <a href="{{ url_for('admin_restore') }}">データ復元</a>
     </div>
-    <div class="stat-card">
-      <span class="material-symbols-outlined">devices</span>
-      <div class="stat-value">{{ stats.unit_count }}</div>
-      <div class="stat-label">子機</div>
-    </div>
-    <div class="stat-card">
-      <span class="material-symbols-outlined">check_circle</span>
-      <div class="stat-value">{{ total_dispensed }}</div>
-      <div class="stat-label">実排出数</div>
-    </div>
-  </div>
-  
-  <!-- メニュー -->
-  <div class="menu-grid">
-    <a href="{{ url_for('admin_settings') }}" class="menu-btn purple">
-      <span class="material-symbols-outlined">settings</span> システム設定
-    </a>
-    <a href="{{ url_for('operations.admin_operations') }}" class="menu-btn orange">
-      <span class="material-symbols-outlined">assignment</span> 運用管理
-    </a>
-    <a href="{{ url_for('admin_users') }}" class="menu-btn">
-      <span class="material-symbols-outlined">group</span> 利用者一覧
-    </a>
-    <a href="{{ url_for('admin_units') }}" class="menu-btn">
-      <span class="material-symbols-outlined">devices</span> 子機一覧
-    </a>
-    <a href="{{ url_for('admin_history') }}" class="menu-btn">
-      <span class="material-symbols-outlined">history</span> 利用履歴
-    </a>
-    <a href="{{ url_for('admin_visuals') }}" class="menu-btn orange">
-      <span class="material-symbols-outlined">monitoring</span> グラフ表示
-    </a>
-    <a href="{{ url_for('admin_backup_download') }}" class="menu-btn">
-      <span class="material-symbols-outlined">download</span> バックアップ
-    </a>
-    <a href="{{ url_for('admin_restore') }}" class="menu-btn">
-      <span class="material-symbols-outlined">restore_page</span> データ復元
-    </a>
-    <form method="post" action="{{ url_for('admin_logout') }}" style="display:inline;">
+    <form class="ops-signout" method="post" action="{{ url_for('admin_logout') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button type="submit" class="menu-btn gray">
-        <span class="material-symbols-outlined">logout</span> ログアウト
-      </button>
+      <button class="ops-refresh" type="submit">ログアウト</button>
     </form>
-  </div>
+  </details>
 </div>
+
+<script>
+(() => {
+  const root = document.getElementById('ops-home');
+  const find = id => document.getElementById('ops-' + id);
+  const notice = find('notice');
+  const refresh = find('refresh');
+  const rowsLimit = 8;
+  let timer;
+  let refreshing = false;
+  let signedOut = false;
+  let lastSuccess = 0;
+  let interval = 10000;
+
+  function node(tag, text, cssClass) {
+    const result = document.createElement(tag);
+    result.textContent = text;
+    if (cssClass) result.className = cssClass;
+    return result;
+  }
+
+  function unitLink(id) {
+    return Number.isSafeInteger(id) && id > 0
+      ? root.dataset.unitUrl.replace(/\/0$/, '/' + id)
+      : root.dataset.unitsUrl;
+  }
+
+  function link(text, href, key) {
+    const item = node('a', text);
+    item.href = href;
+    item.dataset.focusKey = key;
+    return item;
+  }
+
+  function replaceRows(list, rows) {
+    const focused = list.contains(document.activeElement) && document.activeElement.dataset.focusKey;
+    list.replaceChildren(...rows);
+    if (focused) {
+      const retained = Array.from(list.querySelectorAll('a')).find(item => item.dataset.focusKey === focused);
+      const next = retained || list.closest('section').querySelector('.ops-heading a');
+      next.focus({preventScroll: true});
+    }
+  }
+
+  function alertRow(alert) {
+    const row = node('li', '', 'ops-row');
+    const label = node('span', alert.level_label || '要確認', 'ops-label');
+    label.dataset.tone = alert.level || '';
+    row.append(label, document.createTextNode(' '), node('strong', alert.unit_name || '未登録子機'));
+    row.append(node('p', alert.message || '詳細を確認してください。'));
+    const id = alert.unit_id;
+    let href = unitLink(id);
+    let caption = '子機詳細';
+    if (id && ['LOW_STOCK', 'OUT_OF_STOCK', 'ACTIVE_TICKET'].includes(alert.code)) {
+      const operations = new URL(root.dataset.operationsUrl, location.origin);
+      operations.searchParams.set('unit_id', String(id));
+      href = operations.href;
+      caption = alert.code === 'ACTIVE_TICKET' ? '保守を確認' : '補充を確認';
+    } else if (!id) {
+      href = root.dataset.unitsUrl + '#pending-units-card';
+      caption = '登録要求を確認';
+    }
+    row.append(link(caption, href, [id, alert.unit_name, alert.code].join('|')));
+    return row;
+  }
+
+  const capabilityLabel = {ready: '使用可', unavailable: '利用不可', unknown: '未確認'};
+
+  function unitRow(unit) {
+    const row = node('li', '', 'ops-row');
+    const connection = node('span', unit.connection_label || '状態不明', 'ops-label');
+    connection.dataset.tone = unit.connection_status || '';
+    row.append(link(unit.name, unitLink(unit.id), String(unit.id)), document.createTextNode(' '), connection);
+    const stock = unit.stock == null ? '未取得' : String(unit.stock) + ' 個';
+    row.append(node('p', '在庫 ' + stock + ' · 設定 ' + (unit.config_sync_label || '未取得')));
+    const nfc = capabilityLabel[unit.nfc_status] || '未確認';
+    const motor = capabilityLabel[unit.motor_status] || '未確認';
+    row.append(node('p', 'NFC ' + nfc + ' · モーター ' + motor + ' · 最終受信 ' + (unit.last_seen || '未受信'), 'ops-subtle'));
+    return row;
+  }
+
+  function render(data) {
+    const summary = data.summary;
+    const count = key => Number.isInteger(summary[key]) ? summary[key] : '—';
+    find('stock').textContent = count('out_of_stock_count');
+    find('connection').textContent = count('heartbeat_overdue_count');
+    find('tickets').textContent = count('active_ticket_count');
+    find('pending').textContent = count('pending_unit_count');
+    find('checked-at').textContent = '最終取得 ' + (summary.checked_at || '—');
+    const alerts = data.alerts;
+    const units = data.units;
+    find('alert-description').textContent = alerts.length
+      ? '要確認 ' + alerts.length + ' 件' + (alerts.length > rowsLimit ? '（優先度順で先頭 ' + rowsLimit + ' 件）' : '')
+      : '現在、対応が必要な項目はありません。';
+    find('unit-description').textContent = units.length
+      ? '全登録子機 ' + units.length + ' 台のうちオンライン ' + count('online_count') + ' 台'
+        + (units.length > rowsLimit ? '（先頭 ' + rowsLimit + ' 台を表示）' : '')
+      : '登録済みの子機はありません。';
+    replaceRows(find('alert-list'), alerts.slice(0, rowsLimit).map(alertRow));
+    replaceRows(find('unit-list'), units.slice(0, rowsLimit).map(unitRow));
+    if (Number.isFinite(summary.poll_interval_seconds) && summary.poll_interval_seconds > 0) {
+      interval = Math.max(5000, summary.poll_interval_seconds * 1000);
+    }
+  }
+
+  function schedule() {
+    clearTimeout(timer);
+    if (!document.hidden && !signedOut) timer = setTimeout(update, interval);
+  }
+
+  async function update() {
+    if (refreshing || signedOut || document.hidden) return;
+    clearTimeout(timer);
+    refreshing = true;
+    refresh.setAttribute('aria-disabled', 'true');
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    try {
+      const response = await fetch(root.dataset.monitorUrl, {
+        headers: {Accept: 'application/json'},
+        cache: 'no-store',
+        signal: controller.signal,
+      });
+      if (response.status === 401 || response.status === 403) {
+        signedOut = true;
+        notice.textContent = 'セッションが終了しました。ログインし直してください。';
+        notice.hidden = false;
+        find('login').hidden = false;
+        find('checked-at').textContent = '最終取得 —';
+        ['stock', 'connection', 'tickets', 'pending'].forEach(id => { find(id).textContent = '—'; });
+        replaceRows(find('alert-list'), []);
+        replaceRows(find('unit-list'), []);
+        find('alert-description').textContent = '対応状況を取得できません。';
+        find('unit-description').textContent = '子機の状態を取得できません。';
+        return;
+      }
+      if (!response.ok) throw new Error('Monitor request failed');
+      const data = await response.json();
+      if (!data.success || !data.summary || !Array.isArray(data.alerts) || !Array.isArray(data.units)) {
+        throw new Error('Invalid monitor data');
+      }
+      render(data);
+      lastSuccess = Date.now();
+      notice.hidden = true;
+    } catch {
+      if (!lastSuccess) {
+        find('alert-description').textContent = '対応状況を取得できません。';
+        find('unit-description').textContent = '子機の状態を取得できません。';
+      }
+      const message = !lastSuccess
+        ? '子機の状態を取得できませんでした。'
+        : Date.now() - lastSuccess >= Math.max(30000, interval * 3)
+          ? '更新できません。表示内容は古い情報です。'
+          : '更新できません。前回取得した状態を表示しています。';
+      if (notice.textContent !== message) notice.textContent = message;
+      notice.hidden = false;
+    } finally {
+      clearTimeout(timeout);
+      refreshing = false;
+      if (!signedOut) refresh.removeAttribute('aria-disabled');
+      schedule();
+    }
+  }
+
+  refresh.hidden = false;
+  refresh.addEventListener('click', update);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) clearTimeout(timer);
+    else update();
+  });
+  update();
+})();
+</script>
 {% endblock %}

@@ -141,6 +141,43 @@ class TestEvaluateUnitHeartbeat:
 
 
 class TestBuildUnitMonitorItemHeartbeatInterval:
+    def test_hardware_capabilities_are_separate_from_online_and_available(self):
+        ref = datetime(2026, 11, 23, 12, 0, 0)
+        unit = UnitRecord(
+            id=10,
+            name="linux-unit",
+            stock=15,
+            initial_stock=20,
+            connect=1,
+            available=1,
+            last_seen=ref,
+        )
+        snapshot = {
+            "config": {
+                "_capabilities": {
+                    "nfc": "unavailable",
+                    "motor": "unavailable",
+                    "sensor": "invalid",
+                },
+            },
+            "last_updated": ref,
+        }
+
+        item = build_unit_monitor_item(unit, reference_time=ref, config_snapshot=snapshot)
+        assert item.connection_status == "online"
+        assert item.available
+        assert item.nfc_status == "unavailable"
+        assert item.motor_status == "unavailable"
+        assert item.sensor_status == "unknown"
+        assert not item.can_dispense
+        assert item.monitor_status == "ATTENTION"
+
+        stale = build_unit_monitor_item(
+            unit, reference_time=ref + timedelta(minutes=5), config_snapshot=snapshot
+        )
+        assert stale.connection_status == "offline"
+        assert stale.nfc_status == stale.motor_status == stale.sensor_status == "unknown"
+
     def test_heartbeat_interval_over_60s_uses_double_threshold_without_false_offline(self):
         ref = datetime(2026, 11, 23, 12, 0, 0)
         unit = UnitRecord(
@@ -179,6 +216,7 @@ class TestBuildUnitMonitorItemHeartbeatInterval:
         assert item.heartbeat_overdue is False
         assert item.monitor_status == "READY"
         assert item.can_dispense is True
+        assert item.nfc_status == item.motor_status == item.sensor_status == "unknown"
         assert item.config_stale is False
 
         stale_unit = UnitRecord(

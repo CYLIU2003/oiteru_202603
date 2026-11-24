@@ -471,11 +471,24 @@ def build_unit_monitor_item(
         attention_reasons.append("子機設定の変更反映待ちです（次回 heartbeat で同期）")
 
     connection_status = hb["connection_status"]
+    capabilities = reported_cfg.get("_capabilities")
+    if config_stale or connection_status != "online" or not isinstance(capabilities, dict):
+        capabilities = {}
+    nfc_status, motor_status, sensor_status = (
+        status if status in ("ready", "unavailable") else "unknown"
+        for status in (capabilities.get(name) for name in ("nfc", "motor", "sensor"))
+    )
+    if nfc_status == "unavailable":
+        attention_reasons.append("子機から NFC 利用不可が報告されています")
+    if motor_status == "unavailable":
+        attention_reasons.append("子機からモーター利用不可が報告されています")
     can_dispense = bool(
         available_bool
         and connection_status == "online"
         and stock_val is not None
         and stock_val > 0
+        and nfc_status != "unavailable"
+        and motor_status != "unavailable"
     )
     needs_attention = bool(attention_reasons)
 
@@ -522,6 +535,9 @@ def build_unit_monitor_item(
         motor_type=motor_type,
         control_method=control_method,
         use_sensor=use_sensor,
+        nfc_status=nfc_status,
+        motor_status=motor_status,
+        sensor_status=sensor_status,
         hardware_telemetry_status=hardware_telemetry_status,
         hardware_telemetry_label=hardware_telemetry_label,
         mcu_status=mcu_status,

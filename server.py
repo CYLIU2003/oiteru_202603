@@ -976,6 +976,7 @@ def admin_dashboard():
         "admin_dashboard.html",
         stats={"user_count": user_count, "unit_count": unit_count},
         total_dispensed=total_dispensed,
+        dispense_count_since=valid_start_datetime.strftime("%Y/%m/%d %H:%M"),
         server_info=server_info,
     )
 
