@@ -281,7 +281,7 @@ def normalize_motor_config(config):
 
     normalized['SERVER_URL'] = str(normalized.get('SERVER_URL', DEFAULT_CONFIG['SERVER_URL']))
     normalized['UNIT_NAME'] = str(normalized.get('UNIT_NAME', DEFAULT_CONFIG['UNIT_NAME']))
-    normalized['UNIT_PASSWORD'] = str(normalized.get('UNIT_PASSWORD', DEFAULT_CONFIG['UNIT_PASSWORD']))
+    normalized['UNIT_PASSWORD'] = str(normalized.get('UNIT_PASSWORD', ''))
     normalized['SENSOR_GPIO_PIN'] = normalized['SENSOR_PIN']
     return normalized
 
