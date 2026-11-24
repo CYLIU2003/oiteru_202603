@@ -1,34 +1,69 @@
 {% extends "base.html" %}
+
+{% block breadcrumbs %}
+<nav class="dads-breadcrumbs" aria-label="現在位置">
+  <ol>
+    <li><a href="{{ url_for('admin_dashboard') }}">業務トップ</a></li>
+    <li aria-current="page">利用履歴</li>
+  </ol>
+</nav>
+{% endblock %}
+
 {% block content %}
-<div class="admin-dashboard">
-  <h2><span class="material-symbols-outlined">history</span> 利用履歴（排出成功）</h2>
-  
-  <div class="info-card">
-    <h3><span class="material-symbols-outlined">info</span> このページについて</h3>
-    <p style="margin: 0;">カードがタッチされ、生理用品が正常に排出された記録のみを表示しています。</p>
+<div class="dads-page">
+  <header class="dads-page-header">
+    <div class="dads-stack-sm">
+      <p class="dads-shoulder">利用記録</p>
+      <h1 class="dads-heading-page">利用履歴</h1>
+    </div>
+    <div>
+      <a href="{{ url_for('admin_visuals') }}" class="dads-btn dads-btn-outline dads-btn-sm">
+        利用統計グラフを見る
+      </a>
+    </div>
+  </header>
+
+  <div class="dads-banner dads-banner-info" role="note">
+    <p class="dads-banner-title">表示対象について</p>
+    <p class="dads-banner-body">カードがタッチされ、生理用品が正常に排出された記録（直近100件）のみを表示しています。</p>
   </div>
-  
-  <div class="history-list" style="margin-top: 24px;">
-    {% for entry in history %}
-    <div class="history-item">
-      <span class="material-symbols-outlined" style="color: var(--md-success);">check_circle</span>
-      <div class="history-content">
-        <div class="history-text">{{ entry['txt'] }}</div>
-        <div class="history-time">{{ entry['created_at'] }}</div>
-      </div>
+
+  <section class="dads-card dads-stack-md" aria-labelledby="history-table-heading">
+    <div class="dads-card-header">
+      <h2 id="history-table-heading" class="dads-heading-section dads-heading-chip">排出成功ログ</h2>
+      <span class="dads-chip dads-chip-gray">{{ history|length }} 件</span>
+    </div>
+
+    {% if history %}
+    <div class="dads-table-wrap">
+      <table class="dads-table">
+        <thead>
+          <tr>
+            <th scope="col">日時</th>
+            <th scope="col">結果</th>
+            <th scope="col">記録内容</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in history %}
+          <tr>
+            <td class="dads-mono">{{ entry['created_at'] }}</td>
+            <td><span class="dads-chip dads-chip-green">排出成功</span></td>
+            <td>{{ entry['txt'] }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
     {% else %}
-    <div class="empty-state">
-      <span class="material-symbols-outlined">history</span>
-      <p>まだ利用履歴がありません</p>
+    <div class="dads-card-subtle">
+      <p class="dads-muted">まだ利用履歴がありません。</p>
     </div>
-    {% endfor %}
-  </div>
-  
-  <div style="margin-top: var(--md-space-xl);">
-    <a href="{{ url_for('admin_dashboard') }}" class="menu-btn gray">
-      <span class="material-symbols-outlined">arrow_back</span> 管理者メニューに戻る
-    </a>
+    {% endif %}
+  </section>
+
+  <div>
+    <a href="{{ url_for('admin_dashboard') }}" class="dads-back-link">業務トップに戻る</a>
   </div>
 </div>
 {% endblock %}

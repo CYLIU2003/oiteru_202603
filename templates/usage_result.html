@@ -1,26 +1,88 @@
 {% extends "base.html" %}
 {% block page_styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/public-service.css', v=1) }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/public-service.css') }}">
+<style>
+  .public-usage-hero {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .public-usage-stock {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-variant-numeric: tabular-nums;
+    font-size: clamp(2.25rem, 1.8rem + 1.5vw, 3rem);
+    font-weight: 700;
+    line-height: 1.1;
+    color: var(--dads-blue-900, #0017c1);
+    margin: 0;
+  }
+  .public-usage-stock-unit {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--dads-gray-900, #1a1a1a);
+  }
+</style>
+{% endblock %}
+{% block breadcrumbs %}
+<nav class="dads-breadcrumbs" aria-label="現在位置">
+  <ol>
+    <li><a href="{{ url_for('index') }}">ホーム</a></li>
+    <li><a href="{{ url_for('usage') }}">利用状況の確認</a></li>
+    <li aria-current="page">確認結果</li>
+  </ol>
+</nav>
 {% endblock %}
 {% block content %}
-<div class="public-service public-service-form">
-  <header class="public-service-intro">
-    <h1>利用状況</h1>
+<div class="dads-page dads-page-narrow">
+  <header class="dads-page-header">
+    <div class="dads-stack-sm">
+      <p class="dads-shoulder">確認結果</p>
+      <h1 class="dads-heading-page">利用状況</h1>
+    </div>
   </header>
 
-  <section class="public-service-panel" aria-labelledby="summary-title">
-    <h2 id="summary-title">学生証の利用情報</h2>
-    <dl class="public-service-result">
-      <div><dt>残り利用回数</dt><dd>{{ stock }}回</dd></div>
-      <div><dt>利用状況</dt><dd>{{ '利用可能' if allow == 1 else '利用停止中' }}</dd></div>
-      <div><dt>登録日</dt><dd>{{ entry_at }}</dd></div>
-      <div><dt>累計利用回数</dt><dd>{{ total }}回</dd></div>
+  <section class="dads-card dads-stack-lg" aria-labelledby="summary-title">
+    <h2 id="summary-title" class="dads-heading-section dads-heading-chip">学生証の利用情報</h2>
+
+    <div class="dads-card dads-card-subtle public-usage-hero">
+      <div class="dads-stack-sm">
+        <span class="dads-muted">残り利用回数</span>
+        <p class="public-usage-stock">{{ stock }}<span class="public-usage-stock-unit">回</span></p>
+      </div>
+      {% if allow == 1 %}
+        <span class="dads-chip dads-chip-green">利用可能</span>
+      {% else %}
+        <span class="dads-chip dads-chip-red">利用停止中</span>
+      {% endif %}
+    </div>
+
+    <dl class="dads-dl">
+      <div class="dads-dl-row">
+        <dt>残り利用回数</dt>
+        <dd>{{ stock }}回</dd>
+      </div>
+      <div class="dads-dl-row">
+        <dt>利用状況</dt>
+        <dd>{{ '利用可能' if allow == 1 else '利用停止中' }}</dd>
+      </div>
+      <div class="dads-dl-row">
+        <dt>登録日</dt>
+        <dd>{{ entry_at }}</dd>
+      </div>
+      <div class="dads-dl-row">
+        <dt>累計利用回数</dt>
+        <dd>{{ total }}回</dd>
+      </div>
     </dl>
   </section>
 
-  <nav class="public-service-links" aria-label="確認後の操作">
-    <a href="{{ url_for('usage') }}" class="btn btn-outline">別の学生証を確認する</a>
-    <a href="{{ url_for('index') }}">ホームに戻る</a>
+  <nav class="dads-btn-row" aria-label="確認後の操作">
+    <a href="{{ url_for('usage') }}" class="dads-btn dads-btn-solid dads-btn-md">別の学生証を確認する</a>
+    <a href="{{ url_for('index') }}" class="dads-btn dads-btn-outline dads-btn-md">ホームに戻る</a>
   </nav>
 </div>
 {% endblock %}

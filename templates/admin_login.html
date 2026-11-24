@@ -1,27 +1,69 @@
 {% extends "base.html" %}
+
+{% block breadcrumbs %}
+<nav class="dads-breadcrumbs" aria-label="現在位置">
+  <ol>
+    <li><a href="{{ url_for('index') }}">ホーム</a></li>
+    <li aria-current="page">管理者ログイン</li>
+  </ol>
+</nav>
+{% endblock %}
+
 {% block content %}
-<div class="admin-login">
-  <span class="material-symbols-outlined" style="font-size: 3rem; color: var(--md-primary); margin-bottom: 12px;">admin_panel_settings</span>
-  <h2>管理者ログイン</h2>
-  <form method="post">
-    <div class="form-group">
-      <label for="username" class="form-label">ユーザー名</label>
-      <input type="text" name="username" id="username" class="form-input" autocomplete="username" required autofocus>
-    </div>
-    <div class="form-group">
-      <label for="password" class="form-label">パスワード</label>
-      <input type="password" name="password" id="password" class="form-input" placeholder="パスワードを入力" autocomplete="current-password" required>
-    </div>
-    <button type="submit" class="btn btn-primary" style="width:100%;">
-      <span class="material-symbols-outlined">login</span>
-      ログイン
-    </button>
-  </form>
-  <div style="margin-top: var(--md-space-lg);">
-    <a href="{{ url_for('index') }}" class="btn btn-secondary">
-      <span class="material-symbols-outlined">home</span>
-      ホームに戻る
-    </a>
+<div class="dads-page dads-page-narrow">
+  <section class="dads-card dads-stack-lg" aria-labelledby="admin-login-heading">
+    <header class="dads-stack-sm">
+      <p class="dads-shoulder">管理者専用</p>
+      <h1 id="admin-login-heading" class="dads-heading-page">管理者ログイン</h1>
+      <p class="dads-lead">子機監視・在庫補充・利用者管理を行うにはログインしてください。学生証の登録や利用状況確認はログイン不要です。</p>
+    </header>
+
+    <form method="post" class="dads-stack-md">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="dads-field">
+        <label for="username" class="dads-label">
+          ユーザー名
+          <span class="dads-required">必須</span>
+        </label>
+        <p class="dads-support-text" id="username-support">管理者アカウントのユーザー名を入力してください。</p>
+        <input
+          type="text"
+          name="username"
+          id="username"
+          class="dads-input"
+          autocomplete="username"
+          aria-describedby="username-support"
+          required
+          autofocus
+        >
+      </div>
+
+      <div class="dads-field">
+        <label for="password" class="dads-label">
+          パスワード
+          <span class="dads-required">必須</span>
+        </label>
+        <p class="dads-support-text" id="password-support">管理者アカウントのパスワードを入力してください。</p>
+        <input
+          type="password"
+          name="password"
+          id="password"
+          class="dads-input"
+          autocomplete="current-password"
+          aria-describedby="password-support"
+          required
+        >
+      </div>
+
+      <div class="dads-stack-sm">
+        <button type="submit" class="dads-btn dads-btn-solid dads-btn-lg dads-btn-full">ログインする</button>
+      </div>
+    </form>
+  </section>
+
+  <div>
+    <a href="{{ url_for('index') }}" class="dads-back-link">利用者ホームに戻る</a>
   </div>
 </div>
 {% endblock %}

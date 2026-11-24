@@ -1,20 +1,58 @@
 {% extends "base.html" %}
-{% block content %}
-<div class="admin-section">
-  <h2>子機ログ: {{ unit_name }}</h2>
-  
-  {% if logs %}
-    <ul class="history-list">
-      {% for log in logs %}
-        <li>{{ log.txt }}</li>
-      {% endfor %}
-    </ul>
-  {% else %}
-    <p>この子機からのログはまだ記録されていません。</p>
-  {% endif %}
 
-  <p style="margin-top: 20px;">
-    <a href="{{ url_for('admin_units') }}" class="btn btn-secondary">子機一覧に戻る</a>
-  </p>
+{% block breadcrumbs %}
+<nav class="dads-breadcrumbs" aria-label="現在位置">
+  <ol>
+    <li><a href="{{ url_for('admin_dashboard') }}">業務トップ</a></li>
+    <li><a href="{{ url_for('admin_units') }}">子機監視</a></li>
+    <li aria-current="page">{{ unit_name }} のログ</li>
+  </ol>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="dads-page">
+  <header class="dads-page-header">
+    <div class="dads-stack-sm">
+      <p class="dads-shoulder">子機ログ</p>
+      <h1 class="dads-heading-page">{{ unit_name }} のログ</h1>
+    </div>
+    <div>
+      <span class="dads-chip dads-chip-gray">{{ logs|length if logs else 0 }} 件</span>
+    </div>
+  </header>
+
+  <section class="dads-card dads-stack-md" aria-labelledby="unit-logs-heading">
+    <h2 id="unit-logs-heading" class="dads-heading-section dads-heading-chip">記録一覧</h2>
+
+    {% if logs %}
+    <div class="dads-table-wrap">
+      <table class="dads-table">
+        <thead>
+          <tr>
+            <th scope="col" style="width: 72px;">#</th>
+            <th scope="col">ログ内容</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in logs %}
+          <tr>
+            <td class="dads-mono">{{ loop.index }}</td>
+            <td class="dads-mono">{{ log.txt }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="dads-card-subtle">
+      <p class="dads-muted">この子機からのログはまだ記録されていません。</p>
+    </div>
+    {% endif %}
+  </section>
+
+  <div>
+    <a href="{{ url_for('admin_units') }}" class="dads-back-link">子機監視に戻る</a>
+  </div>
 </div>
 {% endblock %}

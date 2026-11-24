@@ -1,123 +1,13 @@
-/* Shared navigation and keyboard focus, following DADS interaction guidance. */
+/* ==========================================================================
+   OITERU Shell Compatibility Layer
+   All canonical DADS shell tokens, navigation, and focus styles live in
+   static/css/dads-oiteru.css. This file provides minimal legacy token aliases
+   with zero conflicting overrides.
+   ========================================================================== */
+
 :root {
-  --shell-link: #0017c1;
-  --shell-current: #e8edff;
-  --shell-border: #b4b9c4;
-  --shell-focus: #ffd43d;
-}
-
-.shell-skip-link {
-  position: fixed;
-  z-index: 1000;
-  inset-block-start: .5rem;
-  inset-inline-start: .75rem;
-  padding: .75rem 1rem;
-  transform: translateY(-160%);
-  color: #111;
-  background: #fff;
-  font-weight: 700;
-}
-
-.shell-skip-link:focus {
-  transform: none;
-}
-
-.page-wrapper :is(a, button, input, select, textarea, summary, [tabindex]):focus-visible,
-.shell-skip-link:focus-visible {
-  outline: 3px solid #151515;
-  outline-offset: 2px;
-  box-shadow: 0 0 0 6px var(--shell-focus);
-}
-
-.oiteru-shell-header.site-header {
-  position: relative;
-  z-index: auto;
-  border-block-end: 1px solid var(--shell-border);
-  background: #fff;
-  box-shadow: none;
-  backdrop-filter: none;
-}
-
-.oiteru-shell-header .brand-text {
-  min-inline-size: 0;
-}
-
-.shell-service-name {
-  display: block;
-  color: #181818;
-  font-size: 1.5rem;
-  font-weight: 700;
-  text-underline-offset: .18em;
-}
-
-.shell-task-nav {
-  border-block-start: 1px solid var(--shell-border);
-  background: #fff;
-}
-
-.shell-task-list {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: .25rem .5rem;
-  margin-block: 0;
-  padding: .5rem 0;
-  list-style: none;
-}
-
-.shell-task-list a {
-  display: inline-flex;
-  align-items: center;
-  min-block-size: 44px;
-  padding: .35rem .75rem;
-  border-block-end: 3px solid transparent;
-  color: var(--shell-link);
-  font-size: .9375rem;
-  font-weight: 600;
-  line-height: 1.4;
-  text-decoration: underline;
-  text-underline-offset: .18em;
-}
-
-.shell-task-list a:hover {
-  background: #f3f5fc;
-}
-
-.shell-task-list a[aria-current] {
-  border-block-end-color: var(--shell-link);
-  background: var(--shell-current);
-  font-weight: 700;
-}
-
-.oiteru-shell-header .status-card {
-  min-inline-size: 0;
-  box-shadow: none;
-}
-
-.oiteru-shell-header .status-value {
-  overflow-wrap: anywhere;
-}
-
-@media (max-width: 40rem) {
-  .shell-task-list {
-    gap: .125rem .25rem;
-  }
-
-  .shell-task-list a {
-    padding-inline: .5rem;
-  }
-
-  .oiteru-shell-header .header-status-row {
-    inline-size: 100%;
-  }
-
-  .oiteru-shell-header .status-card {
-    flex: 1 1 9rem;
-  }
-}
-
-@media (forced-colors: active) {
-  .shell-task-list a[aria-current] {
-    border-block-end-color: LinkText;
-  }
+  --shell-link: var(--dads-blue-900, #0017c1);
+  --shell-current: var(--dads-blue-50, #e8f1fe);
+  --shell-border: var(--dads-gray-420, #949494);
+  --shell-focus: var(--dads-yellow-300, #ffd43d);
 }

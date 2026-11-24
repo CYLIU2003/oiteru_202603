@@ -1,67 +1,127 @@
 {% extends "base.html" %}
 {% block page_styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/public-service.css', v=1) }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/public-service.css') }}">
+<style>
+  .public-bottom-nav {
+    justify-content: space-between;
+  }
+  #status-message[hidden] {
+    display: none !important;
+  }
+</style>
+{% endblock %}
+{% block breadcrumbs %}
+<nav class="dads-breadcrumbs" aria-label="現在位置">
+  <ol>
+    <li><a href="{{ url_for('index') }}">ホーム</a></li>
+    <li aria-current="page">利用状況の確認</li>
+  </ol>
+</nav>
 {% endblock %}
 {% block content %}
-<div class="public-service public-service-form">
-  <nav class="public-service-links" aria-label="前の画面">
-    <a href="{{ url_for('index') }}">ホームに戻る</a>
-  </nav>
-  <header class="public-service-intro">
-    <h1>利用状況の確認</h1>
-    <p>残りの利用回数と利用可否を表示します。</p>
+<div class="dads-page dads-page-narrow">
+  <header class="dads-page-header">
+    <div class="dads-stack-sm">
+      <p class="dads-shoulder">ログイン不要</p>
+      <h1 class="dads-heading-page">利用状況の確認</h1>
+      <p class="dads-lead">学生証を読み取って、残りの利用回数と利用可否を確認します。</p>
+    </div>
   </header>
-  <section class="public-service-panel" aria-labelledby="read-title">
-    <h2 id="read-title">学生証の読み取り</h2>
+
+  <section class="dads-card dads-stack-lg" aria-labelledby="read-title">
+    <h2 id="read-title" class="dads-heading-section dads-heading-chip">学生証の読み取り</h2>
+
     {% if not reader_connected %}
-      <div class="public-service-notice public-service-notice-error" role="status">
-        <strong>カードリーダーが接続されていません</strong>
-        <p>この端末のカードリーダーのUSB接続を確認し、再確認してください。</p>
+      <div class="dads-banner dads-banner-error" role="status">
+        <p class="dads-banner-title">カードリーダーが未接続です</p>
+        <p class="dads-banner-body">この端末のカードリーダーのUSB接続を確認して、再確認してください。</p>
       </div>
       <form method="post">
-        <button type="submit" name="retry" value="1" class="btn btn-outline">接続を再確認する</button>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" name="retry" value="1" class="dads-btn dads-btn-outline dads-btn-lg dads-btn-full">接続を再確認する</button>
       </form>
     {% else %}
-      <ol class="public-service-steps">
-        <li>学生証をカードリーダーの読み取り面に置いてください。</li>
-        <li>「学生証で利用状況を確認する」を押し、結果が表示されるまで学生証を置いたままにしてください。</li>
+      <ol class="dads-steps">
+        <li class="dads-step">
+          <span class="dads-step-num is-current" aria-hidden="true">1</span>
+          <div>
+            <h3 class="dads-step-title">学生証をリーダーに置く</h3>
+            <p class="dads-step-desc">カードリーダーの読み取り面に学生証を置いてください。</p>
+          </div>
+        </li>
+        <li class="dads-step">
+          <span class="dads-step-num" aria-hidden="true">2</span>
+          <div>
+            <h3 class="dads-step-title">下のボタンを押して読み取る</h3>
+            <p class="dads-step-desc">結果が表示されるまで、学生証を置いたままにしてください。</p>
+          </div>
+        </li>
       </ol>
-      <div id="status-message" class="public-service-notice" role="status" aria-atomic="true"></div>
+
+      <div class="dads-banner dads-banner-success" role="status">
+        <p class="dads-banner-title">カードリーダー接続済み</p>
+        <p class="dads-banner-body">学生証を置いて下のボタンを押してください。</p>
+      </div>
+
+      <div id="status-message" class="dads-banner dads-banner-info" role="status" aria-live="polite" aria-atomic="true" hidden>
+        <p class="dads-banner-title" id="status-message-title"></p>
+        <p class="dads-banner-body" id="status-message-body"></p>
+      </div>
+
       <form id="usage-form" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="card_id" id="card_id_input">
-        <button type="button" id="read-card-btn" class="btn btn-primary">学生証で利用状況を確認する</button>
+        <button type="button" id="read-card-btn" class="dads-btn dads-btn-solid dads-btn-lg dads-btn-full">学生証を読み取って確認する</button>
       </form>
-      <noscript><p>学生証を読み取るには、ブラウザーのJavaScriptを有効にしてください。</p></noscript>
+
+      <noscript>
+        <div class="dads-banner dads-banner-warning" role="status">
+          <p class="dads-banner-title">JavaScriptが無効です</p>
+          <p class="dads-banner-body">学生証を読み取るには、ブラウザーのJavaScriptを有効にしてください。</p>
+        </div>
+      </noscript>
     {% endif %}
   </section>
+
+  <nav class="dads-btn-row public-bottom-nav" aria-label="画面移動">
+    <a href="{{ url_for('index') }}" class="dads-back-link">ホームに戻る</a>
+    <a href="{{ url_for('register') }}" class="dads-link">初めての方：学生証を登録する</a>
+  </nav>
 </div>
+
 {% if reader_connected %}
 <script>
   const readButton = document.getElementById('read-card-btn');
   const usageForm = document.getElementById('usage-form');
   const cardInput = document.getElementById('card_id_input');
   const readStatus = document.getElementById('status-message');
+  const readStatusTitle = document.getElementById('status-message-title');
+  const readStatusBody = document.getElementById('status-message-body');
 
-  function reportCardRead(message, isError = false) {
-    readStatus.classList.toggle('public-service-notice-error', isError);
-    readStatus.textContent = message;
+  function reportCardRead(title, body, isError = false) {
+    readStatus.hidden = false;
+    readStatus.classList.toggle('dads-banner-error', isError);
+    readStatus.classList.toggle('dads-banner-info', !isError);
+    readStatus.setAttribute('role', isError ? 'alert' : 'status');
+    readStatusTitle.textContent = title;
+    readStatusBody.textContent = body;
   }
 
   readButton.addEventListener('click', async () => {
     readButton.disabled = true;
-    reportCardRead('読み取り中です。学生証を置いたままお待ちください。');
+    reportCardRead('読み取り中です', '学生証をカードリーダーに置いたままお待ちください。');
     try {
       const response = await fetch('/api/read_card');
       const result = await response.json();
       if (response.ok && result.success && result.card_id) {
-        reportCardRead('学生証を読み取りました。利用状況を表示します。');
+        reportCardRead('読み取りが完了しました', '利用状況を表示します。');
         cardInput.value = result.card_id;
         usageForm.submit();
         return;
       }
-      reportCardRead('学生証を読み取れませんでした。置き直して、もう一度お試しください。', true);
+      reportCardRead('学生証を読み取れませんでした', '学生証を置き直して、もう一度お試しください。', true);
     } catch {
-      reportCardRead('読み取り結果を取得できませんでした。もう一度お試しください。', true);
+      reportCardRead('読み取り結果を取得できませんでした', '通信状態を確認して、もう一度お試しください。', true);
     }
     readButton.disabled = false;
     readButton.focus();

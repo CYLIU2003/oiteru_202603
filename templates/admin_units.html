@@ -1,689 +1,397 @@
 {% extends "base.html" %}
+
 {% block page_styles %}
 <style>
-  .monitor-container {
-    max-width: 1240px;
-    margin: 0 auto;
-    display: grid;
-    gap: 18px;
-  }
-
-  .monitor-header-card {
-    background: var(--md-surface);
-    border: 1px solid var(--md-outline-variant);
-    border-radius: var(--md-radius-lg);
-    padding: 20px 24px;
-    box-shadow: var(--md-elevation-2);
-  }
-
-  .monitor-title-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 14px;
-    margin-bottom: 12px;
-  }
-
-  .monitor-title-group {
-    display: flex;
-    align-items: baseline;
-    flex-wrap: wrap;
-    gap: 14px;
-  }
-
-  .monitor-title-group h2 {
-    margin: 0;
-    font-size: 1.45rem;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .monitor-meta-line {
-    font-size: 0.85rem;
-    color: var(--md-on-surface-variant);
+  .monitor-meta-row {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
     gap: 10px;
+    margin-top: 6px;
   }
-
-  .monitor-toolbar-actions {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .monitor-note-box {
-    background: var(--md-surface-container-low);
-    border: 1px solid var(--md-outline-light);
-    border-left: 4px solid var(--md-primary);
-    border-radius: var(--md-radius-sm);
-    padding: 12px 16px;
-    font-size: 0.83rem;
-    color: var(--md-on-surface-variant);
-    line-height: 1.55;
-    display: grid;
-    gap: 4px;
-  }
-
-  .monitor-note-box strong {
-    color: var(--md-on-surface);
-  }
-
-  /* Summary Tiles (computer-cluster-control pattern) */
-  .monitor-tiles {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
-    gap: 12px;
-  }
-
-  .monitor-tile {
-    background: var(--md-surface);
-    border: 1px solid var(--md-outline-variant);
-    border-radius: var(--md-radius-md);
-    padding: 14px 16px;
-    box-shadow: var(--md-elevation-1);
-    cursor: pointer;
-    text-align: left;
-    transition: transform var(--md-transition-short), box-shadow var(--md-transition-short), border-color var(--md-transition-short);
-  }
-
-  .monitor-tile:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--md-elevation-2);
-    border-color: var(--md-primary);
-  }
-
-  .monitor-tile[data-active="true"] {
-    border-color: var(--md-primary);
-    box-shadow: 0 0 0 2px rgba(26, 111, 181, 0.2);
-  }
-
-  .monitor-tile .tile-k {
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: var(--md-on-surface-variant);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 4px;
-  }
-
-  .monitor-tile .tile-v {
-    font-size: 1.85rem;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    line-height: 1.2;
-    color: var(--md-on-surface);
-  }
-
-  .monitor-tile .tile-sub {
-    font-size: 0.76rem;
-    color: var(--md-on-surface-variant);
-    margin-top: 4px;
-  }
-
-  .monitor-tile.tile-online .tile-v { color: var(--md-success); }
-  .monitor-tile.tile-offline.has-count .tile-v { color: var(--md-error); }
-  .monitor-tile.tile-unknown.has-count .tile-v { color: #d97706; }
-  .monitor-tile.tile-attention.has-count .tile-v { color: #c2410c; }
-
-  /* Alerts Card (computer-cluster-control severity pattern) */
-  .monitor-card {
-    background: var(--md-surface);
-    border: 1px solid var(--md-outline-variant);
-    border-radius: var(--md-radius-lg);
-    padding: 18px 22px;
-    box-shadow: var(--md-elevation-1);
-    overflow-x: auto;
-  }
-
-  .monitor-card h3 {
-    margin: 0 0 12px;
-    font-size: 1.05rem;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .monitor-alert-list {
-    display: grid;
-    gap: 0;
-  }
-
-  .monitor-alert-item {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 9px 0;
-    border-bottom: 1px solid var(--md-outline-light);
-    font-size: 0.88rem;
-  }
-
-  .monitor-alert-item:last-child {
-    border-bottom: 0;
-  }
-
-  .monitor-alert-main {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    flex-wrap: wrap;
-  }
-
-  .alert-level-badge {
+  .monitor-auto-toggle {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    font-size: 0.78rem;
-    font-weight: 700;
-    padding: 2px 9px;
-    border-radius: 999px;
-    white-space: nowrap;
-    min-width: 74px;
-    justify-content: center;
+    gap: 8px;
+    min-height: 36px;
+    padding: 0 4px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--dads-gray-800, #333333);
+    cursor: pointer;
   }
-
-  .alert-level-badge.level-critical {
-    background: var(--md-error-container);
-    color: var(--md-error);
+  .monitor-auto-toggle input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--dads-blue-900, #0017c1);
   }
-
-  .alert-level-badge.level-serious {
-    background: #ffedd5;
-    color: #c2410c;
+  .monitor-banner-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
   }
-
-  .alert-level-badge.level-warning {
-    background: var(--md-warning-container);
-    color: var(--md-on-warning-container);
+  .monitor-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 12px;
   }
-
-  /* Filter & Search bar */
+  @media (max-width: 1024px) {
+    .monitor-kpi-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+  @media (max-width: 640px) {
+    .monitor-kpi-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  .monitor-alert-main {
+    flex: 1 1 280px;
+    min-width: 0;
+    display: flex;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 8px 10px;
+  }
+  .monitor-alert-text {
+    color: var(--dads-gray-800, #333333);
+    overflow-wrap: anywhere;
+  }
   .monitor-filter-bar {
     display: flex;
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 12px;
-    margin-bottom: 14px;
+    margin-bottom: 16px;
   }
-
-  .monitor-filter-pills {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+  .monitor-search-wrap {
+    flex: 1 1 260px;
+    max-width: 380px;
   }
-
-  .monitor-filter-pills button {
-    border: 1px solid var(--md-outline-variant);
-    background: var(--md-surface);
-    color: var(--md-on-surface);
-    border-radius: 999px;
-    padding: 5px 13px;
-    font: inherit;
-    font-size: 0.82rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all var(--md-transition-short);
-  }
-
-  .monitor-filter-pills button:hover {
-    border-color: var(--md-primary);
-    background: var(--md-surface-container-low);
-  }
-
-  .monitor-filter-pills button[aria-pressed="true"] {
-    background: var(--md-on-surface);
-    color: var(--md-surface);
-    border-color: var(--md-on-surface);
-    font-weight: 600;
-  }
-
-  .monitor-search-box {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-width: 260px;
-    flex: 1;
-    max-width: 360px;
-  }
-
-  .monitor-search-box input {
-    width: 100%;
-    padding: 7px 12px;
-    font-size: 0.86rem;
-    border: 1px solid var(--md-outline-variant);
-    border-radius: 999px;
-    background: var(--md-surface-container-low);
-    color: var(--md-on-surface);
-    outline: none;
-  }
-
-  .monitor-search-box input:focus {
-    border-color: var(--md-primary);
-    background: var(--md-surface);
-    box-shadow: 0 0 0 2px rgba(26, 111, 181, 0.15);
-  }
-
-  /* Table adjustments */
-  .monitor-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.86rem;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .monitor-table th {
-    text-align: left;
-    font-weight: 600;
-    color: var(--md-on-surface-variant);
-    font-size: 0.78rem;
-    padding: 10px 10px;
-    border-bottom: 2px solid var(--md-outline-variant);
-    background: var(--md-surface-container-low);
-    white-space: nowrap;
-  }
-
-  .monitor-table td {
-    padding: 12px 10px;
-    border-bottom: 1px solid var(--md-outline-light);
-    vertical-align: top;
-  }
-
-  .monitor-table tbody tr:hover {
-    background: rgba(26, 111, 181, 0.03);
-  }
-
-  .monitor-table tbody tr.row-attention {
-    background: rgba(245, 158, 11, 0.03);
-  }
-
-  .monitor-table tbody tr.row-critical {
-    background: rgba(186, 26, 26, 0.035);
-  }
-
-  .unit-primary-name {
+  .monitor-unit-name {
     font-weight: 700;
-    font-size: 0.95rem;
-    color: var(--md-on-surface);
+    font-size: 0.9375rem;
+    color: var(--dads-gray-900, #1a1a1a);
   }
-
-  .unit-sub {
-    font-size: 0.78rem;
-    color: var(--md-on-surface-variant);
+  .monitor-sub {
+    font-size: 0.8125rem;
+    color: var(--dads-gray-600, #666666);
     margin-top: 2px;
   }
-
-  /* Status badges including unknown */
-  .status-badge.unknown {
-    background: var(--md-warning-container);
-    color: var(--md-on-warning-container);
-  }
-
-  .status-dot.unknown {
-    background: var(--md-warning);
-  }
-
-  .monitor-chip {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 999px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    background: var(--md-surface-container-high);
-    color: var(--md-on-surface-variant);
-    white-space: nowrap;
-  }
-
-  .monitor-chip.chip-ready {
-    background: var(--md-success-container);
-    color: var(--md-on-success-container);
-  }
-
-  .monitor-chip.chip-attention,
-  .monitor-chip.chip-unknown {
-    background: var(--md-warning-container);
-    color: var(--md-on-warning-container);
-  }
-
-  .monitor-chip.chip-critical {
-    background: var(--md-error-container);
-    color: var(--md-on-error-container);
-  }
-
-  /* Stock Meter (computer-cluster-control meter pattern) */
-  .stock-meter {
-    width: 115px;
-  }
-
-  .stock-meter-track {
+  .monitor-stock-meter {
+    width: 112px;
     height: 6px;
-    background: var(--md-surface-container-high);
+    background: var(--dads-gray-100, #e6e6e6);
     border-radius: 3px;
     overflow: hidden;
-    margin-top: 4px;
+    margin-top: 6px;
   }
-
-  .stock-meter-fill {
+  .monitor-stock-fill {
     height: 100%;
     border-radius: 3px;
-    background: var(--md-primary);
-    transition: width 0.25s ease;
+    background: var(--dads-blue-900, #0017c1);
   }
-
-  .stock-meter-fill.fill-ok { background: var(--md-success); }
-  .stock-meter-fill.fill-low { background: var(--md-warning); }
-  .stock-meter-fill.fill-empty { background: var(--md-error); }
-
-  .attention-list {
+  .monitor-stock-fill.fill-ok { background: var(--dads-success-2, #197a4b); }
+  .monitor-stock-fill.fill-low { background: var(--dads-orange-800, #c74700); }
+  .monitor-stock-fill.fill-empty { background: var(--dads-red-900, #cc0000); }
+  .monitor-attention-list {
     margin: 0;
-    padding-left: 16px;
-    font-size: 0.8rem;
-    color: #b45309;
-    line-height: 1.45;
+    padding-left: 18px;
+    font-size: 0.8125rem;
+    color: var(--dads-orange-900, #9a3700);
+    line-height: 1.5;
   }
-
-  .attention-list li + li {
+  .monitor-attention-list li + li {
     margin-top: 3px;
   }
-
-  .monitor-ok-text {
-    color: var(--md-success);
-    font-weight: 600;
-    font-size: 0.82rem;
-  }
-
-  .monitor-unacquired {
-    color: var(--md-on-surface-variant);
-    font-size: 0.78rem;
-    font-style: italic;
-  }
-
-  .monitor-banner {
-    padding: 12px 16px;
-    border-radius: var(--md-radius-md);
+  .monitor-pending-actions {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     flex-wrap: wrap;
+    gap: 8px;
+  }
+  .monitor-pending-stock {
+    width: 88px;
+    min-height: 36px;
+    padding: 4px 10px;
+  }
+  .monitor-empty-box {
+    padding: 32px 16px;
+    text-align: center;
+    display: grid;
+    justify-items: center;
+    gap: 12px;
+  }
+  .monitor-spec-list {
+    display: grid;
     gap: 10px;
-    font-size: 0.88rem;
-    font-weight: 500;
+    font-size: 0.875rem;
+    color: var(--dads-gray-700, #4d4d4d);
+    line-height: 1.6;
   }
-
-  .monitor-banner.banner-error {
-    background: var(--md-error-container);
-    color: var(--md-on-error-container);
-    border-left: 4px solid var(--md-error);
+  .monitor-spec-list p {
+    margin: 0;
   }
-
-  .monitor-loading-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 2px 10px;
-    border-radius: 999px;
-    background: var(--md-primary-container);
-    color: var(--md-on-primary-container);
-    font-size: 0.76rem;
-    font-weight: 600;
+  .monitor-anchor {
+    scroll-margin-top: 1.5rem;
   }
-
-  .action-stack {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    align-items: flex-start;
-  }
-
-  .action-stack .btn-sm {
-    padding: 4px 11px;
-    font-size: 0.78rem;
-    width: 100%;
-    justify-content: flex-start;
+  .monitor-table-top tbody td {
+    vertical-align: top;
   }
 </style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="dads-breadcrumbs" aria-label="現在位置">
+  <ol>
+    <li><a href="{{ url_for('admin_dashboard') }}">業務トップ</a></li>
+    <li aria-current="page">子機監視</li>
+  </ol>
+</nav>
 {% endblock %}
 
 {% block content %}
 {% set summary_data = summary or {} %}
 {% set alerts_data = alerts or [] %}
 {% set pending_data = pending_units if pending_units is defined else (unregistered_units or []) %}
-<div class="monitor-container">
 
-  <!-- ヘッダー・更新ステータス・操作バー -->
-  <section class="monitor-header-card">
-    <div class="monitor-title-row">
-      <div class="monitor-title-group">
-        <h2><span class="material-symbols-outlined">monitoring</span> 子機監視・一覧</h2>
-        <div class="monitor-meta-line">
-          <span id="monitor-updated-at">
-            {% if summary_data.get('checked_at') %}
-              最終更新: {{ summary_data.get('checked_at') }}（{{ summary_data.get('poll_interval_seconds', 10) }}秒ごとに自動更新）
-            {% else %}
-              最終更新: 未取得
-            {% endif %}
-          </span>
-          <span id="monitor-loading-badge" class="monitor-loading-pill" style="display:none;">
-            ⏳ 更新中...
-          </span>
-        </div>
-      </div>
-
-      <div class="monitor-toolbar-actions">
-        <label style="display:inline-flex;align-items:center;gap:6px;font-size:0.82rem;color:var(--md-on-surface-variant);cursor:pointer;">
-          <input type="checkbox" id="auto-refresh-toggle" checked>
-          自動更新 (10秒)
-        </label>
-        <button type="button" id="manual-refresh-btn" class="btn btn-secondary btn-sm btn-icon" onclick="manualRefresh()">
-          <span class="material-symbols-outlined">refresh</span> 手動更新
-        </button>
-        <a href="{{ url_for('operations.admin_operations') }}" class="btn btn-secondary btn-sm btn-icon">
-          <span class="material-symbols-outlined">assignment</span> 運用管理
-        </a>
-        <a href="{{ url_for('admin_new_unit') }}" class="btn btn-primary btn-sm btn-icon">
-          <span class="material-symbols-outlined">add</span> 新規子機を登録
-        </a>
+<div class="dads-page dads-page-wide">
+  <header class="dads-page-header">
+    <div>
+      <p class="dads-shoulder">リアルタイム監視</p>
+      <h1 class="dads-heading-page">子機監視・一覧</h1>
+      <div class="monitor-meta-row">
+        <span class="dads-muted" id="monitor-updated-at">
+          {% if summary_data.get('checked_at') %}
+            最終更新: {{ summary_data.get('checked_at') }}（{{ summary_data.get('poll_interval_seconds', 10) }}秒ごとに自動更新）
+          {% else %}
+            最終更新: 未取得
+          {% endif %}
+        </span>
+        <span id="monitor-loading-badge" class="dads-chip dads-chip-blue" style="display:none;">更新中...</span>
       </div>
     </div>
 
-    <div class="monitor-note-box">
-      <div>
-        <strong>接続判定（運用管理と共通基準）:</strong>
-        子機の標準 <code>heartbeat_interval</code>（送信間隔）は <strong>{{ summary_data.get('default_heartbeat_interval_seconds', 30) }}秒</strong>（設定範囲 5〜300秒）、
-        親機の接続判定 <code>timeout</code>（超過閾値）は <strong>標準{{ summary_data.get('heartbeat_timeout_seconds', 60) }}秒（個別設定時は <code>max({{ summary_data.get('heartbeat_timeout_seconds', 60) }}秒, heartbeat_interval × 2)</code>）</strong> です。
-        最終通信（<code>last_seen</code>）が各子機の閾値以内かつ <code>connect=1</code> を<strong>オンライン</strong>、
-        有効な時刻で閾値超過を<strong>オフライン</strong>、
-        <code>last_seen</code> 欠損・解析失敗・5秒以上の未来時刻・直近時刻で <code>connect=0</code> の不整合は<strong>状態不明</strong>と判定します（監視読取による <code>units.connect</code> の書き換え副作用はありません）。
-      </div>
-      <div>
-        <strong>取得項目と表示方針:</strong>
-        現行 heartbeat と DB から確認できる通信状態・在庫・設定同期・保守チケットを表示します。
-        子機のハードウェア種別（Raspberry Pi 等）が不明な場合や、heartbeat / DB に含まれない追加ハードウェア状態は推測せず中立に<strong>追加telemetry未取得</strong>と表示します。
-      </div>
+    <div class="dads-btn-row">
+      <label class="monitor-auto-toggle">
+        <input type="checkbox" id="auto-refresh-toggle" checked>
+        自動更新 (10秒)
+      </label>
+      <button type="button" id="manual-refresh-btn" class="dads-btn dads-btn-outline dads-btn-sm" onclick="manualRefresh()">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="M13.5 8a5.5 5.5 0 1 1-1.35-3.6M13.5 2.5v2.75H10.75" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        手動更新
+      </button>
+      <a href="{{ url_for('admin_new_unit') }}" class="dads-btn dads-btn-solid dads-btn-sm">新規子機を登録</a>
     </div>
-  </section>
+  </header>
 
   <!-- エラー表示バナー（DB障害等を空表示に偽装しない） -->
-  <div id="monitor-error-banner" class="monitor-banner banner-error" style="{% if not monitor_error %}display:none;{% endif %}" role="alert">
-    <div>
-      <strong>⚠️ 監視データの取得エラー:</strong>
-      <span id="monitor-error-text">{{ monitor_error or '' }}</span>
+  <div id="monitor-error-banner" class="dads-banner dads-banner-error" style="{% if not monitor_error %}display:none;{% endif %}" role="alert">
+    <div class="monitor-banner-row">
+      <div>
+        <div class="dads-banner-title">監視データの取得エラー</div>
+        <p class="dads-banner-body" id="monitor-error-text">{{ monitor_error or '' }}</p>
+      </div>
+      <button type="button" class="dads-btn dads-btn-outline dads-btn-sm" onclick="manualRefresh()">再試行</button>
     </div>
-    <button type="button" class="btn btn-secondary btn-sm" onclick="manualRefresh()">再試行</button>
   </div>
 
-  <!-- サマリータイル（登録 / online / offline / unknown / 要確認） -->
-  <section class="monitor-tiles" id="monitor-tiles" aria-label="子機監視サマリー">
-    <button type="button" class="monitor-tile" data-tile-filter="all" onclick="setMonitorFilter('all')">
-      <div class="tile-k"><span>登録子機</span><span class="material-symbols-outlined" style="font-size:18px;">devices</span></div>
-      <div class="tile-v" id="tile-total">{{ summary_data.get('total_units', units|length) }}</div>
-      <div class="tile-sub" id="tile-total-sub">排出可能: {{ summary_data.get('ready_count', 0) }} 台 / 有効: {{ summary_data.get('available_count', 0) }} 台</div>
+  <!-- 操作フィードバックバナー -->
+  <div id="monitor-action-banner" class="dads-banner dads-banner-info" style="display:none;" role="status" aria-live="polite">
+    <p class="dads-banner-body" id="monitor-action-text"></p>
+  </div>
+
+  <!-- 5つのクリック可能なサマリータイル -->
+  <section class="monitor-kpi-grid" id="monitor-tiles" aria-label="子機監視サマリー">
+    <button type="button" class="dads-kpi-card" data-tile-filter="all" data-active="true" onclick="setMonitorFilter('all')">
+      <span class="dads-kpi-label">登録子機</span>
+      <span class="dads-kpi-value" id="tile-total">{{ summary_data.get('total_units', units|length) }}</span>
+      <span class="dads-kpi-meta" id="tile-total-sub">排出可能: {{ summary_data.get('ready_count', 0) }} 台 / 有効: {{ summary_data.get('available_count', 0) }} 台</span>
     </button>
-    <button type="button" class="monitor-tile tile-online" data-tile-filter="online" onclick="setMonitorFilter('online')">
-      <div class="tile-k"><span>オンライン (Online)</span><span class="status-dot online"></span></div>
-      <div class="tile-v" id="tile-online">{{ summary_data.get('online_count', 0) }}</div>
-      <div class="tile-sub">heartbeat 閾値以内（標準{{ summary_data.get('heartbeat_timeout_seconds', 60) }}秒 / interval×2）</div>
+    <button type="button" class="dads-kpi-card is-ok" data-tile-filter="online" data-active="false" onclick="setMonitorFilter('online')">
+      <span class="dads-kpi-label">オンライン</span>
+      <span class="dads-kpi-value" id="tile-online">{{ summary_data.get('online_count', 0) }}</span>
+      <span class="dads-kpi-meta">閾値以内（標準{{ summary_data.get('heartbeat_timeout_seconds', 60) }}秒）</span>
     </button>
-    <button type="button" class="monitor-tile tile-offline {% if summary_data.get('offline_count', 0) > 0 %}has-count{% endif %}" data-tile-filter="offline" onclick="setMonitorFilter('offline')">
-      <div class="tile-k"><span>オフライン (Offline)</span><span class="status-dot offline"></span></div>
-      <div class="tile-v" id="tile-offline">{{ summary_data.get('offline_count', 0) }}</div>
-      <div class="tile-sub">heartbeat 閾値超過（標準{{ summary_data.get('heartbeat_timeout_seconds', 60) }}秒 / interval×2）</div>
+    <button type="button" class="dads-kpi-card {% if summary_data.get('offline_count', 0) > 0 %}is-critical{% endif %}" data-tile-filter="offline" data-active="false" onclick="setMonitorFilter('offline')">
+      <span class="dads-kpi-label">オフライン</span>
+      <span class="dads-kpi-value" id="tile-offline">{{ summary_data.get('offline_count', 0) }}</span>
+      <span class="dads-kpi-meta">heartbeat 閾値超過</span>
     </button>
-    <button type="button" class="monitor-tile tile-unknown {% if summary_data.get('unknown_count', 0) > 0 %}has-count{% endif %}" data-tile-filter="unknown" onclick="setMonitorFilter('unknown')">
-      <div class="tile-k"><span>状態不明 (Unknown)</span><span class="status-dot unknown"></span></div>
-      <div class="tile-v" id="tile-unknown">{{ summary_data.get('unknown_count', 0) }}</div>
-      <div class="tile-sub">未受信・時刻/フラグ不整合</div>
+    <button type="button" class="dads-kpi-card {% if summary_data.get('unknown_count', 0) > 0 %}is-warning{% endif %}" data-tile-filter="unknown" data-active="false" onclick="setMonitorFilter('unknown')">
+      <span class="dads-kpi-label">状態不明</span>
+      <span class="dads-kpi-value" id="tile-unknown">{{ summary_data.get('unknown_count', 0) }}</span>
+      <span class="dads-kpi-meta">未受信・時刻/フラグ不整合</span>
     </button>
-    <button type="button" class="monitor-tile tile-attention {% if summary_data.get('attention_count', 0) > 0 %}has-count{% endif %}" data-tile-filter="attention" onclick="setMonitorFilter('attention')">
-      <div class="tile-k"><span>要確認 (Attention)</span><span class="material-symbols-outlined" style="font-size:18px;">warning</span></div>
-      <div class="tile-v" id="tile-attention">{{ summary_data.get('attention_count', 0) }}</div>
-      <div class="tile-sub" id="tile-attention-sub">在庫0: {{ summary_data.get('out_of_stock_count', 0) }} / 故障票: {{ summary_data.get('active_ticket_count', 0) }}</div>
+    <button type="button" class="dads-kpi-card {% if summary_data.get('attention_count', 0) > 0 %}is-warning{% endif %}" data-tile-filter="attention" data-active="false" onclick="setMonitorFilter('attention')">
+      <span class="dads-kpi-label">要確認</span>
+      <span class="dads-kpi-value" id="tile-attention">{{ summary_data.get('attention_count', 0) }}</span>
+      <span class="dads-kpi-meta" id="tile-attention-sub">在庫0: {{ summary_data.get('out_of_stock_count', 0) }} / 故障票: {{ summary_data.get('active_ticket_count', 0) }}</span>
     </button>
   </section>
 
-  <!-- 重要度順アラート一覧（computer-cluster-control パターン） -->
-  <section class="monitor-card" aria-label="重要度順アラート">
-    <h3>
-      <span><span class="material-symbols-outlined">notification_important</span> 注意が必要なこと（重要度順）</span>
-      <span class="unit-sub" id="alerts-count-label">{{ alerts_data|length }} 件</span>
-    </h3>
-    <div id="monitor-alerts" class="monitor-alert-list">
+  <!-- 重要度順アラート一覧 -->
+  <section class="dads-card" aria-label="重要度順アラート">
+    <div class="dads-card-header">
+      <h2 class="dads-heading-section dads-heading-chip">注意が必要なこと（重要度順）</h2>
+      <span class="dads-muted" id="alerts-count-label">{{ alerts_data|length }} 件</span>
+    </div>
+    <ul id="monitor-alerts" class="dads-resource-list">
       {% if alerts_data %}
         {% for alert in alerts_data %}
-          <div class="monitor-alert-item">
+          <li class="dads-resource-item">
             <div class="monitor-alert-main">
-              <span class="alert-level-badge level-{{ alert.level }}">
-                {% if alert.level == 'critical' %}■ 重大{% elif alert.level == 'serious' %}▲ 要対応{% else %}● 注意{% endif %}
-              </span>
-              <span>
+              {% if alert.level == 'critical' %}
+                <span class="dads-chip dads-chip-solid-red">重大</span>
+              {% elif alert.level == 'serious' %}
+                <span class="dads-chip dads-chip-orange">要対応</span>
+              {% else %}
+                <span class="dads-chip dads-chip-yellow">注意</span>
+              {% endif %}
+              <span class="monitor-alert-text">
                 <strong>{{ alert.unit_name }}</strong> — {{ alert.message }}
               </span>
             </div>
-            {% if alert.unit_id %}
-              <div style="display:flex;gap:6px;white-space:nowrap;">
-                <a href="/admin/unit_detail/{{ alert.unit_id }}" class="btn btn-secondary btn-sm">詳細</a>
-                <a href="/admin/operations?unit_id={{ alert.unit_id }}" class="btn btn-secondary btn-sm">運用</a>
-              </div>
-            {% endif %}
-          </div>
+            <div class="dads-btn-row">
+              {% if alert.unit_id and alert.code in ['OUT_OF_STOCK', 'LOW_STOCK', 'STOCK_UNKNOWN'] %}
+                <a href="{{ url_for('operations.admin_operations', unit_id=alert.unit_id, _anchor='stock-entry') }}" class="dads-btn dads-btn-solid dads-btn-sm">補充を記録</a>
+                <a href="{{ url_for('admin_unit_detail', uid=alert.unit_id) }}" class="dads-btn dads-btn-outline dads-btn-sm">詳細</a>
+              {% elif alert.unit_id and alert.code == 'ACTIVE_TICKET' %}
+                <a href="{{ url_for('operations.admin_operations', unit_id=alert.unit_id, _anchor='maintenance-queue') }}" class="dads-btn dads-btn-solid dads-btn-sm">チケット対応</a>
+                <a href="{{ url_for('admin_unit_detail', uid=alert.unit_id) }}" class="dads-btn dads-btn-outline dads-btn-sm">詳細</a>
+              {% elif alert.unit_id %}
+                <a href="{{ url_for('admin_unit_detail', uid=alert.unit_id) }}" class="dads-btn dads-btn-solid dads-btn-sm">詳細・設定</a>
+                <a href="{{ url_for('operations.admin_operations', unit_id=alert.unit_id, _anchor='maintenance-entry') }}" class="dads-btn dads-btn-outline dads-btn-sm">故障報告</a>
+              {% else %}
+                <a href="#pending-units-card" class="dads-btn dads-btn-solid dads-btn-sm">承認欄へ</a>
+              {% endif %}
+            </div>
+          </li>
         {% endfor %}
       {% else %}
-        <div class="unit-sub" style="padding:4px 0;">現在、注意が必要なアラートはありません。</div>
+        <li class="dads-resource-item">
+          <span class="dads-muted">現在、注意が必要なアラートはありません。</span>
+        </li>
       {% endif %}
-    </div>
+    </ul>
   </section>
 
   <!-- 未登録（承認待ち）子機セクション -->
-  <section class="monitor-card" id="pending-units-card" style="{% if not pending_data %}display:none;{% endif %}">
-    <h3>
-      <span><span class="material-symbols-outlined">pending_actions</span> 承認待ちの未登録子機</span>
-      <span class="unit-sub" id="pending-count-label">{{ pending_data|length }} 台</span>
-    </h3>
+  <section class="dads-card monitor-anchor" id="pending-units-card" style="{% if not pending_data %}display:none;{% endif %}">
+    <div class="dads-card-header">
+      <h2 class="dads-heading-section dads-heading-chip">承認待ちの未登録子機</h2>
+      <span class="dads-muted" id="pending-count-label">{{ pending_data|length }} 台</span>
+    </div>
     <div id="pending-units-container">
       {% if pending_data %}
-        <table class="monitor-table">
-          <thead>
-            <tr>
-              <th>子機名</th>
-              <th>IPアドレス</th>
-              <th>初回受信 / 最終受信</th>
-              <th>状態</th>
-              <th>承認操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for p in pending_data %}
-              {% set p_unit_name = p.unit_name or p.name %}
-              <tr data-pending-unit-name="{{ p_unit_name }}">
-                <td data-cell="name"><strong>{{ p_unit_name }}</strong></td>
-                <td data-cell="ip"><code>{{ p.ip_address or '未取得' }}</code></td>
-                <td data-cell="timestamps">
-                  <div>最終: {{ p.last_seen or '未取得' }}{% if p.seconds_ago is not none %} ({{ p.seconds_ago|round|int }}秒前){% endif %}</div>
-                  <div class="unit-sub">初回: {{ p.first_seen or '未取得' }}（受信 {{ p.heartbeat_count or 1 }} 回）</div>
-                </td>
-                <td data-cell="status">
-                  {% if p.credential_conflict %}
-                    <span class="monitor-chip chip-critical">認証情報の競合</span>
-                  {% elif p.expired %}
-                    <span class="monitor-chip chip-attention">ペアリング期限切れ</span>
-                  {% else %}
-                    <span class="monitor-chip">承認待ち</span>
-                  {% endif %}
-                </td>
-                <td data-cell="actions">
-                  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-                    <input type="number"
-                           class="pending-stock-input"
-                           data-pending-stock-input
-                           data-unit-name="{{ p_unit_name }}"
-                           value="20" min="0" max="10000"
-                           style="width:76px;padding:4px 8px;border:1px solid var(--md-outline-variant);border-radius:6px;"
-                           title="初期在庫数">
-                    <button type="button" class="btn btn-primary btn-sm"
-                            {% if p.credential_conflict or p.expired %}disabled{% endif %}
-                            data-pending-action="approve"
-                            data-unit-name="{{ p_unit_name }}">承認</button>
-                    <button type="button" class="btn btn-danger btn-sm"
-                            data-pending-action="reject"
-                            data-unit-name="{{ p_unit_name }}">拒否</button>
-                  </div>
-                </td>
+        <div class="dads-table-wrap">
+          <table class="dads-table">
+            <thead>
+              <tr>
+                <th>子機名</th>
+                <th>IPアドレス</th>
+                <th>初回受信 / 最終受信</th>
+                <th>状態</th>
+                <th>初期在庫・承認操作</th>
               </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {% for p in pending_data %}
+                {% set p_unit_name = p.unit_name or p.name %}
+                <tr data-pending-unit-name="{{ p_unit_name }}">
+                  <td data-cell="name"><strong>{{ p_unit_name }}</strong></td>
+                  <td data-cell="ip"><code class="dads-mono">{{ p.ip_address or '未取得' }}</code></td>
+                  <td data-cell="timestamps">
+                    <div>最終: {{ p.last_seen or '未取得' }}{% if p.seconds_ago is not none %} ({{ p.seconds_ago|round|int }}秒前){% endif %}</div>
+                    <div class="monitor-sub">初回: {{ p.first_seen or '未取得' }}（受信 {{ p.heartbeat_count or 1 }} 回）</div>
+                  </td>
+                  <td data-cell="status">
+                    {% if p.credential_conflict %}
+                      <span class="dads-chip dads-chip-solid-red">認証情報の競合</span>
+                    {% elif p.expired %}
+                      <span class="dads-chip dads-chip-yellow">ペアリング期限切れ</span>
+                    {% else %}
+                      <span class="dads-chip dads-chip-gray">承認待ち</span>
+                    {% endif %}
+                  </td>
+                  <td data-cell="actions">
+                    <div class="monitor-pending-actions">
+                      <input type="number"
+                             class="dads-input monitor-pending-stock"
+                             data-pending-stock-input
+                             data-unit-name="{{ p_unit_name }}"
+                             value="20" min="0" max="10000"
+                             aria-label="{{ p_unit_name }} の初期在庫数"
+                             title="初期在庫数">
+                      <button type="button" class="dads-btn dads-btn-solid dads-btn-sm"
+                              {% if p.credential_conflict or p.expired %}disabled{% endif %}
+                              data-pending-action="approve"
+                              data-unit-name="{{ p_unit_name }}">承認する</button>
+                      <button type="button" class="dads-btn dads-btn-danger-outline dads-btn-sm"
+                              data-pending-action="reject"
+                              data-unit-name="{{ p_unit_name }}">拒否</button>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       {% endif %}
     </div>
   </section>
 
   <!-- 子機一覧テーブル＆検索・状態フィルタ -->
-  <section class="monitor-card">
+  <section class="dads-card monitor-anchor" aria-label="子機一覧">
     <div class="monitor-filter-bar">
-      <div class="monitor-filter-pills" id="monitor-filters" role="group" aria-label="状態フィルタ">
-        <button type="button" data-filter="all" aria-pressed="true" onclick="setMonitorFilter('all')">
+      <div class="dads-filter-group monitor-anchor" id="monitor-filters" role="group" aria-label="状態フィルタ">
+        <button type="button" class="dads-filter-btn" data-filter="all" aria-pressed="true" onclick="setMonitorFilter('all')">
           すべて ({{ summary_data.get('total_units', units|length) }})
         </button>
-        <button type="button" data-filter="attention" aria-pressed="false" onclick="setMonitorFilter('attention')">
+        <button type="button" class="dads-filter-btn" data-filter="attention" aria-pressed="false" onclick="setMonitorFilter('attention')">
           要確認 ({{ summary_data.get('attention_count', 0) }})
         </button>
-        <button type="button" data-filter="online" aria-pressed="false" onclick="setMonitorFilter('online')">
+        <button type="button" class="dads-filter-btn" data-filter="online" aria-pressed="false" onclick="setMonitorFilter('online')">
           オンライン ({{ summary_data.get('online_count', 0) }})
         </button>
-        <button type="button" data-filter="offline" aria-pressed="false" onclick="setMonitorFilter('offline')">
+        <button type="button" class="dads-filter-btn" data-filter="offline" aria-pressed="false" onclick="setMonitorFilter('offline')">
           オフライン ({{ summary_data.get('offline_count', 0) }})
         </button>
-        <button type="button" data-filter="unknown" aria-pressed="false" onclick="setMonitorFilter('unknown')">
+        <button type="button" class="dads-filter-btn" data-filter="unknown" aria-pressed="false" onclick="setMonitorFilter('unknown')">
           状態不明 ({{ summary_data.get('unknown_count', 0) }})
         </button>
-        <button type="button" data-filter="out_of_stock" aria-pressed="false" onclick="setMonitorFilter('out_of_stock')">
+        <button type="button" class="dads-filter-btn" data-filter="out_of_stock" aria-pressed="false" onclick="setMonitorFilter('out_of_stock')">
           在庫切れ ({{ summary_data.get('out_of_stock_count', 0) }})
         </button>
-        <button type="button" data-filter="disabled" aria-pressed="false" onclick="setMonitorFilter('disabled')">
+        <button type="button" class="dads-filter-btn" data-filter="disabled" aria-pressed="false" onclick="setMonitorFilter('disabled')">
           利用停止 ({{ summary_data.get('unavailable_count', 0) }})
         </button>
       </div>
 
-      <div class="monitor-search-box">
-        <input type="search" id="monitor-search-input" placeholder="子機名・IP・状態・要確認理由で検索..."
-               aria-label="子機検索" oninput="onSearchInput(this.value)">
+      <div class="monitor-search-wrap">
+        <div class="dads-search-bar">
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.8"/>
+            <path d="M13.5 13.5L17.5 17.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+          <input type="search" id="monitor-search-input" placeholder="子機名・IP・状態・要確認理由で検索"
+                 aria-label="子機検索" oninput="onSearchInput(this.value)">
+        </div>
       </div>
     </div>
 
-    <div id="monitor-table-wrapper" style="{% if not units %}display:none;{% endif %}">
-      <table class="monitor-table">
+    <div id="monitor-table-wrapper" class="dads-table-wrap" style="{% if not units %}display:none;{% endif %}">
+      <table class="dads-table monitor-table-top">
         <thead>
           <tr>
             <th>子機名 / IP</th>
             <th>状態</th>
-            <th>最終通信 (last_seen)</th>
+            <th>最終通信</th>
             <th>在庫</th>
             <th>利用可否</th>
             <th>設定同期・構成・保守</th>
@@ -694,97 +402,89 @@
         <tbody id="monitor-units-tbody">
           {% for unit in units %}
           {% set conn_status = unit.get('connection_status', 'online' if unit.get('connect') == 1 else 'unknown') %}
+          {% set is_avail = unit.get('available_int', unit.get('available')) in [1, True, '1', 'true', 'True'] %}
           <tr data-unit-id="{{ unit['id'] }}" class="{% if conn_status == 'offline' or unit.get('stock') == 0 %}row-critical{% elif unit.get('needs_attention') %}row-attention{% endif %}">
             <td>
-              <div class="unit-primary-name">{{ unit['name'] }}</div>
-              <div class="unit-sub">ID: {{ unit['id'] }}</div>
-              <div class="unit-sub">
-                IP: {% if unit.get('ip_address') %}<code>{{ unit['ip_address'] }}</code>{% else %}<span class="monitor-unacquired">未取得</span>{% endif %}
+              <div class="monitor-unit-name">{{ unit['name'] }}</div>
+              <div class="monitor-sub dads-mono">ID: {{ unit['id'] }}</div>
+              <div class="monitor-sub">
+                IP: {% if unit.get('ip_address') %}<code class="dads-mono">{{ unit['ip_address'] }}</code>{% else %}未取得{% endif %}
               </div>
             </td>
             <td>
               <div>
                 {% if conn_status == 'online' %}
-                  <span class="status-badge online"><span class="status-dot online"></span> オンライン</span>
+                  <span class="dads-chip dads-chip-green">オンライン</span>
                 {% elif conn_status == 'offline' %}
-                  <span class="status-badge offline"><span class="status-dot offline"></span> オフライン</span>
+                  <span class="dads-chip dads-chip-red">オフライン</span>
                 {% else %}
-                  <span class="status-badge unknown"><span class="status-dot unknown"></span> 状態不明</span>
+                  <span class="dads-chip dads-chip-yellow">状態不明</span>
                 {% endif %}
               </div>
               <div style="margin-top:6px;">
-                <span class="monitor-chip {% if unit.get('can_dispense') %}chip-ready{% elif conn_status == 'offline' or unit.get('stock') == 0 %}chip-critical{% else %}chip-attention{% endif %}">
+                <span class="dads-chip {% if unit.get('can_dispense') %}dads-chip-solid-green{% elif conn_status == 'offline' or unit.get('stock') == 0 %}dads-chip-solid-red{% else %}dads-chip-orange{% endif %}">
                   {{ unit.get('monitor_status_label', '状態不明') }}
                 </span>
               </div>
             </td>
             <td>
-              <div><strong>{{ unit.get('last_seen') or '未取得' }}</strong></div>
-              <div class="unit-sub">
+              <div class="dads-mono"><strong>{{ unit.get('last_seen') or '未取得' }}</strong></div>
+              <div class="monitor-sub">
                 {% if unit.get('seconds_ago') is not none %}
                   {{ unit.get('seconds_ago')|int }}秒前
                 {% else %}
                   経過時間: 未取得
                 {% endif %}
               </div>
-              <div class="unit-sub">
+              <div class="monitor-sub">
                 間隔: {% if unit.get('heartbeat_interval_seconds') is not none %}{{ unit.get('heartbeat_interval_seconds') }}秒{% else %}未取得(既定{{ summary_data.get('default_heartbeat_interval_seconds', 30) }}秒){% endif %} / 閾値: {{ unit.get('heartbeat_timeout_seconds', summary_data.get('heartbeat_timeout_seconds', 60)) }}秒
               </div>
             </td>
             <td>
-              <div>
+              <div class="dads-mono">
                 <strong>{{ unit['stock'] if unit.get('stock') is not none else '未取得' }}</strong>
-                <span class="unit-sub">/ {{ unit.get('initial_stock') if unit.get('initial_stock') is not none else '—' }}</span>
+                <span class="dads-muted">/ {{ unit.get('initial_stock') if unit.get('initial_stock') is not none else '—' }}</span>
               </div>
               {% if unit.get('stock') is not none and unit.get('initial_stock') %}
                 {% set pct = ((unit['stock'] / unit['initial_stock']) * 100)|round|int %}
-                <div class="stock-meter">
-                  <div class="stock-meter-track">
-                    <div class="stock-meter-fill fill-{{ unit.get('stock_status', 'ok') }}" style="width:{{ [0, [100, pct]|min]|max }}%;"></div>
-                  </div>
+                <div class="monitor-stock-meter">
+                  <div class="monitor-stock-fill fill-{{ unit.get('stock_status', 'ok') }}" style="width:{{ [0, [100, pct]|min]|max }}%;"></div>
                 </div>
               {% endif %}
-              <div class="unit-sub" style="margin-top:4px;">{{ unit.get('stock_status_label', '') }}</div>
+              <div class="monitor-sub">{{ unit.get('stock_status_label', '') }}</div>
             </td>
             <td>
-              <div class="toggle-status">
-                <label class="toggle-switch" title="クリックで利用可否を切り替え">
-                  <input type="checkbox"
-                         data-toggle-available
-                         data-unit-id="{{ unit['id'] }}"
-                         {% if unit.get('available_int', unit.get('available')) in [1, True, '1', 'true', 'True'] %}checked{% endif %}>
-                  <span class="toggle-slider"></span>
-                </label>
-                <span class="toggle-label {% if unit.get('available_int', unit.get('available')) in [1, True, '1', 'true', 'True'] %}active{% else %}inactive{% endif %}" id="toggle-label-{{ unit['id'] }}">
-                  {% if unit.get('available_int', unit.get('available')) in [1, True, '1', 'true', 'True'] %}有効{% else %}無効{% endif %}
-                </span>
-              </div>
-              <div class="unit-sub" style="margin-top:4px;">
+              <label class="dads-switch" title="クリックで利用可否を切り替え">
+                <input type="checkbox"
+                       data-toggle-available
+                       data-unit-id="{{ unit['id'] }}"
+                       {% if is_avail %}checked{% endif %}>
+                <span class="dads-switch-label {{ 'is-on' if is_avail else 'is-off' }}" id="toggle-label-{{ unit['id'] }}">{{ '有効' if is_avail else '無効' }}</span>
+              </label>
+              <div style="margin-top:6px;">
                 {% if unit.get('can_dispense') %}
-                  <span style="color:var(--md-success);font-weight:600;">排出可能</span>
+                  <span class="dads-chip dads-chip-green">排出可能</span>
                 {% else %}
-                  <span style="color:var(--md-error);">排出不可</span>
+                  <span class="dads-chip dads-chip-red">排出不可</span>
                 {% endif %}
               </div>
             </td>
             <td>
               <div>設定同期: <strong>{{ unit.get('config_sync_label', '未取得') }}</strong></div>
-              <div class="unit-sub">
+              <div class="monitor-sub">
                 制御/モーター:
                 {% if unit.get('control_method') or unit.get('motor_type') %}
                   {{ unit.get('control_method') or '未取得' }} / {{ unit.get('motor_type') or '未取得' }}
-                  {% if unit.get('config_stale') %}<span class="monitor-unacquired">(過去スナップショット)</span>{% endif %}
+                  {% if unit.get('config_stale') %}（過去スナップショット）{% endif %}
                 {% else %}
-                  <span class="monitor-unacquired">未取得</span>
+                  未取得
                 {% endif %}
               </div>
-              <div class="unit-sub">
-                追加telemetry: <span class="monitor-unacquired">{{ unit.get('hardware_telemetry_label', '追加telemetry未取得') }}</span>
-              </div>
-              <div class="unit-sub">
+              <div class="monitor-sub">追加telemetry: {{ unit.get('hardware_telemetry_label', '追加telemetry未取得') }}</div>
+              <div class="monitor-sub">
                 保守票:
                 {% if unit.get('active_ticket_count', 0) > 0 %}
-                  <a href="{{ url_for('operations.admin_operations', unit_id=unit['id']) }}" style="color:var(--md-error);font-weight:600;">
+                  <a class="dads-link" href="{{ url_for('operations.admin_operations', unit_id=unit['id'], _anchor='maintenance-queue') }}">
                     対応中 {{ unit.get('active_ticket_count') }} 件
                   </a>
                 {% else %}
@@ -793,33 +493,27 @@
               </div>
               {% set recent_logs = unit.get('recent_status_logs') or [] %}
               {% if recent_logs %}
-                <div class="unit-sub">最新ログ: {{ recent_logs[0].get('status_label') }} ({{ recent_logs[0].get('created_at') or '' }})</div>
+                <div class="monitor-sub">最新ログ: {{ recent_logs[0].get('status_label') }} ({{ recent_logs[0].get('created_at') or '' }})</div>
               {% else %}
-                <div class="unit-sub">最新ログ: <span class="monitor-unacquired">記録なし</span></div>
+                <div class="monitor-sub">最新ログ: 記録なし</div>
               {% endif %}
             </td>
             <td>
               {% if unit.get('attention_reasons') %}
-                <ul class="attention-list">
+                <ul class="monitor-attention-list">
                   {% for reason in unit.get('attention_reasons', []) %}
                     <li>{{ reason }}</li>
                   {% endfor %}
                 </ul>
               {% else %}
-                <span class="monitor-ok-text">✓ 正常（問題なし）</span>
+                <span class="dads-chip dads-chip-green">正常（問題なし）</span>
               {% endif %}
             </td>
             <td>
-              <div class="action-stack">
-                <a href="{{ url_for('admin_unit_detail', uid=unit['id']) }}" class="btn btn-secondary btn-sm btn-icon">
-                  <span class="material-symbols-outlined" style="font-size:16px;">visibility</span> 詳細・設定
-                </a>
-                <a href="{{ url_for('admin_unit_detail', uid=unit['id']) }}#log-section" class="btn btn-secondary btn-sm btn-icon">
-                  <span class="material-symbols-outlined" style="font-size:16px;">receipt_long</span> ログ
-                </a>
-                <a href="{{ url_for('operations.admin_operations', unit_id=unit['id']) }}" class="btn btn-secondary btn-sm btn-icon">
-                  <span class="material-symbols-outlined" style="font-size:16px;">build</span> 補充・故障
-                </a>
+              <div class="dads-btn-stack">
+                <a href="{{ url_for('admin_unit_detail', uid=unit['id']) }}" class="dads-btn dads-btn-outline dads-btn-sm">詳細・設定</a>
+                <a href="{{ url_for('operations.admin_operations', unit_id=unit['id']) }}" class="dads-btn dads-btn-text dads-btn-sm">補充・故障</a>
+                <a href="{{ url_for('admin_unit_detail', uid=unit['id']) }}#log-section" class="dads-btn dads-btn-text dads-btn-sm">ログ</a>
               </div>
             </td>
           </tr>
@@ -829,26 +523,44 @@
     </div>
 
     <!-- 条件一致なし（フィルタ空状態） -->
-    <div id="monitor-filter-empty" class="empty-state" style="display:none;padding:32px 16px;">
-      <span class="material-symbols-outlined">filter_alt_off</span>
-      <p>現在の検索・フィルタ条件に一致する子機がありません。</p>
-      <button type="button" class="btn btn-secondary btn-sm" onclick="resetMonitorFilter()">フィルタをリセット</button>
+    <div id="monitor-filter-empty" class="monitor-empty-box" style="display:none;">
+      <p class="dads-muted" style="margin:0;">現在の検索・フィルタ条件に一致する子機がありません。</p>
+      <button type="button" class="dads-btn dads-btn-outline dads-btn-sm" onclick="resetMonitorFilter()">フィルタをリセット</button>
     </div>
 
     <!-- 登録子機 0 台（空状態。エラー時は表示しない） -->
-    <div id="monitor-empty-state" class="empty-state" style="{% if units or monitor_error %}display:none;{% endif %}">
-      <span class="material-symbols-outlined">devices</span>
-      <p>登録されている子機がありません</p>
-      <a href="{{ url_for('admin_new_unit') }}" class="btn btn-primary">
-        <span class="material-symbols-outlined">add</span>
-        新規子機を登録
-      </a>
+    <div id="monitor-empty-state" class="monitor-empty-box" style="{% if units or monitor_error %}display:none;{% endif %}">
+      <p class="dads-muted" style="margin:0;">登録されている子機がありません。</p>
+      <a href="{{ url_for('admin_new_unit') }}" class="dads-btn dads-btn-solid dads-btn-md">新規子機を登録</a>
     </div>
   </section>
 
-  <div class="btn-group" style="margin-top:0;">
-    <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary btn-icon">
-      <span class="material-symbols-outlined">arrow_back</span> 管理者メニューに戻る
+  <!-- 接続判定・表示項目の技術基準（折りたたみ） -->
+  <details class="dads-disclosure">
+    <summary>接続判定・表示項目の基準を見る</summary>
+    <div class="dads-disclosure-body monitor-spec-list">
+      <p>
+        <strong>接続判定（運用管理と共通基準）:</strong>
+        子機の標準 <code class="dads-mono">heartbeat_interval</code>（送信間隔）は <strong>{{ summary_data.get('default_heartbeat_interval_seconds', 30) }}秒</strong>（設定範囲 5〜300秒）、
+        親機の接続判定 <code class="dads-mono">timeout</code>（超過閾値）は <strong>標準{{ summary_data.get('heartbeat_timeout_seconds', 60) }}秒（個別設定時は <code class="dads-mono">max({{ summary_data.get('heartbeat_timeout_seconds', 60) }}秒, heartbeat_interval × 2)</code>）</strong> です。
+        最終通信（<code class="dads-mono">last_seen</code>）が各子機の閾値以内かつ <code class="dads-mono">connect=1</code> を<strong>オンライン</strong>、
+        有効な時刻で閾値超過を<strong>オフライン</strong>、
+        <code class="dads-mono">last_seen</code> 欠損・解析失敗・5秒以上の未来時刻・直近時刻で <code class="dads-mono">connect=0</code> の不整合は<strong>状態不明</strong>と判定します（監視読取による <code class="dads-mono">units.connect</code> の書き換え副作用はありません）。
+      </p>
+      <p>
+        <strong>取得項目と表示方針:</strong>
+        現行 heartbeat と DB から確認できる通信状態・在庫・設定同期・保守チケットを表示します。
+        子機のハードウェア種別（Raspberry Pi 等）が不明な場合や、heartbeat / DB に含まれない追加ハードウェア状態は推測せず中立に<strong>追加telemetry未取得</strong>と表示します。
+      </p>
+    </div>
+  </details>
+
+  <div>
+    <a href="{{ url_for('admin_dashboard') }}" class="dads-back-link">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      業務トップに戻る
     </a>
   </div>
 </div>
@@ -887,6 +599,27 @@ function asBool(value) {
     return s === '1' || s === 'true' || s === 'yes' || s === 'y' || s === 'on';
   }
   return false;
+}
+
+function showActionBanner(message, tone = 'info') {
+  const banner = document.getElementById('monitor-action-banner');
+  const textEl = document.getElementById('monitor-action-text');
+  if (!banner || !textEl) return;
+  if (!message) {
+    banner.style.display = 'none';
+    textEl.textContent = '';
+    return;
+  }
+  const toneClass = tone === 'error'
+    ? 'dads-banner-error'
+    : tone === 'success'
+      ? 'dads-banner-success'
+      : tone === 'warning'
+        ? 'dads-banner-warning'
+        : 'dads-banner-info';
+  banner.className = 'dads-banner ' + toneClass;
+  textEl.textContent = message;
+  banner.style.display = 'block';
 }
 
 function formatElapsedSeconds(seconds) {
@@ -992,15 +725,15 @@ function renderSummaryAndFilters(summary, units) {
   setText('tile-attention', attention);
   setText('tile-attention-sub', `在庫0: ${outOfStock} / 故障票: ${activeTickets}`);
 
-  document.querySelectorAll('.monitor-tile').forEach((tile) => {
+  document.querySelectorAll('[data-tile-filter]').forEach((tile) => {
     const tf = tile.getAttribute('data-tile-filter');
     tile.setAttribute('data-active', tf === currentFilter ? 'true' : 'false');
-    if (tile.classList.contains('tile-offline')) {
-      tile.classList.toggle('has-count', offline > 0);
-    } else if (tile.classList.contains('tile-unknown')) {
-      tile.classList.toggle('has-count', unknown > 0);
-    } else if (tile.classList.contains('tile-attention')) {
-      tile.classList.toggle('has-count', attention > 0);
+    if (tf === 'offline') {
+      tile.classList.toggle('is-critical', offline > 0);
+    } else if (tf === 'unknown') {
+      tile.classList.toggle('is-warning', unknown > 0);
+    } else if (tf === 'attention') {
+      tile.classList.toggle('is-warning', attention > 0);
     }
   });
 
@@ -1015,9 +748,18 @@ function renderSummaryAndFilters(summary, units) {
   ];
   const filtersEl = document.getElementById('monitor-filters');
   if (filtersEl) {
-    filtersEl.innerHTML = filterDefs.map(([key, label]) => (
-      `<button type="button" data-filter="${escHtml(key)}" aria-pressed="${currentFilter === key}" onclick="setMonitorFilter('${escHtml(key)}')">${escHtml(label)}</button>`
-    )).join('');
+    const fragment = document.createDocumentFragment();
+    filterDefs.forEach(([key, label]) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'dads-filter-btn';
+      btn.dataset.filter = key;
+      btn.setAttribute('aria-pressed', currentFilter === key ? 'true' : 'false');
+      btn.textContent = label;
+      btn.addEventListener('click', () => setMonitorFilter(key));
+      fragment.appendChild(btn);
+    });
+    filtersEl.replaceChildren(fragment);
   }
 }
 
@@ -1030,33 +772,83 @@ function renderAlerts(alerts) {
   if (!container) return;
 
   if (!list.length) {
-    container.innerHTML = `<div class="unit-sub" style="padding:4px 0;">現在、注意が必要なアラートはありません。</div>`;
+    const li = document.createElement('li');
+    li.className = 'dads-resource-item';
+    const msg = document.createElement('span');
+    msg.className = 'dads-muted';
+    msg.textContent = '現在、注意が必要なアラートはありません。';
+    li.appendChild(msg);
+    container.replaceChildren(li);
     return;
   }
 
-  const levelBadgeText = {
-    critical: '■ 重大',
-    serious: '▲ 要対応',
-    warning: '● 注意'
-  };
+  const fragment = document.createDocumentFragment();
+  list.forEach((a) => {
+    const li = document.createElement('li');
+    li.className = 'dads-resource-item';
 
-  container.innerHTML = list.map((a) => {
+    const main = document.createElement('div');
+    main.className = 'monitor-alert-main';
+
+    const chip = document.createElement('span');
     const lv = a.level || 'warning';
-    const badge = levelBadgeText[lv] || '● 注意';
-    const actions = a.unit_id
-      ? `<div style="display:flex;gap:6px;white-space:nowrap;">
-           <a href="/admin/unit_detail/${encodeURIComponent(a.unit_id)}" class="btn btn-secondary btn-sm">詳細</a>
-           <a href="/admin/operations?unit_id=${encodeURIComponent(a.unit_id)}" class="btn btn-secondary btn-sm">運用</a>
-         </div>`
-      : '';
-    return `<div class="monitor-alert-item">
-      <div class="monitor-alert-main">
-        <span class="alert-level-badge level-${escHtml(lv)}">${escHtml(badge)}</span>
-        <span><strong>${escHtml(a.unit_name)}</strong> — ${escHtml(a.message)}</span>
-      </div>
-      ${actions}
-    </div>`;
-  }).join('');
+    if (lv === 'critical') {
+      chip.className = 'dads-chip dads-chip-solid-red';
+      chip.textContent = '重大';
+    } else if (lv === 'serious') {
+      chip.className = 'dads-chip dads-chip-orange';
+      chip.textContent = '要対応';
+    } else {
+      chip.className = 'dads-chip dads-chip-yellow';
+      chip.textContent = '注意';
+    }
+
+    const textWrap = document.createElement('span');
+    textWrap.className = 'monitor-alert-text';
+    const strong = document.createElement('strong');
+    strong.textContent = String(a.unit_name || '未登録子機');
+    textWrap.appendChild(strong);
+    textWrap.appendChild(document.createTextNode(` — ${String(a.message || '')}`));
+
+    main.append(chip, textWrap);
+
+    const actions = document.createElement('div');
+    actions.className = 'dads-btn-row';
+    const makeBtn = (label, href, cls) => {
+      const link = document.createElement('a');
+      link.href = href;
+      link.className = cls;
+      link.textContent = label;
+      return link;
+    };
+
+    if (a.unit_id) {
+      const uid = encodeURIComponent(a.unit_id);
+      if (['OUT_OF_STOCK', 'LOW_STOCK', 'STOCK_UNKNOWN'].includes(a.code)) {
+        actions.append(
+          makeBtn('補充を記録', `/admin/operations?unit_id=${uid}#stock-entry`, 'dads-btn dads-btn-solid dads-btn-sm'),
+          makeBtn('詳細', `/admin/unit_detail/${uid}`, 'dads-btn dads-btn-outline dads-btn-sm')
+        );
+      } else if (a.code === 'ACTIVE_TICKET') {
+        actions.append(
+          makeBtn('チケット対応', `/admin/operations?unit_id=${uid}#maintenance-queue`, 'dads-btn dads-btn-solid dads-btn-sm'),
+          makeBtn('詳細', `/admin/unit_detail/${uid}`, 'dads-btn dads-btn-outline dads-btn-sm')
+        );
+      } else {
+        actions.append(
+          makeBtn('詳細・設定', `/admin/unit_detail/${uid}`, 'dads-btn dads-btn-solid dads-btn-sm'),
+          makeBtn('故障報告', `/admin/operations?unit_id=${uid}#maintenance-entry`, 'dads-btn dads-btn-outline dads-btn-sm')
+        );
+      }
+    } else {
+      actions.append(makeBtn('承認欄へ', '#pending-units-card', 'dads-btn dads-btn-solid dads-btn-sm'));
+    }
+
+    li.append(main, actions);
+    fragment.appendChild(li);
+  });
+
+  container.replaceChildren(fragment);
 }
 
 function snapshotPendingStockInputs(container) {
@@ -1071,18 +863,18 @@ function snapshotPendingStockInputs(container) {
 
 function getPendingStatusBadgeHtml(p) {
   if (asBool(p.credential_conflict)) {
-    return `<span class="monitor-chip chip-critical">認証情報の競合</span>`;
+    return `<span class="dads-chip dads-chip-solid-red">認証情報の競合</span>`;
   }
   if (asBool(p.expired)) {
-    return `<span class="monitor-chip chip-attention">ペアリング期限切れ</span>`;
+    return `<span class="dads-chip dads-chip-yellow">ペアリング期限切れ</span>`;
   }
-  return `<span class="monitor-chip">承認待ち</span>`;
+  return `<span class="dads-chip dads-chip-gray">承認待ち</span>`;
 }
 
 function getPendingTimestampsHtml(p) {
   const elapsed = p.seconds_ago != null ? ` (${Math.round(p.seconds_ago)}秒前)` : '';
   return `<div>最終: ${escHtml(p.last_seen || '未取得')}${escHtml(elapsed)}</div>
-    <div class="unit-sub">初回: ${escHtml(p.first_seen || '未取得')}（受信 ${escHtml(p.heartbeat_count || 1)} 回）</div>`;
+    <div class="monitor-sub">初回: ${escHtml(p.first_seen || '未取得')}（受信 ${escHtml(p.heartbeat_count || 1)} 回）</div>`;
 }
 
 function renderPendingUnits(pendingUnits) {
@@ -1096,7 +888,7 @@ function renderPendingUnits(pendingUnits) {
 
   if (!list.length) {
     card.style.display = 'none';
-    container.innerHTML = '';
+    container.replaceChildren();
     return;
   }
 
@@ -1118,7 +910,7 @@ function renderPendingUnits(pendingUnits) {
       const statusCell = tr.querySelector('td[data-cell="status"]');
       const approveBtn = tr.querySelector('button[data-pending-action="approve"]');
 
-      if (ipCell) ipCell.innerHTML = `<code>${escHtml(p.ip_address || '未取得')}</code>`;
+      if (ipCell) ipCell.innerHTML = `<code class="dads-mono">${escHtml(p.ip_address || '未取得')}</code>`;
       if (tsCell) tsCell.innerHTML = getPendingTimestampsHtml(p);
       if (statusCell) statusCell.innerHTML = getPendingStatusBadgeHtml(p);
       if (approveBtn) {
@@ -1147,22 +939,22 @@ function renderPendingUnits(pendingUnits) {
     const stockValue = pendingStockDrafts.has(unitName) ? pendingStockDrafts.get(unitName) : '20';
     return `<tr data-pending-unit-name="${escHtml(unitName)}">
       <td data-cell="name"><strong>${escHtml(unitName)}</strong></td>
-      <td data-cell="ip"><code>${escHtml(p.ip_address || '未取得')}</code></td>
+      <td data-cell="ip"><code class="dads-mono">${escHtml(p.ip_address || '未取得')}</code></td>
       <td data-cell="timestamps">${getPendingTimestampsHtml(p)}</td>
       <td data-cell="status">${statusBadge}</td>
       <td data-cell="actions">
-        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+        <div class="monitor-pending-actions">
           <input type="number"
-                 class="pending-stock-input"
+                 class="dads-input monitor-pending-stock"
                  data-pending-stock-input
                  data-unit-name="${escHtml(unitName)}"
                  value="${escHtml(stockValue)}" min="0" max="10000"
-                 style="width:76px;padding:4px 8px;border:1px solid var(--md-outline-variant);border-radius:6px;"
+                 aria-label="${escHtml(unitName)} の初期在庫数"
                  title="初期在庫数">
-          <button type="button" class="btn btn-primary btn-sm" ${disableApprove}
+          <button type="button" class="dads-btn dads-btn-solid dads-btn-sm" ${disableApprove}
                   data-pending-action="approve"
-                  data-unit-name="${escHtml(unitName)}">承認</button>
-          <button type="button" class="btn btn-danger btn-sm"
+                  data-unit-name="${escHtml(unitName)}">承認する</button>
+          <button type="button" class="dads-btn dads-btn-danger-outline dads-btn-sm"
                   data-pending-action="reject"
                   data-unit-name="${escHtml(unitName)}">拒否</button>
         </div>
@@ -1170,18 +962,18 @@ function renderPendingUnits(pendingUnits) {
     </tr>`;
   }).join('');
 
-  container.innerHTML = `<table class="monitor-table">
+  container.innerHTML = `<div class="dads-table-wrap"><table class="dads-table">
     <thead>
       <tr>
         <th>子機名</th>
         <th>IPアドレス</th>
         <th>初回受信 / 最終受信</th>
         <th>状態</th>
-        <th>承認操作</th>
+        <th>初期在庫・承認操作</th>
       </tr>
     </thead>
     <tbody>${rowsHtml}</tbody>
-  </table>`;
+  </table></div>`;
 
   if (focusedUnitName) {
     const restoredInput = Array.from(container.querySelectorAll('input[data-pending-stock-input]'))
@@ -1203,20 +995,20 @@ function renderUnitRow(unit) {
     ? 'row-critical'
     : (asBool(unit.needs_attention) ? 'row-attention' : '');
 
-  let connBadge = `<span class="status-badge unknown"><span class="status-dot unknown"></span> 状態不明</span>`;
+  let connBadge = `<span class="dads-chip dads-chip-yellow">状態不明</span>`;
   if (connStatus === 'online') {
-    connBadge = `<span class="status-badge online"><span class="status-dot online"></span> オンライン</span>`;
+    connBadge = `<span class="dads-chip dads-chip-green">オンライン</span>`;
   } else if (connStatus === 'offline') {
-    connBadge = `<span class="status-badge offline"><span class="status-dot offline"></span> オフライン</span>`;
+    connBadge = `<span class="dads-chip dads-chip-red">オフライン</span>`;
   }
 
   const monitorChipClass = asBool(unit.can_dispense)
-    ? 'chip-ready'
-    : ((connStatus === 'offline' || unit.stock === 0) ? 'chip-critical' : 'chip-attention');
+    ? 'dads-chip-solid-green'
+    : ((connStatus === 'offline' || unit.stock === 0) ? 'dads-chip-solid-red' : 'dads-chip-orange');
 
   const ipHtml = unit.ip_address
-    ? `<code>${escHtml(unit.ip_address)}</code>`
-    : `<span class="monitor-unacquired">未取得</span>`;
+    ? `<code class="dads-mono">${escHtml(unit.ip_address)}</code>`
+    : '未取得';
 
   const hbIntervalLabel = unit.heartbeat_interval_seconds != null
     ? `${unit.heartbeat_interval_seconds}秒`
@@ -1224,96 +1016,90 @@ function renderUnitRow(unit) {
   const hbTimeoutLabel = `${unit.heartbeat_timeout_seconds ?? 60}秒`;
 
   let stockMeterHtml = '';
-  if (unit.stock !== null && unit.stock !== undefined && unit.initial_stock) {
-    const pct = Math.max(0, Math.min(100, Math.round((Number(unit.stock) / Number(unit.initial_stock)) * 100)));
-    const fillClass = `fill-${escHtml(unit.stock_status || 'ok')}`;
-    stockMeterHtml = `<div class="stock-meter"><div class="stock-meter-track"><div class="stock-meter-fill ${fillClass}" style="width:${pct}%;"></div></div></div>`;
+  if (unit.stock !== null && unit.stock !== undefined && Number(unit.initial_stock) > 0) {
+    const rawPct = Math.round((Number(unit.stock) / Number(unit.initial_stock)) * 100);
+    if (Number.isFinite(rawPct)) {
+      const pct = Math.max(0, Math.min(100, rawPct));
+      const stockStatusKey = ['ok', 'low', 'empty'].includes(unit.stock_status) ? unit.stock_status : 'ok';
+      stockMeterHtml = `<div class="monitor-stock-meter"><div class="monitor-stock-fill fill-${stockStatusKey}" style="width:${pct}%;"></div></div>`;
+    }
   }
 
   const isAvailable = asBool(unit.available ?? unit.available_int);
   const dispenseHtml = asBool(unit.can_dispense)
-    ? `<span style="color:var(--md-success);font-weight:600;">排出可能</span>`
-    : `<span style="color:var(--md-error);">排出不可</span>`;
+    ? `<span class="dads-chip dads-chip-green">排出可能</span>`
+    : `<span class="dads-chip dads-chip-red">排出不可</span>`;
 
   const hwSpec = (unit.control_method || unit.motor_type)
-    ? `${escHtml(unit.control_method || '未取得')} / ${escHtml(unit.motor_type || '未取得')}${unit.config_stale ? ' <span class="monitor-unacquired">(過去スナップショット)</span>' : ''}`
-    : `<span class="monitor-unacquired">未取得</span>`;
+    ? `${escHtml(unit.control_method || '未取得')} / ${escHtml(unit.motor_type || '未取得')}${unit.config_stale ? '（過去スナップショット）' : ''}`
+    : '未取得';
 
-  const telemetryHtml = `<span class="monitor-unacquired">${escHtml(unit.hardware_telemetry_label || '追加telemetry未取得')}</span>`;
+  const telemetryText = escHtml(unit.hardware_telemetry_label || '追加telemetry未取得');
 
   const ticketHtml = (unit.active_ticket_count || 0) > 0
-    ? `<a href="/admin/operations?unit_id=${encodeURIComponent(unit.id)}" style="color:var(--md-error);font-weight:600;">対応中 ${escHtml(unit.active_ticket_count)} 件</a>`
+    ? `<a class="dads-link" href="/admin/operations?unit_id=${encodeURIComponent(unit.id)}#maintenance-queue">対応中 ${escHtml(unit.active_ticket_count)} 件</a>`
     : 'なし (0件)';
 
   const recentLogs = Array.isArray(unit.recent_status_logs) ? unit.recent_status_logs : [];
   const latestLogHtml = recentLogs.length > 0
-    ? `<div class="unit-sub">最新ログ: ${escHtml(recentLogs[0].status_label)} (${escHtml(recentLogs[0].created_at || '')})</div>`
-    : `<div class="unit-sub">最新ログ: <span class="monitor-unacquired">記録なし</span></div>`;
+    ? `<div class="monitor-sub">最新ログ: ${escHtml(recentLogs[0].status_label)} (${escHtml(recentLogs[0].created_at || '')})</div>`
+    : `<div class="monitor-sub">最新ログ: 記録なし</div>`;
 
   const reasons = Array.isArray(unit.attention_reasons) ? unit.attention_reasons : [];
   const reasonsHtml = reasons.length > 0
-    ? `<ul class="attention-list">${reasons.map((r) => `<li>${escHtml(r)}</li>`).join('')}</ul>`
-    : `<span class="monitor-ok-text">✓ 正常（問題なし）</span>`;
+    ? `<ul class="monitor-attention-list">${reasons.map((r) => `<li>${escHtml(r)}</li>`).join('')}</ul>`
+    : `<span class="dads-chip dads-chip-green">正常（問題なし）</span>`;
+
+  const encodedId = encodeURIComponent(unit.id);
 
   return `<tr data-unit-id="${escHtml(unit.id)}" class="${rowClass}">
     <td>
-      <div class="unit-primary-name">${escHtml(unit.name)}</div>
-      <div class="unit-sub">ID: ${escHtml(unit.id)}</div>
-      <div class="unit-sub">IP: ${ipHtml}</div>
+      <div class="monitor-unit-name">${escHtml(unit.name)}</div>
+      <div class="monitor-sub dads-mono">ID: ${escHtml(unit.id)}</div>
+      <div class="monitor-sub">IP: ${ipHtml}</div>
     </td>
     <td>
       <div>${connBadge}</div>
       <div style="margin-top:6px;">
-        <span class="monitor-chip ${monitorChipClass}">${escHtml(unit.monitor_status_label || '状態不明')}</span>
+        <span class="dads-chip ${monitorChipClass}">${escHtml(unit.monitor_status_label || '状態不明')}</span>
       </div>
     </td>
     <td>
-      <div><strong>${escHtml(unit.last_seen || '未取得')}</strong></div>
-      <div class="unit-sub">${escHtml(formatElapsedSeconds(unit.seconds_ago))}</div>
-      <div class="unit-sub">間隔: ${escHtml(hbIntervalLabel)} / 閾値: ${escHtml(hbTimeoutLabel)}</div>
+      <div class="dads-mono"><strong>${escHtml(unit.last_seen || '未取得')}</strong></div>
+      <div class="monitor-sub">${escHtml(formatElapsedSeconds(unit.seconds_ago))}</div>
+      <div class="monitor-sub">間隔: ${escHtml(hbIntervalLabel)} / 閾値: ${escHtml(hbTimeoutLabel)}</div>
     </td>
     <td>
-      <div>
+      <div class="dads-mono">
         <strong>${unit.stock !== null && unit.stock !== undefined ? escHtml(unit.stock) : '未取得'}</strong>
-        <span class="unit-sub">/ ${escHtml(unit.initial_stock ?? '—')}</span>
+        <span class="dads-muted">/ ${escHtml(unit.initial_stock ?? '—')}</span>
       </div>
       ${stockMeterHtml}
-      <div class="unit-sub" style="margin-top:4px;">${escHtml(unit.stock_status_label || '未取得')}</div>
+      <div class="monitor-sub">${escHtml(unit.stock_status_label || '未取得')}</div>
     </td>
     <td>
-      <div class="toggle-status">
-        <label class="toggle-switch" title="クリックで利用可否を切り替え">
-          <input type="checkbox"
-                 data-toggle-available
-                 data-unit-id="${escHtml(unit.id)}"
-                 ${isAvailable ? 'checked' : ''}>
-          <span class="toggle-slider"></span>
-        </label>
-        <span class="toggle-label ${isAvailable ? 'active' : 'inactive'}" id="toggle-label-${escHtml(unit.id)}">
-          ${isAvailable ? '有効' : '無効'}
-        </span>
-      </div>
-      <div class="unit-sub" style="margin-top:4px;">${dispenseHtml}</div>
+      <label class="dads-switch" title="クリックで利用可否を切り替え">
+        <input type="checkbox"
+               data-toggle-available
+               data-unit-id="${escHtml(unit.id)}"
+               ${isAvailable ? 'checked' : ''}>
+        <span class="dads-switch-label ${isAvailable ? 'is-on' : 'is-off'}" id="toggle-label-${escHtml(unit.id)}">${isAvailable ? '有効' : '無効'}</span>
+      </label>
+      <div style="margin-top:6px;">${dispenseHtml}</div>
     </td>
     <td>
       <div>設定同期: <strong>${escHtml(unit.config_sync_label || '未取得')}</strong></div>
-      <div class="unit-sub">制御/モーター: ${hwSpec}</div>
-      <div class="unit-sub">追加telemetry: ${telemetryHtml}</div>
-      <div class="unit-sub">保守票: ${ticketHtml}</div>
+      <div class="monitor-sub">制御/モーター: ${hwSpec}</div>
+      <div class="monitor-sub">追加telemetry: ${telemetryText}</div>
+      <div class="monitor-sub">保守票: ${ticketHtml}</div>
       ${latestLogHtml}
     </td>
     <td>${reasonsHtml}</td>
     <td>
-      <div class="action-stack">
-        <a href="/admin/unit_detail/${encodeURIComponent(unit.id)}" class="btn btn-secondary btn-sm btn-icon">
-          <span class="material-symbols-outlined" style="font-size:16px;">visibility</span> 詳細・設定
-        </a>
-        <a href="/admin/unit_detail/${encodeURIComponent(unit.id)}#log-section" class="btn btn-secondary btn-sm btn-icon">
-          <span class="material-symbols-outlined" style="font-size:16px;">receipt_long</span> ログ
-        </a>
-        <a href="/admin/operations?unit_id=${encodeURIComponent(unit.id)}" class="btn btn-secondary btn-sm btn-icon">
-          <span class="material-symbols-outlined" style="font-size:16px;">build</span> 補充・故障
-        </a>
+      <div class="dads-btn-stack">
+        <a href="/admin/unit_detail/${encodedId}" class="dads-btn dads-btn-outline dads-btn-sm">詳細・設定</a>
+        <a href="/admin/operations?unit_id=${encodedId}" class="dads-btn dads-btn-text dads-btn-sm">補充・故障</a>
+        <a href="/admin/unit_detail/${encodedId}#log-section" class="dads-btn dads-btn-text dads-btn-sm">ログ</a>
       </div>
     </td>
   </tr>`;
@@ -1339,10 +1125,10 @@ function renderMonitor(data) {
   if (units.length === 0) {
     if (tableWrapper) tableWrapper.style.display = 'none';
     if (filterEmpty) filterEmpty.style.display = 'none';
-    if (emptyState) emptyState.style.display = hasFetchError ? 'none' : 'block';
+    if (emptyState) emptyState.style.display = hasFetchError ? 'none' : 'grid';
   } else if (filtered.length === 0) {
     if (tableWrapper) tableWrapper.style.display = 'none';
-    if (filterEmpty) filterEmpty.style.display = 'block';
+    if (filterEmpty) filterEmpty.style.display = 'grid';
     if (emptyState) emptyState.style.display = 'none';
   } else {
     if (tableWrapper) tableWrapper.style.display = 'block';
@@ -1358,7 +1144,7 @@ function setErrorBanner(message) {
   if (!banner || !textEl) return;
   if (message) {
     textEl.textContent = message;
-    banner.style.display = 'flex';
+    banner.style.display = 'block';
     const emptyState = document.getElementById('monitor-empty-state');
     if (emptyState && (!monitorState || !monitorState.units || monitorState.units.length === 0)) {
       emptyState.style.display = 'none';
@@ -1463,6 +1249,7 @@ async function toggleUnitAvailable(unitId, checkbox) {
   const label = document.getElementById('toggle-label-' + unitId);
   const originalChecked = !checkbox.checked;
   beginMutation();
+  showActionBanner('');
 
   try {
     const response = await fetch(`/api/unit/${encodeURIComponent(unitId)}/toggle_available`, {
@@ -1474,18 +1261,19 @@ async function toggleUnitAvailable(unitId, checkbox) {
     if (response.ok && data.success) {
       if (label) {
         label.textContent = data.available === 1 ? '有効' : '無効';
-        label.className = 'toggle-label ' + (data.available === 1 ? 'active' : 'inactive');
+        label.className = 'dads-switch-label ' + (data.available === 1 ? 'is-on' : 'is-off');
       }
+      showActionBanner(`子機 ID ${unitId} の利用設定を「${data.available === 1 ? '有効' : '無効'}」に更新しました。`, 'success');
       endMutation();
       await fetchMonitorData({ isManual: true, force: true });
       return;
     } else {
       checkbox.checked = originalChecked;
-      alert('エラー: ' + (data.error || '更新に失敗しました'));
+      showActionBanner('利用可否の更新に失敗しました: ' + (data.error || `HTTP ${response.status}`), 'error');
     }
   } catch (error) {
     checkbox.checked = originalChecked;
-    alert('通信エラーが発生しました');
+    showActionBanner('通信エラーが発生しました。時間をおいて再度お試しください。', 'error');
   }
   endMutation();
 }
@@ -1509,10 +1297,12 @@ async function approvePendingUnit(unitName) {
   const rawValue = stockInput ? stockInput.value : (pendingStockDrafts.get(unitName) ?? '20');
   const stock = parseInt(rawValue, 10);
   if (Number.isNaN(stock) || stock < 0 || stock > 10000) {
-    alert('初期在庫数は 0 〜 10000 の整数で入力してください。');
+    showActionBanner('初期在庫数は 0 〜 10000 の整数で入力してください。', 'warning');
+    if (stockInput) stockInput.focus();
     return;
   }
   beginMutation();
+  showActionBanner('');
   try {
     const response = await fetch(`/api/v1/admin/pending-devices/${encodeURIComponent(unitName)}/approve`, {
       method: 'POST',
@@ -1522,14 +1312,15 @@ async function approvePendingUnit(unitName) {
     const data = await response.json().catch(() => ({}));
     if (response.ok && data.success) {
       pendingStockDrafts.delete(unitName);
+      showActionBanner(`未登録子機「${unitName}」を初期在庫 ${stock} で承認・登録しました。`, 'success');
       endMutation();
       await fetchMonitorData({ isManual: true, force: true });
       return;
     } else {
-      alert('承認エラー: ' + (data.error || `HTTP ${response.status}`));
+      showActionBanner('承認エラー: ' + (data.error || `HTTP ${response.status}`), 'error');
     }
   } catch (err) {
-    alert('通信エラーが発生しました');
+    showActionBanner('通信エラーが発生しました。', 'error');
   }
   endMutation();
 }
@@ -1537,6 +1328,7 @@ async function approvePendingUnit(unitName) {
 async function rejectPendingUnit(unitName) {
   if (!unitName || !confirm(`未登録子機「${unitName}」の承認要求を拒否しますか？`)) return;
   beginMutation();
+  showActionBanner('');
   try {
     const response = await fetch(`/api/v1/admin/pending-devices/${encodeURIComponent(unitName)}/reject`, {
       method: 'POST',
@@ -1545,14 +1337,15 @@ async function rejectPendingUnit(unitName) {
     const data = await response.json().catch(() => ({}));
     if (response.ok && data.success) {
       pendingStockDrafts.delete(unitName);
+      showActionBanner(`未登録子機「${unitName}」の承認要求を拒否しました。`, 'info');
       endMutation();
       await fetchMonitorData({ isManual: true, force: true });
       return;
     } else {
-      alert('拒否エラー: ' + (data.error || `HTTP ${response.status}`));
+      showActionBanner('拒否エラー: ' + (data.error || `HTTP ${response.status}`), 'error');
     }
   } catch (err) {
-    alert('通信エラーが発生しました');
+    showActionBanner('通信エラーが発生しました。', 'error');
   }
   endMutation();
 }

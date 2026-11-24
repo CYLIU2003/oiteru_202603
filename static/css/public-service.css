@@ -1,21 +1,23 @@
-/* Public service screens. Component hierarchy follows the Digital Agency design system. */
+/* ==========================================================================
+   OITERU Public Service Page Layout Helpers (DADS-aligned)
+   Inherits all tokens, focus rings, buttons, banners, and cards from
+   static/css/dads-oiteru.css.
+   ========================================================================== */
+
 .public-service {
-  --public-line: #b3b3b3;
-  --public-muted: #4d4d4d;
-  --public-blue: #0017c1;
-  --public-error: #a90000;
   display: grid;
   gap: 24px;
-  max-width: 960px;
+  width: 100%;
+  max-width: 1120px;
   margin-inline: auto;
 }
 
 .public-service-form {
-  max-width: 680px;
+  max-width: 740px;
 }
 
 .public-service-intro {
-  border-bottom: 1px solid var(--public-line);
+  border-bottom: 1px solid var(--dads-gray-420);
   padding-bottom: 16px;
 }
 
@@ -30,18 +32,21 @@
 }
 
 .public-service h1 {
-  font-size: clamp(1.75rem, 1.35rem + 1.8vw, 2.5rem);
+  font-size: clamp(1.625rem, 1.35rem + 1.1vw, 2.25rem);
   line-height: 1.4;
+  color: var(--dads-gray-900);
 }
 
 .public-service h2 {
   font-size: 1.25rem;
   line-height: 1.5;
+  color: var(--dads-gray-900);
 }
 
 .public-service h3 {
   font-size: 1.125rem;
   line-height: 1.5;
+  color: var(--dads-gray-900);
 }
 
 .public-service-intro p,
@@ -57,13 +62,13 @@
 
 .public-service-intro p,
 .public-service-panel > p {
-  color: var(--public-muted);
+  color: var(--dads-gray-700);
 }
 
 .public-service-choices {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  gap: 20px;
 }
 
 .public-service-choices > h2 {
@@ -71,33 +76,27 @@
 }
 
 .public-service-guide {
-  padding: 16px 20px;
-  border-inline-start: 4px solid var(--public-blue);
-  background: #f1f4ff;
-  color: #1a1a1a;
+  padding: 16px 20px 16px 24px;
+  border: 2px solid var(--dads-blue-900);
+  border-radius: 8px;
+  box-shadow: inset 8px 0 0 0 var(--dads-blue-900);
+  background: var(--dads-surface);
+  color: var(--dads-gray-900);
 }
 
 .public-service-panel {
   display: grid;
   align-content: start;
   gap: 16px;
-  padding: clamp(16px, 4vw, 28px);
-  border: 1px solid var(--public-line);
-  border-radius: 8px;
-  background: #fff;
-  color: #1a1a1a;
+  padding: 20px 24px;
+  border: 1px solid var(--dads-gray-420);
+  border-radius: 12px;
+  background: var(--dads-surface);
+  color: var(--dads-gray-900);
 }
 
 .public-service-choices .public-service-panel {
   grid-template-rows: auto 1fr auto;
-}
-
-.public-service .btn {
-  justify-self: start;
-  min-height: 48px;
-  max-width: 100%;
-  white-space: normal;
-  text-align: center;
 }
 
 .public-service-steps {
@@ -112,30 +111,18 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 16px 24px;
-}
-
-.public-service-links a:not(.btn) {
-  color: var(--public-blue);
-  text-decoration: underline;
-  text-underline-offset: 0.2em;
-}
-
-.public-service :is(a, button):focus-visible {
-  outline: 3px solid #1a1a1a;
-  outline-offset: 2px;
-  box-shadow: 0 0 0 2px #ffd43d;
+  gap: 12px 24px;
 }
 
 .public-service-notice {
-  display: flow-root;
-  padding: 12px 16px;
-  border: 1px solid var(--public-line);
-  border-inline-start: 4px solid var(--public-blue);
-  border-radius: 4px;
-  background: #f1f4ff;
-  color: #1a1a1a;
-  line-height: 1.75;
+  display: block;
+  padding: 14px 18px 14px 24px;
+  border: 2px solid var(--dads-blue-900);
+  border-radius: 8px;
+  box-shadow: inset 8px 0 0 0 var(--dads-blue-900);
+  background: var(--dads-surface);
+  color: var(--dads-gray-900);
+  line-height: 1.7;
 }
 
 .public-service-notice:empty {
@@ -149,8 +136,8 @@
 }
 
 .public-service-notice-error {
-  border-inline-start-color: var(--public-error);
-  background: #fff5f5;
+  border-color: var(--dads-error-1);
+  box-shadow: inset 8px 0 0 0 var(--dads-error-1);
 }
 
 .public-service-result > div {
@@ -158,29 +145,59 @@
   grid-template-columns: minmax(8rem, 1fr) minmax(0, 2fr);
   gap: 4px 16px;
   padding-block: 12px;
-  border-bottom: 1px solid var(--public-line);
+  border-bottom: 1px solid var(--dads-gray-200);
+}
+
+.public-service-result > div:last-child {
+  border-bottom: none;
 }
 
 .public-service-result dt {
   font-weight: 700;
-  line-height: 1.75;
+  color: var(--dads-gray-700);
+  line-height: 1.7;
 }
 
 .public-service-result dd {
+  color: var(--dads-gray-900);
   overflow-wrap: anywhere;
 }
 
-@media (max-width: 40rem) {
+/* Public Action Card & Usage Stock Summary Helpers */
+.public-action-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.public-stock-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px;
+  border: 1px solid var(--dads-gray-420);
+  border-radius: 12px;
+  background: var(--dads-gray-50);
+}
+
+.public-stock-number {
+  font-size: clamp(2.25rem, 1.8rem + 1.5vw, 3rem);
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--dads-blue-900);
+}
+
+@media (max-width: 768px) {
   .public-service-choices {
     grid-template-columns: 1fr;
   }
 }
 
-@media (max-width: 27rem) {
-  .public-service .btn {
-    width: 100%;
-  }
-
+@media (max-width: 480px) {
   .public-service-result > div {
     grid-template-columns: 1fr;
   }

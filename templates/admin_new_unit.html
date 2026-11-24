@@ -1,185 +1,141 @@
 {% extends "base.html" %}
+
+{% block breadcrumbs %}
+<nav class="dads-breadcrumbs" aria-label="現在位置">
+  <ol>
+    <li><a href="{{ url_for('admin_dashboard') }}">業務トップ</a></li>
+    <li><a href="{{ url_for('admin_units') }}">子機監視</a></li>
+    <li aria-current="page">新規子機の登録</li>
+  </ol>
+</nav>
+{% endblock %}
+
 {% block content %}
-<div class="admin-section">
-  <div class="admin-card">
-    <div class="admin-card-header">
-      <h2><span class="material-symbols-outlined">add_circle</span> 新規子機の登録</h2>
+<div class="dads-page">
+  <header class="dads-page-header">
+    <div class="dads-stack-sm">
+      <p class="dads-shoulder">子機管理</p>
+      <h1 class="dads-heading-page">新規子機の登録</h1>
+      <p class="dads-lead">起動済みの未登録子機を自動探知して承認するか、手動で子機情報を入力して登録します。</p>
     </div>
+  </header>
 
-    <!-- 自動探知セクション -->
-    <div class="info-card" style="margin-bottom: var(--md-space-xl);">
-      <h3 style="margin-top: 0; display: flex; align-items: center; gap: 10px; font-size: 1.1rem;">
-        <span class="material-symbols-outlined">search</span>
-        子機の自動探知
-      </h3>
-      <p style="color: var(--md-on-surface-variant); margin-bottom: 16px; line-height: 1.6;">
-        ハートビートを送信している未登録の子機を自動的に検出します。<br>
-        子機が起動してからこのボタンを押してください。
+  <section class="dads-card dads-stack-md" aria-labelledby="auto-discovery-heading">
+    <div class="dads-stack-sm">
+      <h2 id="auto-discovery-heading" class="dads-heading-section dads-heading-chip">未登録子機の自動探知</h2>
+      <p class="dads-muted">
+        ハートビートを送信している未登録の子機を自動的に検出します。対象の子機が起動してから探索を実行してください。
       </p>
+    </div>
 
-      <button id="scanButton" class="btn btn-primary btn-icon" onclick="scanUnregisteredUnits()">
-        <span class="material-symbols-outlined">radar</span> 自動探知を開始
+    <div class="dads-btn-row">
+      <button type="button" id="scanButton" class="dads-btn dads-btn-solid dads-btn-md">
+        未登録子機を探索する
       </button>
-
-      <div id="scanResult" style="display: none; margin-top: 20px;">
-        <h4 style="margin: 0 0 12px 0; font-size: 1rem;">検出された未登録子機:</h4>
-        <div id="unregisteredList"></div>
-      </div>
-
-      <div id="scanStatus" style="margin-top: 12px; font-style: italic; color: var(--md-on-surface-variant);"></div>
     </div>
 
-    <!-- 手動登録セクション -->
-    <div style="margin-bottom: var(--md-space-md);">
-      <h3><span class="material-symbols-outlined">edit</span> 手動で登録</h3>
+    <div id="scanStatus" class="dads-banner dads-banner-info" role="status" aria-live="polite" hidden>
+      <p class="dads-banner-title" id="scanStatusTitle"></p>
+      <p class="dads-banner-body" id="scanStatusBody"></p>
     </div>
-    <p style="color: var(--md-on-surface-variant); margin-bottom: 20px; font-size: 0.9rem;">
-      自動探知で見つからない場合や、事前に登録したい場合は手動で入力してください。
-    </p>
 
-    <form method="post" id="manualForm">
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px;">
-        <div class="form-group">
-          <label class="form-label" for="name">子機名（システム識別子）</label>
-          <input type="text" class="form-input" id="name" name="name" required
-                 placeholder="例: unit_001">
-          <div class="form-help">子機との通信に使用される識別子です</div>
+    <div id="scanResult" class="dads-stack-sm" hidden>
+      <h3 class="dads-heading-sub">検出された未登録子機</h3>
+      <div id="unregisteredList" class="dads-resource-list"></div>
+    </div>
+  </section>
+
+  <section class="dads-card dads-stack-md" aria-labelledby="manual-register-heading">
+    <div class="dads-stack-sm">
+      <h2 id="manual-register-heading" class="dads-heading-section dads-heading-chip">手動で子機を登録</h2>
+      <p class="dads-muted">
+        自動探知で見つからない場合や、設置前に事前登録したい場合は以下から手動で入力してください。
+      </p>
+    </div>
+
+    <form method="post" id="manualForm" class="dads-stack-md">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="dads-grid-2">
+        <div class="dads-field">
+          <label class="dads-label" for="name">
+            子機名（システム識別子）
+            <span class="dads-required">必須</span>
+          </label>
+          <p class="dads-support-text" id="unit-name-support">子機との通信に使用される識別子（例: unit_001）</p>
+          <input
+            type="text"
+            class="dads-input"
+            id="name"
+            name="name"
+            aria-describedby="unit-name-support"
+            required
+          >
         </div>
-        <div class="form-group">
-          <label class="form-label" for="password">パスワード</label>
-          <input type="password" class="form-input" id="password" name="password" required
-                 placeholder="例: pass123">
-          <div class="form-help">子機認証用のパスワード</div>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="stock">初期在庫数</label>
-          <input type="number" class="form-input" id="stock" name="stock" required
-                 value="100" min="0">
+
+        <div class="dads-field">
+          <label class="dads-label" for="password">
+            パスワード
+            <span class="dads-required">必須</span>
+          </label>
+          <p class="dads-support-text" id="unit-password-support">子機認証用のパスワードを入力してください。</p>
+          <input
+            type="password"
+            class="dads-input"
+            id="password"
+            name="password"
+            autocomplete="new-password"
+            aria-describedby="unit-password-support"
+            required
+          >
         </div>
       </div>
 
-      <!-- 利用可能トグル -->
-      <div style="background:var(--md-surface-container-low);padding:20px;border-radius:var(--md-radius-sm);margin:24px 0;">
-        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">
-          <div>
-            <strong style="font-size:1rem;">利用可能状態</strong>
-            <p style="margin:4px 0 0;color:var(--md-on-surface-variant);font-size:0.85rem;">
-              有効にすると、登録後すぐに利用可能になります
-            </p>
+      <div class="dads-field">
+        <label class="dads-label" for="stock">
+          初期在庫数
+          <span class="dads-required">必須</span>
+        </label>
+        <p class="dads-support-text" id="unit-stock-support">登録直後に設定する在庫数（0以上）。</p>
+        <input
+          type="number"
+          class="dads-input"
+          id="stock"
+          name="stock"
+          required
+          value="100"
+          min="0"
+          aria-describedby="unit-stock-support"
+          style="max-width: 180px;"
+        >
+      </div>
+
+      <div class="dads-card-subtle">
+        <div class="dads-card-header">
+          <div class="dads-stack-sm">
+            <p class="dads-label">利用可能状態</p>
+            <p class="dads-muted">有効にすると、登録後すぐに利用可能な状態になります。</p>
           </div>
-          <div class="toggle-status">
-            <label class="toggle-switch" style="transform:scale(1.1);" title="クリックで切り替え">
-              <input type="checkbox" id="available-toggle" checked
-                     onchange="updateAvailableInput(this)">
-              <span class="toggle-slider"></span>
-            </label>
-            <span class="toggle-label active" id="available-label" style="font-size:1rem;">有効</span>
-          </div>
+          <label class="dads-switch">
+            <input
+              type="checkbox"
+              id="available-toggle"
+              checked
+              onchange="updateAvailableInput(this)"
+            >
+            <span class="dads-switch-label" id="available-label">有効</span>
+          </label>
         </div>
         <input type="hidden" name="available" id="available-input" value="1">
       </div>
 
-      <div class="btn-group">
-        <button type="submit" class="btn btn-primary btn-icon">
-          <span class="material-symbols-outlined">check</span> 手動登録
-        </button>
-        <a href="{{ url_for('admin_units') }}" class="btn btn-secondary btn-icon">
-          <span class="material-symbols-outlined">cancel</span> キャンセル
-        </a>
+      <div class="dads-btn-row">
+        <button type="submit" class="dads-btn dads-btn-outline dads-btn-md">手動で登録する</button>
+        <a href="{{ url_for('admin_units') }}" class="dads-btn dads-btn-text dads-btn-md">子機監視に戻る</a>
       </div>
     </form>
-  </div>
+  </section>
 </div>
-
-<style>
-.unit-discovery-card {
-  background: var(--md-surface);
-  border: 2px solid var(--md-success);
-  border-radius: var(--md-radius-sm);
-  padding: 18px;
-  margin-bottom: 12px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 16px;
-  box-shadow: var(--md-elevation-2);
-  transition: transform var(--md-transition-medium), box-shadow var(--md-transition-medium);
-}
-
-.unit-discovery-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--md-elevation-3);
-}
-
-.unit-info {
-  flex: 1;
-  min-width: 200px;
-}
-
-.unit-name {
-  font-size: 1.15rem;
-  font-weight: bold;
-  color: var(--md-primary);
-  margin-bottom: 8px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.unit-details {
-  font-size: 0.85rem;
-  color: var(--md-on-surface-variant);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.unit-details span {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: var(--md-surface-container-high);
-  padding: 4px 10px;
-  border-radius: 6px;
-}
-
-.register-btn {
-  background: var(--md-success);
-  color: var(--md-on-success);
-  border: none;
-  padding: 12px 24px;
-  border-radius: var(--md-radius-full);
-  cursor: pointer;
-  font-size: 0.95rem;
-  font-weight: 600;
-  font-family: var(--md-font);
-  transition: background var(--md-transition-short), transform var(--md-transition-short);
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.register-btn:hover {
-  background: #1B5E20;
-  transform: translateY(-1px);
-}
-
-.register-btn:disabled {
-  background: var(--md-outline-variant);
-  cursor: not-allowed;
-  transform: none;
-}
-
-.no-units-message {
-  text-align: center;
-  padding: 30px;
-  color: var(--md-on-surface-variant);
-  font-style: italic;
-  background: var(--md-surface-container-low);
-  border-radius: var(--md-radius-sm);
-}
-</style>
 
 <script>
 function updateAvailableInput(checkbox) {
@@ -188,103 +144,182 @@ function updateAvailableInput(checkbox) {
 
   if (checkbox.checked) {
     label.textContent = '有効';
-    label.className = 'toggle-label active';
     input.value = '1';
   } else {
     label.textContent = '無効';
-    label.className = 'toggle-label inactive';
     input.value = '0';
   }
 }
 
+function setScanStatus(variant, title, body) {
+  const statusEl = document.getElementById('scanStatus');
+  const titleEl = document.getElementById('scanStatusTitle');
+  const bodyEl = document.getElementById('scanStatusBody');
+  if (!statusEl || !titleEl || !bodyEl) return;
+
+  statusEl.className = 'dads-banner dads-banner-' + variant;
+  titleEl.textContent = title;
+  bodyEl.textContent = body;
+  statusEl.hidden = false;
+}
+
+function createEmptyDiscoveryNotice(text) {
+  const box = document.createElement('div');
+  box.className = 'dads-card-subtle';
+  const p = document.createElement('p');
+  p.className = 'dads-muted';
+  p.textContent = text;
+  box.appendChild(p);
+  return box;
+}
+
+function createUnitDiscoveryItem(unit) {
+  const item = document.createElement('div');
+  item.className = 'dads-resource-item';
+  item.dataset.unitItem = unit.name || '';
+
+  const info = document.createElement('div');
+  info.className = 'dads-stack-sm';
+
+  const titleRow = document.createElement('div');
+  titleRow.className = 'dads-btn-row';
+
+  const nameEl = document.createElement('strong');
+  nameEl.className = 'dads-heading-sub';
+  nameEl.textContent = unit.name || '名称不明';
+  titleRow.appendChild(nameEl);
+
+  if (unit.credential_conflict) {
+    const conflictChip = document.createElement('span');
+    conflictChip.className = 'dads-chip dads-chip-red';
+    conflictChip.textContent = '認証情報競合';
+    titleRow.appendChild(conflictChip);
+  } else {
+    const pendingChip = document.createElement('span');
+    pendingChip.className = 'dads-chip dads-chip-blue';
+    pendingChip.textContent = '承認待ち';
+    titleRow.appendChild(pendingChip);
+  }
+
+  const meta = document.createElement('p');
+  meta.className = 'dads-muted dads-mono';
+  const lastAgo = unit.seconds_ago === null || unit.seconds_ago === undefined
+    ? '不明'
+    : `${Math.round(unit.seconds_ago)}秒前`;
+  meta.textContent = `IP: ${unit.ip_address || '不明'} / 初回検出: ${unit.first_seen || '不明'} / 最終通信: ${lastAgo} / 通信回数: ${unit.heartbeat_count ?? 0}回`;
+
+  info.appendChild(titleRow);
+  info.appendChild(meta);
+
+  const actions = document.createElement('div');
+  actions.className = 'dads-btn-row';
+
+  const registerBtn = document.createElement('button');
+  registerBtn.type = 'button';
+  registerBtn.className = 'dads-btn dads-btn-solid dads-btn-sm';
+  registerBtn.dataset.unitName = unit.name || '';
+  registerBtn.dataset.registerUnit = 'true';
+  registerBtn.textContent = 'この子機を登録';
+  if (unit.credential_conflict) {
+    registerBtn.disabled = true;
+  }
+
+  actions.appendChild(registerBtn);
+  item.appendChild(info);
+  item.appendChild(actions);
+
+  return item;
+}
+
 async function scanUnregisteredUnits() {
   const scanButton = document.getElementById('scanButton');
-  const scanStatus = document.getElementById('scanStatus');
   const scanResult = document.getElementById('scanResult');
   const unregisteredList = document.getElementById('unregisteredList');
 
   scanButton.disabled = true;
-  scanButton.innerHTML = '<span>⏳</span> 探索中...';
-  scanStatus.textContent = '🔍 子機を探索中...';
-  scanStatus.style.color = 'var(--primary-color)';
+  scanButton.textContent = '探索中...';
+  setScanStatus('info', '未登録子機を探索しています', '親機が受信した未登録子機のハートビートを確認しています。');
 
   try {
     const response = await fetch('/api/unregistered_units');
     const data = await response.json();
 
-    if (data.success && data.units.length > 0) {
-      scanStatus.textContent = `✅ ${data.count}台の未登録子機を発見しました`;
-      scanStatus.style.color = 'var(--success-color)';
-      scanResult.style.display = 'block';
+    unregisteredList.replaceChildren();
+    scanResult.hidden = false;
 
-      unregisteredList.innerHTML = data.units.map(unit => `
-        <div class="unit-discovery-card" id="unit-${unit.name}">
-          <div class="unit-info">
-            <div class="unit-name">📡 ${unit.name}</div>
-            <div class="unit-details">
-              <span><strong>IP:</strong> ${unit.ip_address}</span>
-              <span><strong>初回検出:</strong> ${unit.first_seen}</span>
-              <span><strong>最終通信:</strong> ${unit.seconds_ago === null ? '不明' : Math.round(unit.seconds_ago) + '秒前'}</span>
-              <span><strong>通信回数:</strong> ${unit.heartbeat_count}回</span>
-            </div>
-          </div>
-          <button class="register-btn" onclick="registerUnit('${unit.name}')">
-            <span>✓</span> この子機を登録
-          </button>
-        </div>
-      `).join('');
+    if (data.success && Array.isArray(data.units) && data.units.length > 0) {
+      setScanStatus('success', `${data.count}台の未登録子機を検出しました`, '一覧から登録する子機を選択してください。');
+      data.units.forEach((unit) => {
+        unregisteredList.appendChild(createUnitDiscoveryItem(unit));
+      });
     } else {
-      scanStatus.textContent = '⚠️ 未登録の子機が見つかりませんでした';
-      scanStatus.style.color = 'var(--danger-color)';
-      scanResult.style.display = 'block';
-      unregisteredList.innerHTML = '<div class="no-units-message">ハートビートを送信している未登録子機がありません。<br>子機が起動していることを確認して、もう一度お試しください。</div>';
+      setScanStatus('warning', '未登録の子機は見つかりませんでした', '対象の子機が起動して親機と通信できているか確認のうえ、再度お試しください。');
+      unregisteredList.appendChild(
+        createEmptyDiscoveryNotice('ハートビートを送信している未登録子機はありません。')
+      );
     }
   } catch (error) {
-    scanStatus.textContent = '❌ エラーが発生しました: ' + error.message;
-    scanStatus.style.color = 'var(--danger-color)';
+    setScanStatus('error', '探索中にエラーが発生しました', error.message || '通信エラーが発生しました。');
   } finally {
     scanButton.disabled = false;
-    scanButton.innerHTML = '<span>📡</span> 自動探知を開始';
+    scanButton.textContent = '未登録子機を探索する';
   }
 }
 
-async function registerUnit(unitName) {
+async function registerUnit(unitName, button) {
+  if (!unitName) return;
   if (!confirm(`子機「${unitName}」を登録しますか？`)) {
     return;
   }
 
-  const button = document.querySelector(`#unit-${unitName} .register-btn`);
   button.disabled = true;
-  button.innerHTML = '<span>⏳</span> 登録中...';
+  button.textContent = '登録中...';
 
   try {
     const response = await fetch('/api/register_unit', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: unitName })
     });
 
     const data = await response.json();
 
     if (data.success) {
-      alert(`✅ ${data.message}`);
-      document.getElementById(`unit-${unitName}`).remove();
-
-      if (document.querySelectorAll('.unit-discovery-card').length === 0) {
-        document.getElementById('unregisteredList').innerHTML = '<div class="no-units-message">✅ 全ての子機を登録しました</div>';
+      setScanStatus('success', '子機を登録しました', data.message || `子機「${unitName}」を登録しました。`);
+      const item = button.closest('.dads-resource-item');
+      if (item) {
+        item.remove();
+      }
+      const list = document.getElementById('unregisteredList');
+      if (list && list.querySelectorAll('.dads-resource-item').length === 0) {
+        list.replaceChildren(createEmptyDiscoveryNotice('検出された未登録子機はすべて登録されました。'));
       }
     } else {
-      alert(`❌ エラー: ${data.error}`);
+      setScanStatus('error', '子機の登録に失敗しました', data.error || '登録処理に失敗しました。');
       button.disabled = false;
-      button.innerHTML = '<span>✓</span> この子機を登録';
+      button.textContent = 'この子機を登録';
     }
   } catch (error) {
-    alert(`❌ 登録に失敗しました: ${error.message}`);
+    setScanStatus('error', '登録中に通信エラーが発生しました', error.message || '通信エラーが発生しました。');
     button.disabled = false;
-    button.innerHTML = '<span>✓</span> この子機を登録';
+    button.textContent = 'この子機を登録';
   }
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+  const scanButton = document.getElementById('scanButton');
+  if (scanButton) {
+    scanButton.addEventListener('click', scanUnregisteredUnits);
+  }
+
+  const unregisteredList = document.getElementById('unregisteredList');
+  if (unregisteredList) {
+    unregisteredList.addEventListener('click', (event) => {
+      const btn = event.target.closest('button[data-register-unit]');
+      if (!btn || btn.disabled) return;
+      registerUnit(btn.dataset.unitName, btn);
+    });
+  }
+});
 </script>
 {% endblock %}

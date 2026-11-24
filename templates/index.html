@@ -1,37 +1,118 @@
 {% extends "base.html" %}
 {% block page_styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/public-service.css', v=2) }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/public-service.css') }}">
+<style>
+  .public-action-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 20px;
+  }
+  .public-action-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .public-action-card .dads-btn {
+    margin-top: auto;
+  }
+  .public-staff-strip {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px 16px;
+  }
+  .public-icon {
+    width: 1.25em;
+    height: 1.25em;
+    flex-shrink: 0;
+  }
+</style>
 {% endblock %}
 {% block content %}
-<div class="public-service">
-  <header class="public-service-intro">
-    <h1>生理用品配布サービス</h1>
+<div class="dads-page">
+  <header class="dads-page-header">
+    <div class="dads-stack-sm">
+      <p class="dads-shoulder">学生向けサービス（ログイン不要）</p>
+      <h1 class="dads-heading-page">生理用品配布サービス</h1>
+      <p class="dads-lead">学生証を使って配布機から生理用品を受け取れます。ログイン不要で利用できます。</p>
+    </div>
   </header>
 
-  <section class="public-service-guide" aria-labelledby="pickup-title">
-    <h2 id="pickup-title">配布機で受け取る</h2>
-    <p>登録済みの学生証を、配布機のカードリーダーにかざしてください。</p>
+  <section aria-labelledby="public-actions-title" class="dads-stack-md">
+    <h2 id="public-actions-title" class="dads-heading-section dads-heading-chip">ご利用メニュー</h2>
+    <div class="dads-grid-2">
+      <article class="dads-card public-action-card">
+        <div class="dads-stack-sm">
+          <div class="public-action-meta">
+            <span class="dads-chip dads-chip-blue">初回手続き</span>
+          </div>
+          <h3 class="dads-heading-sub">初めて利用する方</h3>
+          <p class="dads-muted">まずは学生証を登録します（ログイン不要・所要約10秒）。</p>
+        </div>
+        <a href="{{ url_for('register') }}" class="dads-btn dads-btn-solid dads-btn-lg dads-btn-full">
+          <span>学生証を登録する</span>
+          <svg class="public-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M5 12h14"/>
+            <path d="m12 5 7 7-7 7"/>
+          </svg>
+        </a>
+      </article>
+
+      <article class="dads-card public-action-card">
+        <div class="dads-stack-sm">
+          <div class="public-action-meta">
+            <span class="dads-chip dads-chip-green">残数確認</span>
+          </div>
+          <h3 class="dads-heading-sub">すでに登録済みの方</h3>
+          <p class="dads-muted">残りの利用回数や利用可否を学生証で確認できます。</p>
+        </div>
+        <a href="{{ url_for('usage') }}" class="dads-btn dads-btn-outline dads-btn-lg dads-btn-full">
+          <span>利用状況を確認する</span>
+          <svg class="public-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M5 12h14"/>
+            <path d="m12 5 7 7-7 7"/>
+          </svg>
+        </a>
+      </article>
+    </div>
   </section>
 
-  <section class="public-service-choices" aria-labelledby="web-actions-title">
-    <h2 id="web-actions-title">この画面でできること</h2>
-    <article class="public-service-panel">
-      <h3>初めて利用する方</h3>
-      <p>お使いの学生証を登録します。</p>
-      <a href="{{ url_for('register') }}" class="btn btn-primary">学生証を登録する</a>
-    </article>
-    <article class="public-service-panel">
-      <h3>登録済みの方</h3>
-      <p>残りの利用回数と利用可否を確認できます。</p>
-      <a href="{{ url_for('usage') }}" class="btn btn-outline">利用状況を確認する</a>
-    </article>
+  <section class="dads-card dads-stack-md" aria-labelledby="pickup-guide-title">
+    <h2 id="pickup-guide-title" class="dads-heading-section dads-heading-chip">配布機での受け取り方法</h2>
+    <ol class="dads-steps">
+      <li class="dads-step">
+        <span class="dads-step-num is-current" aria-hidden="true">1</span>
+        <div>
+          <h3 class="dads-step-title">学生証を登録</h3>
+          <p class="dads-step-desc">初回のみ、この端末で学生証を登録します。</p>
+        </div>
+      </li>
+      <li class="dads-step">
+        <span class="dads-step-num" aria-hidden="true">2</span>
+        <div>
+          <h3 class="dads-step-title">配布機にかざす</h3>
+          <p class="dads-step-desc">登録済みの学生証を配布機のカードリーダーにかざします。</p>
+        </div>
+      </li>
+      <li class="dads-step">
+        <span class="dads-step-num" aria-hidden="true">3</span>
+        <div>
+          <h3 class="dads-step-title">受け取る</h3>
+          <p class="dads-step-desc">認証後、生理用品が排出されます。</p>
+        </div>
+      </li>
+    </ol>
   </section>
 
-  <nav class="public-service-links" aria-label="管理者向け">
+  <nav class="dads-card dads-card-subtle public-staff-strip" aria-label="管理者向けリンク">
+    <span class="dads-muted">管理者の方はこちら：</span>
     {% if session.get('admin_logged_in') %}
-      <a href="{{ url_for('admin_dashboard') }}">管理者ダッシュボード</a>
+      <a href="{{ url_for('admin_dashboard') }}" class="dads-link">管理者ダッシュボード</a>
     {% else %}
-      <a href="{{ url_for('admin_login') }}">管理者ログイン</a>
+      <a href="{{ url_for('admin_login') }}" class="dads-link">管理者ログイン</a>
     {% endif %}
   </nav>
 </div>

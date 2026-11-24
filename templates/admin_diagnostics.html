@@ -1,270 +1,281 @@
 {% extends "base.html" %}
 
-{% block title %}診断情報{% endblock %}
+{% block breadcrumbs %}
+<nav class="dads-breadcrumbs" aria-label="現在位置">
+  <ol>
+    <li><a href="{{ url_for('admin_dashboard') }}">業務トップ</a></li>
+    <li><a href="{{ url_for('admin_settings') }}">システム設定</a></li>
+    <li aria-current="page">システム診断</li>
+  </ol>
+</nav>
+{% endblock %}
 
 {% block content %}
-<style>
-    .diagnostic-card {
-        background: white;
-        border-radius: 8px;
-        padding: 20px;
-        margin-bottom: 20px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    .diagnostic-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 15px;
-        padding-bottom: 10px;
-        border-bottom: 2px solid #e0e0e0;
-    }
-    .diagnostic-header h3 {
-        margin: 0;
-        color: #333;
-    }
-    .timestamp {
-        color: #666;
-        font-size: 0.9em;
-    }
-    .diagnostic-item {
-        display: flex;
-        align-items: center;
-        padding: 10px;
-        margin: 5px 0;
-        background: #f8f9fa;
-        border-radius: 4px;
-    }
-    .diagnostic-item.ok {
-        border-left: 4px solid #28a745;
-    }
-    .diagnostic-item.error {
-        border-left: 4px solid #dc3545;
-    }
-    .diagnostic-icon {
-        font-size: 1.5em;
-        margin-right: 15px;
-        min-width: 30px;
-    }
-    .diagnostic-content {
-        flex: 1;
-    }
-    .component-name {
-        font-weight: bold;
-        color: #333;
-        margin-bottom: 3px;
-    }
-    .component-detail {
-        color: #666;
-        font-size: 0.9em;
-    }
-    .log-section {
-        background: white;
-        border-radius: 8px;
-        padding: 20px;
-        margin-top: 20px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    .log-entry {
-        padding: 8px;
-        margin: 5px 0;
-        font-family: 'Courier New', monospace;
-        font-size: 0.9em;
-        border-left: 3px solid #ccc;
-        background: #f8f9fa;
-    }
-    .log-entry.INFO {
-        border-left-color: #17a2b8;
-    }
-    .log-entry.WARNING {
-        border-left-color: #ffc107;
-    }
-    .log-entry.ERROR {
-        border-left-color: #dc3545;
-    }
-    .log-entry.DEBUG {
-        border-left-color: #6c757d;
-    }
-    .log-timestamp {
-        color: #666;
-        margin-right: 10px;
-    }
-    .log-level {
-        font-weight: bold;
-        margin-right: 10px;
-        padding: 2px 6px;
-        border-radius: 3px;
-    }
-    .log-level.INFO {
-        background: #d1ecf1;
-        color: #0c5460;
-    }
-    .log-level.WARNING {
-        background: #fff3cd;
-        color: #856404;
-    }
-    .log-level.ERROR {
-        background: #f8d7da;
-        color: #721c24;
-    }
-    .log-level.DEBUG {
-        background: #e2e3e5;
-        color: #383d41;
-    }
-    .no-data {
-        text-align: center;
-        padding: 40px;
-        color: #666;
-    }
-</style>
+<div class="dads-page">
+  <header class="dads-page-header">
+    <div class="dads-stack-sm">
+      <p class="dads-shoulder">システム保守</p>
+      <h1 class="dads-heading-page">システム診断</h1>
+      <p class="dads-lead">親機サーバーの診断実行、子機の診断レポート、リアルタイムログを確認できます。</p>
+    </div>
+    <div class="dads-btn-row">
+      <button type="button" id="runServerDiagnostics" class="dads-btn dads-btn-solid dads-btn-md">
+        親機診断を実行
+      </button>
+      <button type="button" id="reloadDiagnosticsBtn" class="dads-btn dads-btn-outline dads-btn-md">
+        画面を更新
+      </button>
+    </div>
+  </header>
 
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>システム診断</h2>
-        <button id="runServerDiagnostics" class="btn btn-primary">
-            🔍 親機診断を実行
-        </button>
+  <div id="serverDiagSummary" class="dads-banner dads-banner-info" role="status" aria-live="polite" hidden>
+    <p class="dads-banner-title" id="serverDiagSummaryTitle"></p>
+    <p class="dads-banner-body" id="serverDiagSummaryBody"></p>
+  </div>
+
+  <section id="serverDiagnosticsResult" class="dads-card dads-stack-md" aria-labelledby="server-diag-heading" hidden>
+    <div class="dads-card-header">
+      <h2 id="server-diag-heading" class="dads-heading-section dads-heading-chip">親機（サーバー）診断結果</h2>
+      <span class="dads-muted dads-mono" id="serverDiagTimestamp"></span>
     </div>
-    
-    <!-- 親機診断結果表示エリア -->
-    <div id="serverDiagnosticsResult" style="display:none;" class="diagnostic-card mb-4">
-        <div class="diagnostic-header">
-            <h3>🖥️ 親機（サーバー）診断結果</h3>
-            <span class="timestamp" id="serverDiagTimestamp"></span>
-        </div>
-        <div id="serverDiagContent"></div>
-    </div>
-    
-    <h2 class="mb-4">子機診断情報</h2>
-    
+    <div id="serverDiagContent" class="dads-resource-list"></div>
+  </section>
+
+  <section class="dads-stack-md" aria-labelledby="unit-diag-heading">
+    <h2 id="unit-diag-heading" class="dads-heading-section dads-heading-rule">子機診断情報</h2>
+
     {% if diagnostics %}
-        {% for unit_name, diag_info in diagnostics.items() %}
-        <div class="diagnostic-card">
-            <div class="diagnostic-header">
-                <h3>🖥️ {{ unit_name }}</h3>
-                <span class="timestamp">
-                    📅 {{ diag_info.timestamp }} 
-                    | 🌐 {{ diag_info.ip_address }}
-                </span>
-            </div>
-            
-            {% for component, status, detail in diag_info.diagnostics %}
-            <div class="diagnostic-item {% if status == 'OK' %}ok{% else %}error{% endif %}">
-                <div class="diagnostic-icon">
-                    {% if status == 'OK' %}✅{% else %}❌{% endif %}
-                </div>
-                <div class="diagnostic-content">
-                    <div class="component-name">{{ component }}</div>
-                    <div class="component-detail">{{ detail }}</div>
-                </div>
-            </div>
-            {% endfor %}
+      {% for unit_name, diag_info in diagnostics.items() %}
+      <article class="dads-card dads-stack-md">
+        <div class="dads-card-header">
+          <h3 class="dads-heading-sub">{{ unit_name }}</h3>
+          <span class="dads-muted dads-mono">{{ diag_info.timestamp }} / IP: {{ diag_info.ip_address }}</span>
         </div>
-        {% endfor %}
+
+        <div class="dads-table-wrap">
+          <table class="dads-table">
+            <thead>
+              <tr>
+                <th scope="col">診断項目</th>
+                <th scope="col">状態</th>
+                <th scope="col">詳細</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for component, status, detail in diag_info.diagnostics %}
+              <tr class="{% if status != 'OK' and status != 'WARNING' %}row-critical{% elif status == 'WARNING' %}row-attention{% endif %}">
+                <td><strong>{{ component }}</strong></td>
+                <td>
+                  {% if status == 'OK' %}
+                    <span class="dads-chip dads-chip-green">正常</span>
+                  {% elif status == 'WARNING' %}
+                    <span class="dads-chip dads-chip-yellow">警告</span>
+                  {% else %}
+                    <span class="dads-chip dads-chip-red">異常</span>
+                  {% endif %}
+                </td>
+                <td>{{ detail }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </article>
+      {% endfor %}
     {% else %}
-        <div class="diagnostic-card">
-            <div class="no-data">
-                診断情報がまだ送信されていません。<br>
-                子機が起動すると、ここに診断結果が表示されます。
-            </div>
+      <div class="dads-card">
+        <div class="dads-card-subtle">
+          <p class="dads-muted">診断情報がまだ送信されていません。子機が起動すると、ここに診断結果が表示されます。</p>
         </div>
+      </div>
     {% endif %}
-    
-    <h2 class="mb-4 mt-5">リアルタイムログ</h2>
-    
+  </section>
+
+  <section class="dads-stack-md" aria-labelledby="realtime-logs-heading">
+    <h2 id="realtime-logs-heading" class="dads-heading-section dads-heading-rule">リアルタイムログ</h2>
+
     {% if logs %}
-        {% for unit_name, log_entries in logs.items() %}
-        <div class="log-section">
-            <h4>📝 {{ unit_name }}</h4>
-            {% for log in log_entries[-50:] %}  {# 最新50件を表示 #}
-            <div class="log-entry {{ log.level }}">
-                <span class="log-timestamp">{{ log.timestamp }}</span>
-                <span class="log-level {{ log.level }}">{{ log.level }}</span>
-                <span class="log-message">{{ log.message }}</span>
-            </div>
-            {% endfor %}
+      {% for unit_name, log_entries in logs.items() %}
+      {% set recent_entries = log_entries[-50:] %}
+      <article class="dads-card dads-stack-md">
+        <div class="dads-card-header">
+          <h3 class="dads-heading-sub">{{ unit_name }}</h3>
+          <span class="dads-chip dads-chip-gray">最新 {{ recent_entries|length }} 件</span>
         </div>
-        {% endfor %}
+
+        <div class="dads-table-wrap">
+          <table class="dads-table">
+            <thead>
+              <tr>
+                <th scope="col">時刻</th>
+                <th scope="col">レベル</th>
+                <th scope="col">メッセージ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for log in recent_entries %}
+              <tr>
+                <td class="dads-mono">{{ log.timestamp }}</td>
+                <td>
+                  {% if log.level == 'ERROR' %}
+                    <span class="dads-chip dads-chip-red">{{ log.level }}</span>
+                  {% elif log.level == 'WARNING' %}
+                    <span class="dads-chip dads-chip-yellow">{{ log.level }}</span>
+                  {% elif log.level == 'INFO' %}
+                    <span class="dads-chip dads-chip-blue">{{ log.level }}</span>
+                  {% else %}
+                    <span class="dads-chip dads-chip-gray">{{ log.level }}</span>
+                  {% endif %}
+                </td>
+                <td class="dads-mono">{{ log.message }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </article>
+      {% endfor %}
     {% else %}
-        <div class="log-section">
-            <div class="no-data">
-                ログがまだ送信されていません。<br>
-                子機が動作すると、ここにログが表示されます。
-            </div>
+      <div class="dads-card">
+        <div class="dads-card-subtle">
+          <p class="dads-muted">ログがまだ送信されていません。子機が動作すると、ここにログが表示されます。</p>
         </div>
+      </div>
     {% endif %}
-    
-    <div class="mt-4 mb-4">
-        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">ダッシュボードに戻る</a>
-        <button onclick="location.reload()" class="btn btn-primary">🔄 更新</button>
-    </div>
+  </section>
+
+  <div class="dads-btn-row">
+    <a href="{{ url_for('admin_settings') }}" class="dads-btn dads-btn-outline dads-btn-md">システム設定に戻る</a>
+    <a href="{{ url_for('admin_dashboard') }}" class="dads-btn dads-btn-text dads-btn-md">業務トップに戻る</a>
+  </div>
 </div>
 
 <script>
-// 親機診断を実行
-document.getElementById('runServerDiagnostics').addEventListener('click', function() {
-    const button = this;
-    button.disabled = true;
-    button.innerHTML = '🔄 診断実行中...';
-    
-    fetch('/api/run_diagnostics', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            // 診断結果を表示
-            const resultDiv = document.getElementById('serverDiagnosticsResult');
-            const contentDiv = document.getElementById('serverDiagContent');
-            const timestampSpan = document.getElementById('serverDiagTimestamp');
-            
-            timestampSpan.textContent = '📅 ' + data.timestamp;
-            
-            // 診断結果をHTMLに変換
-            let html = '';
-            data.diagnostics.forEach(diag => {
-                const statusClass = diag.status === 'OK' ? 'ok' : 'error';
-                const icon = diag.status === 'OK' ? '✅' : (diag.status === 'WARNING' ? '⚠️' : '❌');
-                
-                html += `
-                    <div class="diagnostic-item ${statusClass}">
-                        <div class="diagnostic-icon">${icon}</div>
-                        <div class="diagnostic-content">
-                            <div class="component-name">${diag.component}</div>
-                            <div class="component-detail">${diag.detail}</div>
-                        </div>
-                    </div>
-                `;
-            });
-            
-            contentDiv.innerHTML = html;
-            resultDiv.style.display = 'block';
-            
-            // サマリー表示
-            const okCount = data.diagnostics.filter(d => d.status === 'OK').length;
-            const warningCount = data.diagnostics.filter(d => d.status === 'WARNING').length;
-            const failCount = data.diagnostics.filter(d => d.status === 'FAIL').length;
-            
-            alert(`診断完了！\n✅ OK: ${okCount}\n⚠️ WARNING: ${warningCount}\n❌ FAIL: ${failCount}`);
-        } else {
-            alert('診断に失敗しました: ' + data.error);
-        }
-    })
-    .catch(error => {
-        alert('診断中にエラーが発生しました: ' + error);
-    })
-    .finally(() => {
-        button.disabled = false;
-        button.innerHTML = '🔍 親機診断を実行';
-    });
-});
+let isRunningServerDiag = false;
 
-// 30秒ごとに自動更新
-setTimeout(function() {
-    location.reload();
-}, 30000);
+function showDiagSummary(variant, title, body) {
+  const banner = document.getElementById('serverDiagSummary');
+  const titleEl = document.getElementById('serverDiagSummaryTitle');
+  const bodyEl = document.getElementById('serverDiagSummaryBody');
+  if (!banner || !titleEl || !bodyEl) return;
+
+  banner.className = 'dads-banner dads-banner-' + variant;
+  titleEl.textContent = title;
+  bodyEl.textContent = body;
+  banner.hidden = false;
+}
+
+function createDiagnosticStatusChip(status) {
+  const chip = document.createElement('span');
+  if (status === 'OK') {
+    chip.className = 'dads-chip dads-chip-green';
+    chip.textContent = '正常';
+  } else if (status === 'WARNING') {
+    chip.className = 'dads-chip dads-chip-yellow';
+    chip.textContent = '警告';
+  } else {
+    chip.className = 'dads-chip dads-chip-red';
+    chip.textContent = '異常';
+  }
+  return chip;
+}
+
+function createServerDiagnosticItem(diag) {
+  const item = document.createElement('div');
+  item.className = 'dads-resource-item';
+
+  const content = document.createElement('div');
+  content.className = 'dads-stack-sm';
+
+  const nameEl = document.createElement('strong');
+  nameEl.textContent = diag.component || '不明な項目';
+
+  const detailEl = document.createElement('p');
+  detailEl.className = 'dads-muted';
+  detailEl.textContent = diag.detail || '';
+
+  content.appendChild(nameEl);
+  content.appendChild(detailEl);
+
+  const badgeWrap = document.createElement('div');
+  badgeWrap.appendChild(createDiagnosticStatusChip(diag.status));
+
+  item.appendChild(content);
+  item.appendChild(badgeWrap);
+
+  return item;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const runBtn = document.getElementById('runServerDiagnostics');
+  const reloadBtn = document.getElementById('reloadDiagnosticsBtn');
+
+  if (reloadBtn) {
+    reloadBtn.addEventListener('click', () => {
+      window.location.reload();
+    });
+  }
+
+  if (runBtn) {
+    runBtn.addEventListener('click', async () => {
+      isRunningServerDiag = true;
+      runBtn.disabled = true;
+      runBtn.textContent = '診断を実行中...';
+      showDiagSummary('info', '親機診断を実行しています', 'サーバー側の各コンポーネントを確認しています。');
+
+      try {
+        const response = await fetch('/api/run_diagnostics', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await response.json();
+
+        if (data.success && Array.isArray(data.diagnostics)) {
+          const resultSection = document.getElementById('serverDiagnosticsResult');
+          const contentDiv = document.getElementById('serverDiagContent');
+          const timestampSpan = document.getElementById('serverDiagTimestamp');
+
+          if (timestampSpan) {
+            timestampSpan.textContent = data.timestamp || '';
+          }
+          if (contentDiv) {
+            contentDiv.replaceChildren();
+            data.diagnostics.forEach((diag) => {
+              contentDiv.appendChild(createServerDiagnosticItem(diag));
+            });
+          }
+          if (resultSection) {
+            resultSection.hidden = false;
+          }
+
+          const okCount = data.diagnostics.filter((d) => d.status === 'OK').length;
+          const warningCount = data.diagnostics.filter((d) => d.status === 'WARNING').length;
+          const failCount = data.diagnostics.filter((d) => d.status !== 'OK' && d.status !== 'WARNING').length;
+          const variant = failCount > 0 ? 'error' : (warningCount > 0 ? 'warning' : 'success');
+
+          showDiagSummary(
+            variant,
+            '親機診断が完了しました',
+            `正常: ${okCount}件 / 警告: ${warningCount}件 / 異常: ${failCount}件`
+          );
+        } else {
+          showDiagSummary('error', '診断に失敗しました', data.error || '親機診断を実行できませんでした。');
+        }
+      } catch (error) {
+        showDiagSummary('error', '診断中に通信エラーが発生しました', error.message || 'サーバーとの通信に失敗しました。');
+      } finally {
+        isRunningServerDiag = false;
+        runBtn.disabled = false;
+        runBtn.textContent = '親機診断を実行';
+      }
+    });
+  }
+
+  setTimeout(() => {
+    if (!isRunningServerDiag) {
+      window.location.reload();
+    }
+  }, 30000);
+});
 </script>
 {% endblock %}

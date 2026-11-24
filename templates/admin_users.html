@@ -1,92 +1,279 @@
 {% extends "base.html" %}
+
+{% block breadcrumbs %}
+<nav class="dads-breadcrumbs" aria-label="現在位置">
+  <ol>
+    <li><a href="{{ url_for('admin_dashboard') }}">業務トップ</a></li>
+    <li aria-current="page">利用者管理</li>
+  </ol>
+</nav>
+{% endblock %}
+
 {% block content %}
-<div class="admin-section">
-  <div class="admin-card">
-    <div class="admin-card-header">
-      <h2><span class="material-symbols-outlined">group</span> 利用者一覧</h2>
+<div class="dads-page">
+  <header class="dads-page-header">
+    <div class="dads-stack-sm">
+      <p class="dads-shoulder">利用者・カード管理</p>
+      <h1 class="dads-heading-page">利用者管理</h1>
+      <p class="dads-lead">登録済み利用者の検索、利用可否の切り替え、残り回数の編集を行えます。</p>
     </div>
-    
-    <table class="modern-table">
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>カードID</th>
-          <th>利用許可</th>
-          <th>登録日</th>
-          <th>残り回数</th>
-          <th>累計利用</th>
-          <th>操作</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for u in users %}
-        <tr data-user-id="{{ u['id'] }}">
-          <td><strong>{{ u['id'] }}</strong></td>
-          <td><code>{{ u['card_id'] }}</code></td>
-          <td>
-            <div class="toggle-status">
-              <label class="toggle-switch" title="クリックで切り替え">
-                <input type="checkbox" 
-                       {% if u['allow'] == 1 %}checked{% endif %}
-                       onchange="toggleUserAllow({{ u['id'] }}, this)">
-                <span class="toggle-slider"></span>
-              </label>
-              <span class="toggle-label {% if u['allow'] == 1 %}active{% else %}inactive{% endif %}" id="user-toggle-label-{{ u['id'] }}">
-                {% if u['allow'] == 1 %}許可{% else %}不許可{% endif %}
-              </span>
-            </div>
-          </td>
-          <td>{{ u['entry'] }}</td>
-          <td><strong style="color:var(--md-primary);">{{ u['stock'] }}</strong></td>
-          <td>{{ u['total'] }}回</td>
-          <td>
-            <a href="{{ url_for('admin_user_detail', uid=u['id']) }}" class="btn btn-secondary btn-sm btn-icon">
-              <span class="material-symbols-outlined">visibility</span> 詳細
-            </a>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    
-    {% if not users %}
-    <div class="empty-state">
-      <span class="material-symbols-outlined">group</span>
-      <p>登録されている利用者がいません</p>
+    <div>
+      <span class="dads-chip dads-chip-blue" id="users-total-badge">{{ users|length }} 人</span>
     </div>
-    {% endif %}
+  </header>
+
+  <div id="users-feedback-banner" class="dads-banner dads-banner-error" role="alert" hidden>
+    <p class="dads-banner-title" id="users-feedback-title">更新エラー</p>
+    <p class="dads-banner-body" id="users-feedback-body"></p>
   </div>
 
-  <div class="btn-group">
-    <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary btn-icon">
-      <span class="material-symbols-outlined">arrow_back</span> 管理者メニューに戻る
-    </a>
+  <section class="dads-card dads-stack-md" aria-labelledby="users-list-heading">
+    <div class="dads-card-header">
+      <h2 id="users-list-heading" class="dads-heading-section dads-heading-chip">利用者一覧</h2>
+      <p class="dads-muted" id="users-match-count" aria-live="polite">
+        表示中: {{ users|length }} / {{ users|length }} 人
+      </p>
+    </div>
+
+    {% if users %}
+    <div class="dads-stack-md">
+      <div class="dads-filter-group" role="group" aria-label="利用者の状態で絞り込み">
+        <button type="button" class="dads-filter-btn" data-user-filter="all" aria-pressed="true">すべて</button>
+        <button type="button" class="dads-filter-btn" data-user-filter="allowed" aria-pressed="false">許可</button>
+        <button type="button" class="dads-filter-btn" data-user-filter="disallowed" aria-pressed="false">不許可</button>
+        <button type="button" class="dads-filter-btn" data-user-filter="zero" aria-pressed="false">残り回数 0</button>
+      </div>
+
+      <div class="dads-btn-row">
+        <div class="dads-search-bar" style="flex: 1 1 280px;">
+          <input
+            type="search"
+            id="user-search-input"
+            class="dads-input"
+            placeholder="ID・カードID・登録日で検索"
+            aria-label="ID・カードID・登録日で利用者を検索"
+            autocomplete="off"
+          >
+        </div>
+        <button type="button" id="users-reset-filter" class="dads-btn dads-btn-text dads-btn-sm" hidden>
+          条件をリセット
+        </button>
+      </div>
+    </div>
+
+    <div class="dads-table-wrap" id="users-table-wrap">
+      <table class="dads-table" id="users-table">
+        <thead>
+          <tr>
+            <th scope="col">ID</th>
+            <th scope="col">カードID</th>
+            <th scope="col">利用許可</th>
+            <th scope="col">登録日</th>
+            <th scope="col">残り回数</th>
+            <th scope="col">累計利用</th>
+            <th scope="col">操作</th>
+          </tr>
+        </thead>
+        <tbody id="users-tbody">
+          {% for u in users %}
+          <tr
+            data-user-id="{{ u['id'] }}"
+            data-allow="{{ 1 if u['allow'] == 1 else 0 }}"
+            data-stock="{{ u['stock'] }}"
+            data-search="{{ u['id'] }} {{ u['card_id'] }} {{ u['entry'] }}"
+          >
+            <td><strong class="dads-mono">{{ u['id'] }}</strong></td>
+            <td><code class="dads-mono">{{ u['card_id'] }}</code></td>
+            <td>
+              <label class="dads-switch">
+                <input
+                  type="checkbox"
+                  {% if u['allow'] == 1 %}checked{% endif %}
+                  aria-label="利用者 ID {{ u['id'] }} の利用許可"
+                  onchange="toggleUserAllow({{ u['id'] }}, this)"
+                >
+                <span class="dads-switch-label" id="user-toggle-label-{{ u['id'] }}">
+                  {% if u['allow'] == 1 %}許可{% else %}不許可{% endif %}
+                </span>
+              </label>
+            </td>
+            <td class="dads-mono">{{ u['entry'] }}</td>
+            <td>
+              {% if u['stock'] == 0 %}
+                <span class="dads-chip dads-chip-yellow">0回</span>
+              {% else %}
+                <strong>{{ u['stock'] }}回</strong>
+              {% endif %}
+            </td>
+            <td>{{ u['total'] }}回</td>
+            <td>
+              <a href="{{ url_for('admin_user_detail', uid=u['id']) }}" class="dads-btn dads-btn-outline dads-btn-sm">
+                詳細・編集
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div id="users-no-match" class="dads-card-subtle dads-stack-sm" hidden>
+      <p class="dads-muted">検索条件に一致する利用者がありません。</p>
+      <div>
+        <button type="button" id="users-empty-reset-btn" class="dads-btn dads-btn-outline dads-btn-sm">
+          条件をリセット
+        </button>
+      </div>
+    </div>
+    {% else %}
+    <div class="dads-card-subtle">
+      <p class="dads-muted">登録されている利用者がいません。</p>
+    </div>
+    {% endif %}
+  </section>
+
+  <div>
+    <a href="{{ url_for('admin_dashboard') }}" class="dads-back-link">業務トップに戻る</a>
   </div>
 </div>
 
 <script>
+let currentUserFilter = 'all';
+
+function showUserFeedback(message) {
+  const banner = document.getElementById('users-feedback-banner');
+  const body = document.getElementById('users-feedback-body');
+  if (!banner || !body) return;
+  body.textContent = message;
+  banner.hidden = false;
+}
+
+function clearUserFeedback() {
+  const banner = document.getElementById('users-feedback-banner');
+  if (banner) {
+    banner.hidden = true;
+  }
+}
+
+function applyUserFilters() {
+  const tbody = document.getElementById('users-tbody');
+  if (!tbody) return;
+
+  const searchInput = document.getElementById('user-search-input');
+  const query = (searchInput ? searchInput.value : '').trim().toLowerCase();
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  let visibleCount = 0;
+
+  rows.forEach((row) => {
+    const allow = row.dataset.allow === '1';
+    const stock = Number(row.dataset.stock || '0');
+    const haystack = (row.dataset.search || '').toLowerCase();
+
+    let matchesFilter = true;
+    if (currentUserFilter === 'allowed') {
+      matchesFilter = allow;
+    } else if (currentUserFilter === 'disallowed') {
+      matchesFilter = !allow;
+    } else if (currentUserFilter === 'zero') {
+      matchesFilter = stock === 0;
+    }
+
+    const matchesSearch = !query || haystack.includes(query);
+    const visible = matchesFilter && matchesSearch;
+    row.hidden = !visible;
+    if (visible) {
+      visibleCount += 1;
+    }
+  });
+
+  const matchCount = document.getElementById('users-match-count');
+  if (matchCount) {
+    matchCount.textContent = `表示中: ${visibleCount} / ${rows.length} 人`;
+  }
+
+  const isFiltered = currentUserFilter !== 'all' || query.length > 0;
+  const resetBtn = document.getElementById('users-reset-filter');
+  if (resetBtn) {
+    resetBtn.hidden = !isFiltered;
+  }
+
+  const tableWrap = document.getElementById('users-table-wrap');
+  const noMatch = document.getElementById('users-no-match');
+  if (tableWrap && noMatch) {
+    tableWrap.hidden = visibleCount === 0;
+    noMatch.hidden = visibleCount > 0;
+  }
+}
+
+function resetUserFilters() {
+  currentUserFilter = 'all';
+  const searchInput = document.getElementById('user-search-input');
+  if (searchInput) {
+    searchInput.value = '';
+  }
+  document.querySelectorAll('[data-user-filter]').forEach((btn) => {
+    btn.setAttribute('aria-pressed', btn.dataset.userFilter === 'all' ? 'true' : 'false');
+  });
+  applyUserFilters();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('[data-user-filter]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      currentUserFilter = btn.dataset.userFilter || 'all';
+      document.querySelectorAll('[data-user-filter]').forEach((item) => {
+        item.setAttribute('aria-pressed', item === btn ? 'true' : 'false');
+      });
+      applyUserFilters();
+    });
+  });
+
+  const searchInput = document.getElementById('user-search-input');
+  if (searchInput) {
+    searchInput.addEventListener('input', applyUserFilters);
+  }
+
+  const resetBtn = document.getElementById('users-reset-filter');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', resetUserFilters);
+  }
+
+  const emptyResetBtn = document.getElementById('users-empty-reset-btn');
+  if (emptyResetBtn) {
+    emptyResetBtn.addEventListener('click', resetUserFilters);
+  }
+});
+
 async function toggleUserAllow(userId, checkbox) {
   const label = document.getElementById('user-toggle-label-' + userId);
+  const row = checkbox.closest('tr');
   const originalChecked = !checkbox.checked;
-  
+  clearUserFeedback();
+
   try {
     const response = await fetch(`/api/user/${userId}/toggle_allow`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     });
-    
+
     const data = await response.json();
-    
+
     if (data.success) {
-      label.textContent = data.allow === 1 ? '許可' : '不許可';
-      label.className = 'toggle-label ' + (data.allow === 1 ? 'active' : 'inactive');
+      const isAllowed = data.allow === 1;
+      if (label) {
+        label.textContent = isAllowed ? '許可' : '不許可';
+      }
+      if (row) {
+        row.dataset.allow = isAllowed ? '1' : '0';
+      }
+      applyUserFilters();
     } else {
       checkbox.checked = originalChecked;
-      alert('エラー: ' + data.error);
+      showUserFeedback(data.error || '利用許可の更新に失敗しました。');
     }
   } catch (error) {
     checkbox.checked = originalChecked;
-    alert('通信エラーが発生しました');
+    showUserFeedback('通信エラーが発生しました。時間をおいて再度お試しください。');
   }
 }
 </script>

@@ -1,443 +1,487 @@
 {% extends "base.html" %}
+
+{% block page_styles %}
+<style>
+  .unit-detail-title-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .unit-availability-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .unit-config-status {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .unit-log-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .unit-log-box {
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 12px 14px;
+    background: var(--dads-gray-50, #f2f2f2);
+    border: 1px solid var(--dads-gray-300, #b3b3b3);
+    border-radius: 8px;
+    font-size: 0.875rem;
+    line-height: 1.55;
+  }
+  .unit-log-row {
+    padding: 5px 0;
+    border-bottom: 1px solid var(--dads-gray-200, #cccccc);
+    overflow-wrap: anywhere;
+  }
+  .unit-log-row:last-child {
+    border-bottom: 0;
+  }
+  .unit-log-time {
+    color: var(--dads-gray-600, #666666);
+    margin-right: 6px;
+  }
+  .unit-terminal-box {
+    margin: 0;
+    padding: 14px 16px;
+    background: var(--dads-gray-900, #1a1a1a);
+    color: #f2f2f2;
+    border-radius: 8px;
+    max-height: 240px;
+    overflow: auto;
+    font-size: 0.875rem;
+    line-height: 1.55;
+  }
+  .unit-detail-anchor {
+    scroll-margin-top: 1.5rem;
+  }
+  .dads-grid-2 > .dads-field,
+  .dads-stack-md > .dads-field,
+  .dads-stack-sm > .dads-field {
+    margin-bottom: 0;
+  }
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="dads-breadcrumbs" aria-label="現在位置">
+  <ol>
+    <li><a href="{{ url_for('admin_dashboard') }}">業務トップ</a></li>
+    <li><a href="{{ url_for('admin_units') }}">子機監視</a></li>
+    <li aria-current="page">{{ unit['name'] }}</li>
+  </ol>
+</nav>
+{% endblock %}
+
 {% block content %}
-<div class="admin-section">
-  <div class="admin-card">
-    <div class="admin-card-header">
-      <h2><span class="material-symbols-outlined">devices</span> 子機編集 (ID: {{ unit['id'] }})</h2>
-      <div class="admin-card-actions">
+<div class="dads-page">
+  <header class="dads-page-header">
+    <div>
+      <p class="dads-shoulder">子機詳細・設定</p>
+      <div class="unit-detail-title-row">
+        <h1 class="dads-heading-page">{{ unit['name'] }}</h1>
+        <span class="dads-chip dads-chip-gray dads-mono">ID: {{ unit['id'] }}</span>
         {% if unit['connect'] == 1 %}
-          <span class="status-badge online">
-            <span class="status-dot online"></span> オンライン
-          </span>
+          <span class="dads-chip dads-chip-green">オンライン</span>
         {% else %}
-          <span class="status-badge offline">
-            <span class="status-dot offline"></span> オフライン
-          </span>
+          <span class="dads-chip dads-chip-red">オフライン</span>
         {% endif %}
       </div>
     </div>
-
-    <!-- 基本情報（読み取り専用） -->
-    <div class="info-grid">
-      <div class="info-item">
-        <div class="info-label">子機名（システム識別子）</div>
-        <div class="info-value">{{ unit['name'] }}</div>
-        <div class="form-help" style="margin-top:4px;font-size:0.8rem;color:var(--md-on-surface-variant);">
-          ※ 通信で使用されるため変更不可
-        </div>
-      </div>
-      <div class="info-item">
-        <div class="info-label">認証情報</div>
-        <div class="info-value">登録済み</div>
-      </div>
-      <div class="info-item">
-        <div class="info-label">排出数</div>
-        <div class="info-value highlight">{{ (unit['initial_stock'] or 100) - (unit['stock'] or 0) }}</div>
-      </div>
-      <div class="info-item">
-        <div class="info-label">最終接続</div>
-        <div class="info-value">{{ unit['last_seen'] or '未接続' }}</div>
-      </div>
-      <div class="info-item">
-        <div class="info-label">IPアドレス</div>
-        <div class="info-value">{{ unit['ip_address'] or '不明' }}</div>
-      </div>
+    <div class="dads-btn-row">
+      <a href="{{ url_for('operations.admin_operations', unit_id=unit['id']) }}" class="dads-btn dads-btn-outline dads-btn-sm">補充・故障対応へ</a>
+      <a href="{{ url_for('admin_units') }}" class="dads-btn dads-btn-text dads-btn-sm">子機監視に戻る</a>
     </div>
+  </header>
 
-    <!-- 利用可能トグル -->
-    <div style="background:var(--md-surface-container-low);padding:20px;border-radius:var(--md-radius-sm);margin-bottom:24px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">
-        <div>
-          <strong style="font-size:1.1rem;">利用可能状態</strong>
-          <p style="margin:4px 0 0;color:var(--md-on-surface-variant);font-size:0.9rem;">
-            無効にすると、この子機でのカード利用ができなくなります
-          </p>
-        </div>
-        <div class="toggle-status">
-          <label class="toggle-switch" style="transform:scale(1.2);" title="クリックで切り替え">
-            <input type="checkbox" id="available-toggle"
-                   {% if unit['available'] == 1 %}checked{% endif %}
-                   onchange="toggleAvailable(this)">
-            <span class="toggle-slider"></span>
-          </label>
-          <span class="toggle-label {% if unit['available'] == 1 %}active{% else %}inactive{% endif %}"
-                id="available-label" style="font-size:1.1rem;min-width:60px;">
-            {% if unit['available'] == 1 %}有効{% else %}無効{% endif %}
-          </span>
-        </div>
+  <div id="unit-detail-feedback" class="dads-banner dads-banner-info" style="display:none;" role="status" aria-live="polite">
+    <p class="dads-banner-body" id="unit-detail-feedback-text"></p>
+  </div>
+
+  <!-- 基本情報（読み取り専用） -->
+  <section class="dads-card dads-stack-md" aria-labelledby="unit-basic-info-title">
+    <h2 class="dads-heading-section dads-heading-chip" id="unit-basic-info-title">基本情報</h2>
+    <dl class="dads-dl">
+      <div class="dads-dl-row">
+        <dt>子機名（システム識別子）</dt>
+        <dd>
+          <strong>{{ unit['name'] }}</strong>
+          <span class="dads-muted">（通信で使用されるため変更不可）</span>
+        </dd>
       </div>
-    </div>
+      <div class="dads-dl-row">
+        <dt>認証情報</dt>
+        <dd><span class="dads-chip dads-chip-green">登録済み</span></dd>
+      </div>
+      <div class="dads-dl-row">
+        <dt>排出数（推定）</dt>
+        <dd class="dads-mono"><strong>{{ (unit['initial_stock'] or 100) - (unit['stock'] or 0) }}</strong></dd>
+      </div>
+      <div class="dads-dl-row">
+        <dt>最終接続</dt>
+        <dd class="dads-mono">{{ unit['last_seen'] or '未接続' }}</dd>
+      </div>
+      <div class="dads-dl-row">
+        <dt>IPアドレス</dt>
+        <dd class="dads-mono">{{ unit['ip_address'] or '不明' }}</dd>
+      </div>
+    </dl>
+  </section>
 
-    <!-- 編集フォーム -->
-    <form method="post">
+  <!-- 利用可能状態トグル -->
+  <section class="dads-card" aria-labelledby="unit-available-title">
+    <div class="unit-availability-row">
+      <div>
+        <h2 class="dads-heading-sub" id="unit-available-title" style="margin:0;">利用可能状態</h2>
+        <p class="dads-muted" style="margin:4px 0 0;">無効にすると、この子機でのカード利用（排出）ができなくなります。</p>
+      </div>
+      <label class="dads-switch" title="クリックで切り替え">
+        <input type="checkbox" id="available-toggle"
+               {% if unit['available'] == 1 %}checked{% endif %}
+               onchange="toggleAvailable(this)">
+        <span class="dads-switch-label {{ 'is-on' if unit['available'] == 1 else 'is-off' }}" id="available-label">
+          {% if unit['available'] == 1 %}有効{% else %}無効{% endif %}
+        </span>
+      </label>
+    </div>
+  </section>
+
+  <!-- 在庫・基本設定フォーム -->
+  <section class="dads-card dads-stack-md" aria-labelledby="unit-stock-title">
+    <h2 class="dads-heading-section dads-heading-chip" id="unit-stock-title">在庫・基本設定</h2>
+    <form method="post" class="dads-stack-md">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="available" id="available-input" value="{{ unit['available'] }}">
 
-      <div style="margin-bottom: var(--md-space-md);">
-        <h3><span class="material-symbols-outlined">inventory_2</span> 在庫管理</h3>
-      </div>
-
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px;">
-        <div class="form-group">
-          <label class="form-label" for="initial_stock">初期在庫数</label>
-          <input type="number" class="form-input" id="initial_stock" name="initial_stock"
-                 value="{{ unit['initial_stock'] or 100 }}">
-          <div class="form-help">補充時に設定してください</div>
+      <div class="dads-grid-2">
+        <div class="dads-field">
+          <label class="dads-label" for="initial_stock">初期在庫数</label>
+          <p class="dads-support-text" id="initial-stock-help">満タン補充時の基準在庫数を設定します。</p>
+          <input type="number" class="dads-input" id="initial_stock" name="initial_stock"
+                 value="{{ unit['initial_stock'] or 100 }}" aria-describedby="initial-stock-help">
         </div>
-        <div class="form-group">
-          <label class="form-label" for="stock">現在の残り在庫</label>
-          <input type="number" class="form-input" id="stock" name="stock"
-                 value="{{ unit['stock'] }}">
-          <div class="form-help">値を変更する場合は、下の理由を必ず入力してください。</div>
+        <div class="dads-field">
+          <label class="dads-label" for="stock">現在の残り在庫</label>
+          <p class="dads-support-text" id="stock-help">値を変更する場合は、下の「在庫変更の理由」を必ず入力してください。</p>
+          <input type="number" class="dads-input" id="stock" name="stock"
+                 value="{{ unit['stock'] }}" aria-describedby="stock-help">
         </div>
       </div>
-      <div class="form-group">
-        <label class="form-label" for="stock_change_reason">在庫変更の理由</label>
-        <input type="text" class="form-input" id="stock_change_reason" name="stock_change_reason"
-               maxlength="255">
-        <div class="form-help">補充・棚卸差異・廃棄などを記録します。利用者の氏名やカード UID は入力しないでください。</div>
+
+      <div class="dads-field">
+        <label class="dads-label" for="stock_change_reason">在庫変更の理由 <span class="dads-optional">在庫変更時は必須</span></label>
+        <p class="dads-support-text" id="stock-reason-help">補充・棚卸差異・廃棄などを記録します。利用者の氏名やカード UID は入力しないでください。</p>
+        <input type="text" class="dads-input" id="stock_change_reason" name="stock_change_reason"
+               maxlength="255" aria-describedby="stock-reason-help">
       </div>
 
-      <div class="btn-group">
-        <button type="submit" class="btn btn-primary btn-icon">
-          <span class="material-symbols-outlined">save</span> 更新する
-        </button>
-        <a href="{{ url_for('operations.admin_operations', unit_id=unit['id']) }}" class="btn btn-secondary btn-icon">
-          <span class="material-symbols-outlined">assignment</span> 補充・故障を管理
-        </a>
-        <a href="{{ url_for('admin_units') }}" class="btn btn-secondary btn-icon">
-          <span class="material-symbols-outlined">arrow_back</span> 一覧に戻る
-        </a>
+      <div class="dads-btn-row">
+        <button type="submit" class="dads-btn dads-btn-solid dads-btn-md">在庫・基本設定を更新</button>
+        <a href="{{ url_for('operations.admin_operations', unit_id=unit['id']) }}" class="dads-btn dads-btn-outline dads-btn-md">補充・故障を管理</a>
+        <a href="{{ url_for('admin_units') }}" class="dads-btn dads-btn-text dads-btn-md">一覧に戻る</a>
       </div>
     </form>
+  </section>
 
-    <!-- 子機設定セクション（折りたたみ可能） -->
-    <div class="collapsible-section" style="margin-top:32px;">
-      <div class="section-header" onclick="toggleSection('config-section')" style="cursor: pointer;">
-        <h3><span class="material-symbols-outlined">settings</span> 子機設定（リモート設定）</h3>
-        <span class="material-symbols-outlined" id="config-section-icon">expand_more</span>
-      </div>
-      <div class="section-content" id="config-section" style="display:none;">
-
+  <!-- 1. 子機設定（リモート設定） -->
+  <details class="dads-disclosure unit-detail-anchor" id="config-details">
+    <summary>子機設定（リモート設定）</summary>
+    <div class="dads-disclosure-body dads-stack-md">
       {% if unit_config %}
-        <div style="margin-bottom:16px;">
-          <span class="status-badge online" style="padding:8px 16px;">
-            <span class="material-symbols-outlined" style="font-size:16px;">check</span> 設定取得済み
-          </span>
+        <div class="unit-config-status">
+          <span class="dads-chip dads-chip-green">設定取得済み</span>
           {% if config_last_updated %}
-            <span style="margin-left:12px;color:var(--md-on-surface-variant);font-size:0.9rem;">
-              最終更新: {{ config_last_updated }}
-            </span>
+            <span class="dads-muted dads-mono">最終更新: {{ config_last_updated }}</span>
           {% endif %}
           {% if has_pending_config %}
-            <span class="status-badge" style="background:var(--md-warning-container);color:var(--md-on-warning-container);padding:8px 16px;margin-left:12px;">
-              <span class="material-symbols-outlined" style="font-size:16px;">pending</span> 設定変更待ち（次回heartbeatで反映）
-            </span>
+            <span class="dads-chip dads-chip-yellow">設定変更待ち（次回 heartbeat で反映）</span>
           {% endif %}
         </div>
 
-        <div style="background:var(--md-surface-container-low);padding:20px;border-radius:var(--md-radius-sm);">
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;">
+        <div id="config-save-feedback" class="dads-banner dads-banner-info" style="display:none;" role="status" aria-live="polite">
+          <p class="dads-banner-body" id="config-save-feedback-text"></p>
+        </div>
 
-            <!-- モーター設定 -->
-            <div class="config-group">
-              <h4 style="margin:0 0 12px;font-size:1rem;color:var(--md-primary);"><span class="material-symbols-outlined">build</span> モーター設定</h4>
-              <div class="form-group">
-                <label class="form-label">モータータイプ</label>
-                <select id="config-motor-type" class="form-select">
-                  <option value="SERVO" {% if unit_config.get('MOTOR_TYPE') in ['servo', 'SERVO'] %}selected{% endif %}>サーボモーター</option>
-                  <option value="STEPPER" {% if unit_config.get('MOTOR_TYPE') in ['stepper', 'STEPPER'] %}selected{% endif %}>ステッピングモーター</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label class="form-label">制御方法</label>
-                <select id="config-control-method" class="form-select">
-                  <option value="RASPI_DIRECT" {% if unit_config.get('CONTROL_METHOD') in ['raspi', 'RASPI_DIRECT'] %}selected{% endif %}>ラズパイ直結 (GPIO/PCA9685)</option>
-                  <option value="ARDUINO_SERIAL" {% if unit_config.get('CONTROL_METHOD') in ['arduino', 'ARDUINO_SERIAL'] %}selected{% endif %}>Arduino経由 (シリアル)</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label class="form-label">モーター速度 (0-100)</label>
-                <input type="number" id="config-motor-speed" class="form-input"
-                       value="{{ unit_config.get('MOTOR_SPEED', 50) }}" min="0" max="100">
-              </div>
-              <div class="form-group">
-                <label class="form-label">動作時間 (秒)</label>
-                <input type="number" id="config-motor-duration" class="form-input"
-                       value="{{ unit_config.get('MOTOR_DURATION', 2) }}" step="0.1" min="0.1">
-              </div>
-              <div class="form-group">
-                <label>モーター回転方向</label>
-                <div style="margin-top:8px;">
-                  <label class="toggle-switch">
-                    <input type="checkbox" id="config-motor-reverse"
-                           {% if unit_config.get('MOTOR_REVERSE', False) %}checked{% endif %}>
-                    <span class="toggle-slider"></span>
-                  </label>
-                  <span id="motor-reverse-label" style="margin-left:12px;">
-                    {% if unit_config.get('MOTOR_REVERSE', False) %}逆転{% else %}正転{% endif %}
-                  </span>
-                </div>
-              </div>
+        <div class="dads-grid-2">
+          <!-- モーター設定 -->
+          <div class="dads-card-subtle dads-stack-sm">
+            <h3 class="dads-heading-sub" style="margin:0;">モーター設定</h3>
+            <div class="dads-field">
+              <label class="dads-label" for="config-motor-type">モータータイプ</label>
+              <select id="config-motor-type" class="dads-select">
+                <option value="SERVO" {% if unit_config.get('MOTOR_TYPE') in ['servo', 'SERVO'] %}selected{% endif %}>サーボモーター</option>
+                <option value="STEPPER" {% if unit_config.get('MOTOR_TYPE') in ['stepper', 'STEPPER'] %}selected{% endif %}>ステッピングモーター</option>
+              </select>
             </div>
-
-            <!-- センサー設定 -->
-            <div class="config-group">
-              <h4 style="margin:0 0 12px;font-size:1rem;color:var(--md-primary);"><span class="material-symbols-outlined">sensors</span> センサー設定</h4>
-              <div class="form-group">
-                <label>排出検知センサー</label>
-                <div style="margin-top:8px;">
-                  <label class="toggle-switch">
-                    <input type="checkbox" id="config-use-sensor"
-                           {% if unit_config.get('USE_SENSOR', False) %}checked{% endif %}>
-                    <span class="toggle-slider"></span>
-                  </label>
-                  <span id="sensor-label" style="margin-left:12px;">
-                    {% if unit_config.get('USE_SENSOR', False) %}使用する{% else %}使用しない{% endif %}
-                  </span>
-                </div>
-              </div>
-              <div class="form-group">
-                <label>センサーGPIOピン (BCM)</label>
-                <input type="number" id="config-sensor-pin" class="form-input"
-                       value="{{ unit_config.get('SENSOR_GPIO_PIN', unit_config.get('SENSOR_PIN', 22)) }}" min="0" max="40">
-              </div>
-              <div class="form-group">
-                <label>センサータイムアウト (秒)</label>
-                <input type="number" id="config-sensor-timeout" class="form-input"
-                       value="{{ unit_config.get('SENSOR_TIMEOUT', 5) }}" step="0.5" min="0.5">
-              </div>
-              <div class="form-group">
-                <label>排出前センサーチェック</label>
-                <div style="margin-top:8px;">
-                  <label class="toggle-switch">
-                    <input type="checkbox" id="config-sensor-check-pre"
-                           {% if unit_config.get('SENSOR_CHECK_PRE', True) %}checked{% endif %}>
-                    <span class="toggle-slider"></span>
-                  </label>
-                  <span id="sensor-check-pre-label" style="margin-left:12px;">
-                    {% if unit_config.get('SENSOR_CHECK_PRE', True) %}有効{% else %}無効{% endif %}
-                  </span>
-                </div>
-              </div>
-              <div class="form-group">
-                <label>排出後センサーチェック</label>
-                <div style="margin-top:8px;">
-                  <label class="toggle-switch">
-                    <input type="checkbox" id="config-sensor-check-post"
-                           {% if unit_config.get('SENSOR_CHECK_POST', True) %}checked{% endif %}>
-                    <span class="toggle-slider"></span>
-                  </label>
-                  <span id="sensor-check-post-label" style="margin-left:12px;">
-                    {% if unit_config.get('SENSOR_CHECK_POST', True) %}有効{% else %}無効{% endif %}
-                  </span>
-                </div>
-              </div>
-              <div class="form-group">
-                <label>詰まり解除試行回数</label>
-                <input type="number" id="config-jam-clear-attempts" class="form-input"
-                       value="{{ unit_config.get('JAM_CLEAR_ATTEMPTS', 3) }}" min="0" max="10">
-              </div>
+            <div class="dads-field">
+              <label class="dads-label" for="config-control-method">制御方法</label>
+              <select id="config-control-method" class="dads-select">
+                <option value="RASPI_DIRECT" {% if unit_config.get('CONTROL_METHOD') in ['raspi', 'RASPI_DIRECT'] %}selected{% endif %}>ラズパイ直結 (GPIO/PCA9685)</option>
+                <option value="ARDUINO_SERIAL" {% if unit_config.get('CONTROL_METHOD') in ['arduino', 'ARDUINO_SERIAL'] %}selected{% endif %}>Arduino経由 (シリアル)</option>
+              </select>
             </div>
-
-            <!-- 通信設定 -->
-            <div class="config-group">
-              <h4 style="margin:0 0 12px;font-size:1rem;color:var(--md-primary);">🌐 通信設定</h4>
-              <div class="form-group">
-                <label>Heartbeat間隔 (秒)</label>
-                <input type="number" id="config-heartbeat-interval" class="form-input"
-                       value="{{ unit_config.get('HEARTBEAT_INTERVAL', 30) }}" min="5" max="300">
-              </div>
-              <div class="form-group">
-                <label>Arduinoポート（Arduino使用時）</label>
-                <input type="text" id="config-arduino-port" class="form-input"
-                       value="{{ unit_config.get('ARDUINO_PORT', '/dev/ttyUSB0') }}">
-              </div>
-              <div class="form-group">
-                <label>PCA9685チャンネル（サーボ使用時）</label>
-                <input type="number" id="config-pca-channel" class="form-input"
-                       value="{{ unit_config.get('PCA9685_CHANNEL', 15) }}" min="0" max="15">
-              </div>
+            <div class="dads-field">
+              <label class="dads-label" for="config-motor-speed">モーター速度 (0-100)</label>
+              <input type="number" id="config-motor-speed" class="dads-input"
+                     value="{{ unit_config.get('MOTOR_SPEED', 50) }}" min="0" max="100">
             </div>
-
-            <!-- ステッパー設定 -->
-            <div class="config-group" id="stepper-config-group">
-              <h4 style="margin:0 0 12px;font-size:1rem;color:var(--md-primary);"><span class="material-symbols-outlined">precision_manufacturing</span> ステッパー設定</h4>
-              <div class="form-group">
-                <label>IN1-4 GPIO (BCM)</label>
-                <input type="text" id="config-stepper-pins" class="form-input"
-                       value="{{ unit_config.get('STEPPER_PINS', [21, 17, 27, 22]) | join(',') if unit_config.get('STEPPER_PINS') is iterable and unit_config.get('STEPPER_PINS') is not string else unit_config.get('STEPPER_PINS', '21,17,27,22') }}">
-              </div>
-              <div class="form-group">
-                <label>位相順序</label>
-                <input type="text" id="config-stepper-phase-order" class="form-input"
-                       value="{{ unit_config.get('STEPPER_PHASE_ORDER', [0, 1, 2, 3]) | join(',') if unit_config.get('STEPPER_PHASE_ORDER') is iterable and unit_config.get('STEPPER_PHASE_ORDER') is not string else unit_config.get('STEPPER_PHASE_ORDER', '0,1,2,3') }}">
-              </div>
-              <div class="form-group">
-                <label>1ステップ待機秒</label>
-                <input type="number" id="config-stepper-step-delay" class="form-input"
-                       value="{{ unit_config.get('STEPPER_STEP_DELAY', 0.01) }}" step="0.001" min="0.001">
-              </div>
-              <div class="form-group">
-                <label>駆動方式</label>
-                <select id="config-stepper-drive-mode" class="form-input">
-                  {% set drive_mode = unit_config.get('STEPPER_DRIVE_MODE', 'half') %}
-                  <option value="half" {% if drive_mode == 'half' %}selected{% endif %}>半ステップ</option>
-                  <option value="full" {% if drive_mode == 'full' %}selected{% endif %}>フルステップ</option>
-                  <option value="wave" {% if drive_mode == 'wave' %}selected{% endif %}>ウェーブ</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label>排出ステップ数</label>
-                <input type="number" id="config-stepper-steps" class="form-input"
-                       value="{{ unit_config.get('STEPPER_STEPS', 0) }}" min="0">
-              </div>
-              <div class="form-group">
-                <label>テストステップ数</label>
-                <input type="number" id="config-stepper-test-steps" class="form-input"
-                       value="{{ unit_config.get('STEPPER_TEST_STEPS', 2048) }}" min="1">
-              </div>
-              <div class="form-group">
-                <label>バックエンド</label>
-                <select id="config-stepper-backend" class="form-input">
-                  {% set stepper_backend = unit_config.get('STEPPER_BACKEND', 'auto') %}
-                  <option value="auto" {% if stepper_backend == 'auto' %}selected{% endif %}>自動選択</option>
-                  <option value="pigpio" {% if stepper_backend == 'pigpio' %}selected{% endif %}>pigpio優先</option>
-                  <option value="library" {% if stepper_backend == 'library' %}selected{% endif %}>RpiMotorLib</option>
-                  <option value="gpio" {% if stepper_backend == 'gpio' %}selected{% endif %}>GPIO直接</option>
-                </select>
-              </div>
+            <div class="dads-field">
+              <label class="dads-label" for="config-motor-duration">動作時間 (秒)</label>
+              <input type="number" id="config-motor-duration" class="dads-input"
+                     value="{{ unit_config.get('MOTOR_DURATION', 2) }}" step="0.1" min="0.1">
+            </div>
+            <div class="dads-field">
+              <span class="dads-label">モーター回転方向</span>
+              <label class="dads-switch">
+                <input type="checkbox" id="config-motor-reverse"
+                       {% if unit_config.get('MOTOR_REVERSE', False) %}checked{% endif %}>
+                <span class="dads-switch-label" id="motor-reverse-label">
+                  {% if unit_config.get('MOTOR_REVERSE', False) %}逆転{% else %}正転{% endif %}
+                </span>
+              </label>
             </div>
           </div>
 
-          <div class="btn-group" style="margin-top:24px;">
-            <button type="button" class="btn btn-primary btn-icon" onclick="saveUnitConfig()">
-              <span>📤</span> 設定を子機に送信
-            </button>
-            <button type="button" class="btn btn-secondary btn-icon" onclick="refreshConfig()">
-              <span>🔄</span> 設定を再取得
-            </button>
+          <!-- センサー設定 -->
+          <div class="dads-card-subtle dads-stack-sm">
+            <h3 class="dads-heading-sub" style="margin:0;">センサー設定</h3>
+            <div class="dads-field">
+              <span class="dads-label">排出検知センサー</span>
+              <label class="dads-switch">
+                <input type="checkbox" id="config-use-sensor"
+                       {% if unit_config.get('USE_SENSOR', False) %}checked{% endif %}>
+                <span class="dads-switch-label" id="sensor-label">
+                  {% if unit_config.get('USE_SENSOR', False) %}使用する{% else %}使用しない{% endif %}
+                </span>
+              </label>
+            </div>
+            <div class="dads-field">
+              <label class="dads-label" for="config-sensor-pin">センサーGPIOピン (BCM)</label>
+              <input type="number" id="config-sensor-pin" class="dads-input"
+                     value="{{ unit_config.get('SENSOR_GPIO_PIN', unit_config.get('SENSOR_PIN', 22)) }}" min="0" max="40">
+            </div>
+            <div class="dads-field">
+              <label class="dads-label" for="config-sensor-timeout">センサータイムアウト (秒)</label>
+              <input type="number" id="config-sensor-timeout" class="dads-input"
+                     value="{{ unit_config.get('SENSOR_TIMEOUT', 5) }}" step="0.5" min="0.5">
+            </div>
+            <div class="dads-field">
+              <span class="dads-label">排出前センサーチェック</span>
+              <label class="dads-switch">
+                <input type="checkbox" id="config-sensor-check-pre"
+                       {% if unit_config.get('SENSOR_CHECK_PRE', True) %}checked{% endif %}>
+                <span class="dads-switch-label" id="sensor-check-pre-label">
+                  {% if unit_config.get('SENSOR_CHECK_PRE', True) %}有効{% else %}無効{% endif %}
+                </span>
+              </label>
+            </div>
+            <div class="dads-field">
+              <span class="dads-label">排出後センサーチェック</span>
+              <label class="dads-switch">
+                <input type="checkbox" id="config-sensor-check-post"
+                       {% if unit_config.get('SENSOR_CHECK_POST', True) %}checked{% endif %}>
+                <span class="dads-switch-label" id="sensor-check-post-label">
+                  {% if unit_config.get('SENSOR_CHECK_POST', True) %}有効{% else %}無効{% endif %}
+                </span>
+              </label>
+            </div>
+            <div class="dads-field">
+              <label class="dads-label" for="config-jam-clear-attempts">詰まり解除試行回数</label>
+              <input type="number" id="config-jam-clear-attempts" class="dads-input"
+                     value="{{ unit_config.get('JAM_CLEAR_ATTEMPTS', 3) }}" min="0" max="10">
+            </div>
+          </div>
+
+          <!-- 通信設定 -->
+          <div class="dads-card-subtle dads-stack-sm">
+            <h3 class="dads-heading-sub" style="margin:0;">通信設定</h3>
+            <div class="dads-field">
+              <label class="dads-label" for="config-heartbeat-interval">Heartbeat間隔 (秒)</label>
+              <input type="number" id="config-heartbeat-interval" class="dads-input"
+                     value="{{ unit_config.get('HEARTBEAT_INTERVAL', 30) }}" min="5" max="300">
+            </div>
+            <div class="dads-field">
+              <label class="dads-label" for="config-arduino-port">Arduinoポート（Arduino使用時）</label>
+              <input type="text" id="config-arduino-port" class="dads-input dads-mono"
+                     value="{{ unit_config.get('ARDUINO_PORT', '/dev/ttyUSB0') }}">
+            </div>
+            <div class="dads-field">
+              <label class="dads-label" for="config-pca-channel">PCA9685チャンネル（サーボ使用時）</label>
+              <input type="number" id="config-pca-channel" class="dads-input"
+                     value="{{ unit_config.get('PCA9685_CHANNEL', 15) }}" min="0" max="15">
+            </div>
+          </div>
+
+          <!-- ステッパー設定 -->
+          <div class="dads-card-subtle dads-stack-sm" id="stepper-config-group">
+            <h3 class="dads-heading-sub" style="margin:0;">ステッパー設定</h3>
+            <div class="dads-field">
+              <label class="dads-label" for="config-stepper-pins">IN1-4 GPIO (BCM)</label>
+              <input type="text" id="config-stepper-pins" class="dads-input dads-mono"
+                     value="{{ unit_config.get('STEPPER_PINS', [21, 17, 27, 22]) | join(',') if unit_config.get('STEPPER_PINS') is iterable and unit_config.get('STEPPER_PINS') is not string else unit_config.get('STEPPER_PINS', '21,17,27,22') }}">
+            </div>
+            <div class="dads-field">
+              <label class="dads-label" for="config-stepper-phase-order">位相順序</label>
+              <input type="text" id="config-stepper-phase-order" class="dads-input dads-mono"
+                     value="{{ unit_config.get('STEPPER_PHASE_ORDER', [0, 1, 2, 3]) | join(',') if unit_config.get('STEPPER_PHASE_ORDER') is iterable and unit_config.get('STEPPER_PHASE_ORDER') is not string else unit_config.get('STEPPER_PHASE_ORDER', '0,1,2,3') }}">
+            </div>
+            <div class="dads-field">
+              <label class="dads-label" for="config-stepper-step-delay">1ステップ待機秒</label>
+              <input type="number" id="config-stepper-step-delay" class="dads-input"
+                     value="{{ unit_config.get('STEPPER_STEP_DELAY', 0.01) }}" step="0.001" min="0.001">
+            </div>
+            <div class="dads-field">
+              <label class="dads-label" for="config-stepper-drive-mode">駆動方式</label>
+              <select id="config-stepper-drive-mode" class="dads-select">
+                {% set drive_mode = unit_config.get('STEPPER_DRIVE_MODE', 'half') %}
+                <option value="half" {% if drive_mode == 'half' %}selected{% endif %}>半ステップ</option>
+                <option value="full" {% if drive_mode == 'full' %}selected{% endif %}>フルステップ</option>
+                <option value="wave" {% if drive_mode == 'wave' %}selected{% endif %}>ウェーブ</option>
+              </select>
+            </div>
+            <div class="dads-field">
+              <label class="dads-label" for="config-stepper-steps">排出ステップ数</label>
+              <input type="number" id="config-stepper-steps" class="dads-input"
+                     value="{{ unit_config.get('STEPPER_STEPS', 0) }}" min="0">
+            </div>
+            <div class="dads-field">
+              <label class="dads-label" for="config-stepper-test-steps">テストステップ数</label>
+              <input type="number" id="config-stepper-test-steps" class="dads-input"
+                     value="{{ unit_config.get('STEPPER_TEST_STEPS', 2048) }}" min="1">
+            </div>
+            <div class="dads-field">
+              <label class="dads-label" for="config-stepper-backend">バックエンド</label>
+              <select id="config-stepper-backend" class="dads-select">
+                {% set stepper_backend = unit_config.get('STEPPER_BACKEND', 'auto') %}
+                <option value="auto" {% if stepper_backend == 'auto' %}selected{% endif %}>自動選択</option>
+                <option value="pigpio" {% if stepper_backend == 'pigpio' %}selected{% endif %}>pigpio優先</option>
+                <option value="library" {% if stepper_backend == 'library' %}selected{% endif %}>RpiMotorLib</option>
+                <option value="gpio" {% if stepper_backend == 'gpio' %}selected{% endif %}>GPIO直接</option>
+              </select>
+            </div>
           </div>
         </div>
 
+        <div class="dads-btn-row">
+          <button type="button" id="save-config-btn" class="dads-btn dads-btn-solid dads-btn-md" onclick="saveUnitConfig()">設定を子機に送信</button>
+          <button type="button" class="dads-btn dads-btn-outline dads-btn-md" onclick="refreshConfig()">設定を再取得</button>
+        </div>
       {% else %}
-        <div style="background:#fff3e0;padding:24px;border-radius:var(--md-radius-sm);text-align:center;">
-          <div style="font-size:3rem;margin-bottom:12px;">📭</div>
-          <h4 style="margin:0 0 8px;">設定情報がありません</h4>
-          <p style="color:var(--md-on-surface-variant);margin:0 0 16px;">
-            子機がまだ一度も接続していないか、設定情報を送信していません。<br>
-            子機が接続すると、ここに設定が表示されます。
+        <div class="dads-banner dads-banner-warning">
+          <div class="dads-banner-title">設定情報がありません</div>
+          <p class="dads-banner-body">
+            子機がまだ一度も接続していないか、設定情報を送信していません。子機が接続すると、ここに設定が表示されます。
           </p>
-          {% if unit['connect'] == 0 %}
-            <span class="status-badge offline" style="padding:8px 16px;">
-              <span class="status-dot offline"></span> 子機がオフラインです
-            </span>
-          {% endif %}
+        </div>
+        {% if unit['connect'] == 0 %}
+          <div>
+            <span class="dads-chip dads-chip-red">現在オフライン</span>
+          </div>
+        {% endif %}
+      {% endif %}
+    </div>
+  </details>
+
+  <!-- 2. 子機ログ -->
+  <details class="dads-disclosure unit-detail-anchor" id="log-section">
+    <summary>子機ログ</summary>
+    <div class="dads-disclosure-body dads-stack-sm">
+      <div class="unit-log-header">
+        <span id="log-count" class="dads-muted">ログ: 未読み込み</span>
+        <button type="button" class="dads-btn dads-btn-outline dads-btn-sm" onclick="refreshLogs()">ログを更新</button>
+      </div>
+      <div id="log-container" class="unit-log-box dads-mono">
+        <p class="dads-muted" style="margin:0;">セクションを開くと最新ログを読み込みます。</p>
+      </div>
+    </div>
+  </details>
+
+  <!-- 3. 診断コマンド・デバッグ -->
+  <details class="dads-disclosure unit-detail-anchor" id="debug-details">
+    <summary>診断コマンド・デバッグ</summary>
+    <div class="dads-disclosure-body dads-stack-md">
+      <p class="dads-muted" style="margin:0;">子機へ診断コマンドを送信できます。子機がオンラインの場合のみ実行可能です。</p>
+
+      {% if unit['connect'] == 0 %}
+        <div class="dads-banner dads-banner-error" role="status">
+          <p class="dads-banner-body">子機がオフラインのため、診断コマンドは送信できません。</p>
         </div>
       {% endif %}
-      </div><!-- /section-content -->
-    </div><!-- /collapsible-section (子機設定) -->
 
-    <!-- ログセクション（折りたたみ可能） -->
-    <div class="collapsible-section" style="margin-top:32px;">
-      <div class="section-header" onclick="toggleSection('log-section')">
-        <h3><span class="icon">📋</span> 子機ログ</h3>
-        <span class="toggle-icon" id="log-section-icon">▼</span>
+      <div class="dads-btn-row">
+        <button type="button" class="dads-btn dads-btn-solid dads-btn-sm" onclick="sendCommand('ping')" {% if unit['connect'] == 0 %}disabled{% endif %}>接続テスト</button>
+        <button type="button" class="dads-btn dads-btn-outline dads-btn-sm" onclick="sendCommand('get_status')" {% if unit['connect'] == 0 %}disabled{% endif %}>ステータス取得</button>
+        <button type="button" class="dads-btn dads-btn-outline dads-btn-sm" onclick="sendCommand('restart_nfc')" {% if unit['connect'] == 0 %}disabled{% endif %}>NFCリーダー再起動</button>
+        <button type="button" class="dads-btn dads-btn-outline dads-btn-sm" onclick="sendCommand('test_motor')" {% if unit['connect'] == 0 %}disabled{% endif %}>モーターテスト</button>
+        <button type="button" class="dads-btn dads-btn-outline dads-btn-sm" onclick="sendCommand('test_sensor')" {% if unit['connect'] == 0 %}disabled{% endif %}>センサーテスト</button>
       </div>
-      <div class="section-content" id="log-section" style="display:none;">
-        <div style="background:var(--md-surface-container-low);padding:20px;border-radius:var(--md-radius-sm);">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-            <span id="log-count" style="color:var(--md-on-surface-variant);">ログ: 読み込み中...</span>
-            <button class="btn btn-secondary btn-sm" onclick="refreshLogs()">
-              <span>🔄</span> 更新
-            </button>
-          </div>
-          <div id="log-container" style="max-height:400px;overflow-y:auto;font-family:monospace;font-size:0.85rem;">
-            <p style="color:var(--md-on-surface-variant);font-style:italic;">ログを読み込み中...</p>
-          </div>
-        </div>
+
+      <div id="command-result" class="dads-stack-sm" style="display:none;">
+        <h3 class="dads-heading-sub" style="margin:0;">実行結果</h3>
+        <pre id="command-output" class="unit-terminal-box dads-mono"></pre>
       </div>
-    </div>
 
-    <!-- デバッグセクション（折りたたみ可能） -->
-    <div class="collapsible-section" style="margin-top:32px;">
-      <div class="section-header" onclick="toggleSection('debug-section')">
-        <h3><span class="icon">🔧</span> デバッグ・診断</h3>
-        <span class="toggle-icon" id="debug-section-icon">▼</span>
-      </div>
-      <div class="section-content" id="debug-section" style="display:none;">
-        <div style="background:var(--md-surface-container-low);padding:20px;border-radius:var(--md-radius-sm);">
-          <p style="color:var(--md-on-surface-variant);margin-bottom:16px;">
-            子機への診断コマンドを送信できます。子機がオンラインの場合のみ有効です。
-          </p>
-
-          <!-- tmuxデバッグ情報 -->
-          <div style="background:#e3f2fd;padding:16px;border-radius:8px;margin-bottom:20px;">
-            <h4 style="margin:0 0 12px;color:#1565c0;">🖥️ tmuxでのデバッグ手順</h4>
-            <p style="font-size:0.9rem;margin-bottom:12px;">子機がtmuxで起動している場合、以下のコマンドでログを確認できます：</p>
-            <div style="background:#263238;color:#aed581;padding:12px;border-radius:6px;font-family:monospace;font-size:0.85rem;">
-              <div>$ ssh pi@{{ unit['ip_address'] or '子機IP' }}</div>
-              <div>$ tmux attach -t oiteru</div>
-              <div style="color:#90a4ae;margin-top:8px;"># リアルタイムログが表示されます</div>
-              <div style="color:#90a4ae;"># Ctrl+B → D で切り離し</div>
-            </div>
-          </div>
-
-          <!-- コマンドボタン -->
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
-            <button class="btn btn-primary btn-icon" onclick="sendCommand('ping')" {% if unit['connect'] == 0 %}disabled{% endif %}>
-              <span>📡</span> 接続テスト
-            </button>
-            <button class="btn btn-warning btn-icon" onclick="sendCommand('restart_nfc')" {% if unit['connect'] == 0 %}disabled{% endif %}>
-              <span>🔄</span> NFCリーダー再起動
-            </button>
-            <button class="btn btn-secondary btn-icon" onclick="sendCommand('test_motor')" {% if unit['connect'] == 0 %}disabled{% endif %}>
-              <span>⚙️</span> モーターテスト
-            </button>
-            <button class="btn btn-secondary btn-icon" onclick="sendCommand('test_sensor')" {% if unit['connect'] == 0 %}disabled{% endif %}>
-              <span>📡</span> センサーテスト
-            </button>
-            <button class="btn btn-info btn-icon" onclick="sendCommand('get_status')" {% if unit['connect'] == 0 %}disabled{% endif %}>
-              <span>📊</span> ステータス取得
-            </button>
-          </div>
-
-          <!-- コマンド結果表示 -->
-          <div id="command-result" style="margin-top:16px;display:none;">
-            <h4 style="margin:0 0 8px;">実行結果:</h4>
-            <pre id="command-output" style="background:#263238;color:#aed581;padding:12px;border-radius:6px;max-height:200px;overflow-y:auto;font-size:0.85rem;"></pre>
-          </div>
-
-          {% if unit['connect'] == 0 %}
-          <div style="margin-top:16px;background:#ffebee;padding:12px;border-radius:8px;color:#c62828;">
-            ⚠️ 子機がオフラインのため、コマンドは送信できません。
-          </div>
-          {% endif %}
-        </div>
+      <div class="dads-card-subtle dads-stack-sm">
+        <h3 class="dads-heading-sub" style="margin:0;">tmux でのデバッグ手順</h3>
+        <p class="dads-muted" style="margin:0;">子機が tmux で起動している場合、SSH 接続後に以下のコマンドでリアルタイムログを確認できます。</p>
+        <pre class="unit-terminal-box dads-mono">$ ssh pi@{{ unit['ip_address'] or '子機IP' }}
+$ tmux attach -t oiteru
+# Ctrl+B → D でデタッチ（切り離し）</pre>
       </div>
     </div>
+  </details>
 
-    <!-- 危険ゾーン -->
-    <div class="danger-zone">
-      <h4>⚠️ 危険ゾーン</h4>
-      <p>この子機を削除すると元に戻せません。補充・故障の運用履歴がある子機は削除できないため、利用停止にして履歴を保持してください。</p>
-      <form method="post" onsubmit="return confirm('この子機を本当に削除しますか？\n運用履歴がある子機は削除できません。履歴を保持する場合は利用停止にしてください。');">
-        <input type="hidden" name="action" value="delete">
-        <button type="submit" class="btn btn-danger btn-icon">
-          <span>🗑️</span> この子機を削除する
-        </button>
-      </form>
-    </div>
-  </div>
+  <!-- 危険ゾーン -->
+  <section class="dads-danger-box dads-stack-sm" aria-labelledby="danger-zone-title">
+    <h2 class="dads-heading-sub" id="danger-zone-title" style="margin:0;">危険な操作（子機の削除）</h2>
+    <p style="margin:0;">この子機を削除すると元に戻せません。補充・故障の運用履歴がある子機は削除できないため、利用停止にして履歴を保持してください。</p>
+    <form method="post" onsubmit="return confirm('この子機を本当に削除しますか？\n運用履歴がある子機は削除できません。履歴を保持する場合は利用停止にしてください。');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="delete">
+      <button type="submit" class="dads-btn dads-btn-danger dads-btn-md">この子機を削除する</button>
+    </form>
+  </section>
 </div>
 
 <script>
 const UNIT_ID = {{ unit['id'] | tojson }};
 const UNIT_NAME = {{ unit['name'] | tojson }};
 
+function showDetailFeedback(targetId, textId, message, tone = 'info') {
+  const box = document.getElementById(targetId);
+  const textEl = document.getElementById(textId);
+  if (!box || !textEl) return;
+  if (!message) {
+    box.style.display = 'none';
+    textEl.textContent = '';
+    return;
+  }
+  const toneClass = tone === 'error'
+    ? 'dads-banner-error'
+    : tone === 'success'
+      ? 'dads-banner-success'
+      : tone === 'warning'
+        ? 'dads-banner-warning'
+        : 'dads-banner-info';
+  box.className = 'dads-banner ' + toneClass;
+  textEl.textContent = message;
+  box.style.display = 'block';
+}
+
 async function toggleAvailable(checkbox) {
   const label = document.getElementById('available-label');
   const hiddenInput = document.getElementById('available-input');
   const originalChecked = !checkbox.checked;
+  showDetailFeedback('unit-detail-feedback', 'unit-detail-feedback-text', '');
 
   try {
     const response = await fetch(`/api/unit/${encodeURIComponent(UNIT_ID)}/toggle_available`, {
@@ -447,21 +491,36 @@ async function toggleAvailable(checkbox) {
 
     const data = await response.json();
 
-    if (data.success) {
+    if (response.ok && data.success) {
       label.textContent = data.available === 1 ? '有効' : '無効';
-      label.className = 'toggle-label ' + (data.available === 1 ? 'active' : 'inactive');
+      label.className = 'dads-switch-label ' + (data.available === 1 ? 'is-on' : 'is-off');
       hiddenInput.value = data.available;
+      showDetailFeedback(
+        'unit-detail-feedback',
+        'unit-detail-feedback-text',
+        `利用可能状態を「${data.available === 1 ? '有効' : '無効'}」に更新しました。`,
+        'success'
+      );
     } else {
       checkbox.checked = originalChecked;
-      alert('エラー: ' + data.error);
+      showDetailFeedback(
+        'unit-detail-feedback',
+        'unit-detail-feedback-text',
+        '利用可能状態の更新に失敗しました: ' + (data.error || `HTTP ${response.status}`),
+        'error'
+      );
     }
   } catch (error) {
     checkbox.checked = originalChecked;
-    alert('通信エラーが発生しました');
+    showDetailFeedback(
+      'unit-detail-feedback',
+      'unit-detail-feedback-text',
+      '通信エラーが発生しました。時間をおいて再度お試しください。',
+      'error'
+    );
   }
 }
 
-// センサートグルのラベル更新
 document.addEventListener('DOMContentLoaded', function() {
   const motorTypeSelect = document.getElementById('config-motor-type');
   const controlMethodSelect = document.getElementById('config-control-method');
@@ -472,7 +531,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const isStepperDirect =
       motorTypeSelect?.value === 'STEPPER' &&
       controlMethodSelect?.value === 'RASPI_DIRECT';
-    stepperGroup.style.display = isStepperDirect ? 'block' : 'none';
+    stepperGroup.style.display = isStepperDirect ? 'grid' : 'none';
   }
 
   motorTypeSelect?.addEventListener('change', updateMotorConfigVisibility);
@@ -487,7 +546,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // モーター逆転トグルのラベル更新
   const motorReverseCheckbox = document.getElementById('config-motor-reverse');
   const motorReverseLabel = document.getElementById('motor-reverse-label');
   if (motorReverseCheckbox && motorReverseLabel) {
@@ -496,7 +554,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // 排出前センサーチェックトグルのラベル更新
   const sensorCheckPreCheckbox = document.getElementById('config-sensor-check-pre');
   const sensorCheckPreLabel = document.getElementById('sensor-check-pre-label');
   if (sensorCheckPreCheckbox && sensorCheckPreLabel) {
@@ -505,13 +562,32 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // 排出後センサーチェックトグルのラベル更新
   const sensorCheckPostCheckbox = document.getElementById('config-sensor-check-post');
   const sensorCheckPostLabel = document.getElementById('sensor-check-post-label');
   if (sensorCheckPostCheckbox && sensorCheckPostLabel) {
     sensorCheckPostCheckbox.addEventListener('change', function() {
       sensorCheckPostLabel.textContent = this.checked ? '有効' : '無効';
     });
+  }
+
+  const logDetails = document.getElementById('log-section');
+  let logsLoadedOnce = false;
+  if (logDetails) {
+    logDetails.addEventListener('toggle', function() {
+      if (logDetails.open && !logsLoadedOnce) {
+        logsLoadedOnce = true;
+        refreshLogs();
+      }
+    });
+
+    if (window.location.hash === '#log-section') {
+      logDetails.open = true;
+      if (!logsLoadedOnce) {
+        logsLoadedOnce = true;
+        refreshLogs();
+      }
+      logDetails.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   }
 });
 
@@ -523,32 +599,35 @@ function parseNumberList(value, fallback) {
   return parsed.length ? parsed : fallback;
 }
 
-// 設定を子機に送信
 async function saveUnitConfig() {
+  const saveBtn = document.getElementById('save-config-btn');
   const config = {
     MOTOR_TYPE: document.getElementById('config-motor-type')?.value || 'SERVO',
     CONTROL_METHOD: document.getElementById('config-control-method')?.value || 'RASPI_DIRECT',
-    MOTOR_SPEED: parseInt(document.getElementById('config-motor-speed')?.value) || 50,
+    MOTOR_SPEED: parseInt(document.getElementById('config-motor-speed')?.value, 10) || 50,
     MOTOR_DURATION: parseFloat(document.getElementById('config-motor-duration')?.value) || 2,
     MOTOR_REVERSE: document.getElementById('config-motor-reverse')?.checked || false,
     USE_SENSOR: document.getElementById('config-use-sensor')?.checked || false,
-    SENSOR_GPIO_PIN: parseInt(document.getElementById('config-sensor-pin')?.value) || 22,
+    SENSOR_GPIO_PIN: parseInt(document.getElementById('config-sensor-pin')?.value, 10) || 22,
     SENSOR_TIMEOUT: parseFloat(document.getElementById('config-sensor-timeout')?.value) || 5,
     SENSOR_CHECK_PRE: document.getElementById('config-sensor-check-pre')?.checked !== false,
     SENSOR_CHECK_POST: document.getElementById('config-sensor-check-post')?.checked !== false,
-    JAM_CLEAR_ATTEMPTS: parseInt(document.getElementById('config-jam-clear-attempts')?.value) || 3,
-    HEARTBEAT_INTERVAL: parseInt(document.getElementById('config-heartbeat-interval')?.value) || 30,
+    JAM_CLEAR_ATTEMPTS: parseInt(document.getElementById('config-jam-clear-attempts')?.value, 10) || 3,
+    HEARTBEAT_INTERVAL: parseInt(document.getElementById('config-heartbeat-interval')?.value, 10) || 30,
     ARDUINO_PORT: document.getElementById('config-arduino-port')?.value || '/dev/ttyUSB0',
-    PCA9685_CHANNEL: parseInt(document.getElementById('config-pca-channel')?.value) || 15,
+    PCA9685_CHANNEL: parseInt(document.getElementById('config-pca-channel')?.value, 10) || 15,
     STEPPER_PINS: parseNumberList(document.getElementById('config-stepper-pins')?.value, [21, 17, 27, 22]),
     STEPPER_PHASE_ORDER: parseNumberList(document.getElementById('config-stepper-phase-order')?.value, [0, 1, 2, 3]),
     STEPPER_STEP_DELAY: parseFloat(document.getElementById('config-stepper-step-delay')?.value) || 0.01,
     STEPPER_DRIVE_MODE: document.getElementById('config-stepper-drive-mode')?.value || 'half',
-    STEPPER_STEPS: parseInt(document.getElementById('config-stepper-steps')?.value) || 0,
+    STEPPER_STEPS: parseInt(document.getElementById('config-stepper-steps')?.value, 10) || 0,
     STEPPER_STEPS_PER_REV: 2048,
-    STEPPER_TEST_STEPS: parseInt(document.getElementById('config-stepper-test-steps')?.value) || 2048,
+    STEPPER_TEST_STEPS: parseInt(document.getElementById('config-stepper-test-steps')?.value, 10) || 2048,
     STEPPER_BACKEND: document.getElementById('config-stepper-backend')?.value || 'auto'
   };
+
+  if (saveBtn) saveBtn.disabled = true;
+  showDetailFeedback('config-save-feedback', 'config-save-feedback-text', '設定を送信しています...', 'info');
 
   try {
     const response = await fetch(`/api/unit/${encodeURIComponent(UNIT_NAME)}/config`, {
@@ -559,39 +638,34 @@ async function saveUnitConfig() {
 
     const data = await response.json();
 
-    if (data.success) {
-      let message = '';
-      if (data.push_success) {
-        message = '✓ 設定を子機に即座に送信しました！\n設定は直ちに反映されます。';
-      } else {
-        message = '⏳ 設定を保存しました。\n' + data.message;
-      }
-      alert(message);
-      location.reload();
+    if (response.ok && data.success) {
+      const message = data.push_success
+        ? '設定を子機に送信し、直ちに反映しました。最新表示へ更新します...'
+        : '設定を保存しました。' + (data.message || '次回 heartbeat で反映されます。');
+      showDetailFeedback('config-save-feedback', 'config-save-feedback-text', message, 'success');
+      setTimeout(() => location.reload(), 1200);
     } else {
-      alert('エラー: ' + (data.error || '設定の保存に失敗しました'));
+      showDetailFeedback(
+        'config-save-feedback',
+        'config-save-feedback-text',
+        'エラー: ' + (data.error || '設定の保存に失敗しました。'),
+        'error'
+      );
+      if (saveBtn) saveBtn.disabled = false;
     }
   } catch (error) {
-    alert('通信エラーが発生しました: ' + error.message);
+    showDetailFeedback(
+      'config-save-feedback',
+      'config-save-feedback-text',
+      '通信エラーが発生しました: ' + error.message,
+      'error'
+    );
+    if (saveBtn) saveBtn.disabled = false;
   }
 }
 
-// 設定を再取得（ページリロード）
 function refreshConfig() {
   location.reload();
-}
-
-// 折りたたみセクション切り替え
-function toggleSection(sectionId) {
-  const section = document.getElementById(sectionId);
-  const icon = document.getElementById(sectionId + '-icon');
-  if (section.style.display === 'none') {
-    section.style.display = 'block';
-    icon.textContent = '▲';
-  } else {
-    section.style.display = 'none';
-    icon.textContent = '▼';
-  }
 }
 
 // ログを取得して表示（DOM生成・textContentでStored XSSを防止）
@@ -600,13 +674,16 @@ async function refreshLogs() {
   const countEl = document.getElementById('log-count');
   if (!container || !countEl) return;
 
+  countEl.textContent = 'ログ: 読み込み中...';
+
   function renderLogMessage(text, isError) {
     const p = document.createElement('p');
+    p.style.margin = '0';
     if (isError) {
-      p.style.color = '#c62828';
+      p.style.color = 'var(--dads-red-900, #cc0000)';
+      p.style.fontWeight = '700';
     } else {
-      p.style.color = 'var(--md-on-surface-variant)';
-      p.style.fontStyle = 'italic';
+      p.className = 'dads-muted';
     }
     p.textContent = text;
     container.replaceChildren(p);
@@ -635,17 +712,16 @@ async function refreshLogs() {
       const fragment = document.createDocumentFragment();
       logs.slice().reverse().forEach((log) => {
         const row = document.createElement('div');
-        row.style.padding = '4px 0';
-        row.style.borderBottom = '1px solid #eee';
+        row.className = 'unit-log-row';
 
         const timeSpan = document.createElement('span');
-        timeSpan.style.color = '#888';
+        timeSpan.className = 'unit-log-time';
         const timeText = log && log.time != null ? String(log.time) : '';
         timeSpan.textContent = `[${timeText}]`;
 
         const msgText = log && log.message != null ? String(log.message) : '';
         row.appendChild(timeSpan);
-        row.appendChild(document.createTextNode(` ${msgText}`));
+        row.appendChild(document.createTextNode(msgText));
         fragment.appendChild(row);
       });
       container.replaceChildren(fragment);
@@ -659,12 +735,12 @@ async function refreshLogs() {
   }
 }
 
-// デバッグコマンド送信
 async function sendCommand(command) {
   const resultDiv = document.getElementById('command-result');
   const outputPre = document.getElementById('command-output');
+  if (!resultDiv || !outputPre) return;
 
-  resultDiv.style.display = 'block';
+  resultDiv.style.display = 'grid';
   outputPre.textContent = `コマンド "${command}" を送信中...`;
 
   try {
@@ -676,74 +752,18 @@ async function sendCommand(command) {
 
     const data = await response.json();
 
-    if (data.success) {
+    if (response.ok && data.success) {
       if (typeof data.result?.output === 'object') {
         outputPre.textContent = JSON.stringify(data.result.output, null, 2);
       } else {
         outputPre.textContent = data.result?.output || data.message || '成功';
       }
     } else {
-      outputPre.textContent = `エラー: ${data.error}`;
+      outputPre.textContent = `エラー: ${data.error || `HTTP ${response.status}`}`;
     }
   } catch (error) {
     outputPre.textContent = `通信エラー: ${error.message}`;
   }
 }
-
-// ページ読み込み時にログを取得（#log-section 指定時は自動で開いて読み込む）
-document.addEventListener('DOMContentLoaded', function() {
-  if (window.location.hash === '#log-section') {
-    const logSection = document.getElementById('log-section');
-    if (logSection && logSection.style.display === 'none') {
-      toggleSection('log-section');
-    }
-    refreshLogs();
-  }
-});
 </script>
-
-<style>
-  .btn-danger { background-color: #dc3545; color: white; }
-  .btn-danger:hover { background-color: #c82333; }
-  .btn-warning { background-color: #ffc107; color: #212529; }
-  .btn-warning:hover { background-color: #e0a800; }
-  .btn-info { background-color: #17a2b8; color: white; }
-  .btn-info:hover { background-color: #138496; }
-  .btn-sm { padding: 6px 12px; font-size: 0.85rem; }
-
-  .collapsible-section {
-    border: 1px solid #e0e0e0;
-    border-radius: 12px;
-    overflow: hidden;
-  }
-
-  .section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 16px 20px;
-    background: #f8f9fa;
-    cursor: pointer;
-    user-select: none;
-  }
-
-  .section-header:hover {
-    background: #e9ecef;
-  }
-
-  .section-header h3 {
-    margin: 0;
-    font-size: 1.1rem;
-  }
-
-  .toggle-icon {
-    font-size: 0.9rem;
-    color: var(--md-on-surface-variant);
-  }
-
-  .section-content {
-    padding: 20px;
-    background: white;
-  }
-</style>
 {% endblock %}
