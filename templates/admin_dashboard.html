@@ -24,11 +24,13 @@
   .ops-home .ops-note[data-tone="warning"] { border-inline-start-color: #ad6d00; background: #fff8e6; }
   .ops-home .ops-note p { margin: 0; }
   .ops-home .ops-note p + p { margin-top: .25rem; }
+  .ops-home .ops-tasks { margin-bottom: 1rem; }
+  .ops-home .ops-task-links { display: flex; flex-wrap: wrap; gap: .5rem; }
   .ops-home [hidden] { display: none !important; }
   .ops-home .ops-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .7rem; margin: .9rem 0; }
   .ops-home .ops-card, .ops-home .ops-metric { background: #fff; border: 1px solid var(--ops-edge); border-radius: .7rem; padding: 1rem; min-width: 0; }
   .ops-home .ops-metric { display: grid; gap: .2rem; text-decoration: none; }
-  .ops-home .ops-metric:hover { background: #e8f1fe; text-decoration: underline; }
+  .ops-home a.ops-metric:hover { background: #e8f1fe; text-decoration: underline; }
   .ops-home .ops-metric strong { color: var(--ops-ink); font-size: 1.7rem; font-variant-numeric: tabular-nums; }
   .ops-home .ops-columns { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 4fr); gap: .9rem; }
   .ops-home .ops-card h3 { margin: 0; font-size: 1.25rem; }
@@ -79,18 +81,27 @@
   </div>
   <noscript><p class="ops-note">子機の状態をここに表示するにはJavaScriptが必要です。</p></noscript>
 
+  <nav class="ops-card ops-tasks" aria-labelledby="ops-tasks-title">
+    <div class="ops-heading"><h3 id="ops-tasks-title">作業を選ぶ</h3></div>
+    <div class="ops-task-links">
+      <a class="ops-primary" href="{{ url_for('operations.admin_operations', _anchor='stock-entry') }}">補充を記録する</a>
+      <a class="ops-refresh" href="{{ url_for('operations.admin_operations', _anchor='maintenance-entry') }}">故障を報告する</a>
+      <a class="ops-refresh" href="{{ url_for('admin_units') }}">子機の状態を確認する</a>
+      <a class="ops-refresh" href="{{ url_for('admin_users') }}">利用者を探す</a>
+    </div>
+  </nav>
+
   <div class="ops-metrics" aria-label="対応件数">
-    <a class="ops-metric" href="{{ url_for('operations.admin_operations') }}">在庫切れ<strong id="ops-stock">—</strong></a>
-    <a class="ops-metric" href="{{ url_for('admin_units') }}">通信を確認<strong id="ops-connection">—</strong></a>
-    <a class="ops-metric" href="{{ url_for('operations.admin_operations') }}">未完了の保守<strong id="ops-tickets">—</strong></a>
-    <a class="ops-metric" href="{{ url_for('admin_units') }}#pending-units-card">登録要求<strong id="ops-pending">—</strong></a>
+    <a class="ops-metric" href="{{ url_for('operations.admin_operations', _anchor='stock-empty') }}">在庫切れの子機<strong id="ops-stock">—</strong></a>
+    <a class="ops-metric" href="{{ url_for('admin_units', _anchor='monitor-filters') }}">通信確認が必要な子機<strong id="ops-connection">—</strong></a>
+    <a class="ops-metric" href="{{ url_for('operations.admin_operations', _anchor='maintenance-queue') }}">未完了の保守チケット<strong id="ops-tickets">—</strong></a>
+    <a class="ops-metric" href="{{ url_for('admin_units', _anchor='pending-units-card') }}">子機の登録要求<strong id="ops-pending">—</strong></a>
   </div>
 
   <div class="ops-columns">
     <section class="ops-card" aria-labelledby="ops-alert-heading">
       <div class="ops-heading">
-        <h3 id="ops-alert-heading">対応すること</h3>
-        <a class="ops-primary" href="{{ url_for('operations.admin_operations') }}">補充・保守を管理</a>
+        <h3 id="ops-alert-heading" tabindex="-1">対応すること</h3>
       </div>
       <p class="ops-subtle" id="ops-alert-description">対応状況は未取得です。</p>
       <ul class="ops-list" id="ops-alert-list"></ul>
@@ -98,8 +109,7 @@
 
     <section class="ops-card" aria-labelledby="ops-unit-heading">
       <div class="ops-heading">
-        <h3 id="ops-unit-heading">子機の状態</h3>
-        <a href="{{ url_for('admin_units') }}">子機監視を開く</a>
+        <h3 id="ops-unit-heading" tabindex="-1">子機の状態</h3>
       </div>
       <p class="ops-subtle" id="ops-unit-description">子機の状態は未取得です。</p>
       <ul class="ops-list" id="ops-unit-list"></ul>
@@ -117,8 +127,7 @@
       {% endif %}
     </p>
     <div class="ops-links">
-      <a href="{{ url_for('admin_users') }}">利用者一覧</a>
-      <a href="{{ url_for('admin_history') }}">利用履歴</a>
+      <a href="{{ url_for('admin_history') }}">利用履歴を確認する</a>
     </div>
   </section>
 
@@ -180,7 +189,7 @@
     list.replaceChildren(...rows);
     if (focused) {
       const retained = Array.from(list.querySelectorAll('a')).find(item => item.dataset.focusKey === focused);
-      const next = retained || list.closest('section').querySelector('.ops-heading a');
+      const next = retained || list.closest('section').querySelector('.ops-heading h3');
       next.focus({preventScroll: true});
     }
   }
@@ -197,8 +206,9 @@
     if (id && ['LOW_STOCK', 'OUT_OF_STOCK', 'ACTIVE_TICKET'].includes(alert.code)) {
       const operations = new URL(root.dataset.operationsUrl, location.origin);
       operations.searchParams.set('unit_id', String(id));
+      operations.hash = alert.code === 'ACTIVE_TICKET' ? 'maintenance-queue' : 'stock-entry';
       href = operations.href;
-      caption = alert.code === 'ACTIVE_TICKET' ? '保守を確認' : '補充を確認';
+      caption = alert.code === 'ACTIVE_TICKET' ? '対応中のチケットを確認する' : '補充を記録する';
     } else if (!id) {
       href = root.dataset.unitsUrl + '#pending-units-card';
       caption = '登録要求を確認';

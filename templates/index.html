@@ -1,34 +1,32 @@
 {% extends "base.html" %}
 {% block page_styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/public-service.css', v=1) }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/public-service.css', v=2) }}">
 {% endblock %}
 {% block content %}
 <div class="public-service">
   <header class="public-service-intro">
-    <h1>生理用品の受け取り</h1>
-    <p>学生証を使って、生理用品を受け取れます。</p>
+    <h1>生理用品配布サービス</h1>
   </header>
 
-  <section class="public-service-choices" aria-label="学生証でできること">
+  <section class="public-service-guide" aria-labelledby="pickup-title">
+    <h2 id="pickup-title">配布機で受け取る</h2>
+    <p>登録済みの学生証を、配布機のカードリーダーにかざしてください。</p>
+  </section>
+
+  <section class="public-service-choices" aria-labelledby="web-actions-title">
+    <h2 id="web-actions-title">この画面でできること</h2>
     <article class="public-service-panel">
-      <h2>学生証の登録</h2>
-      <p>初めて利用する方は、ここで学生証を登録してください。</p>
+      <h3>初めて利用する方</h3>
+      <p>お使いの学生証を登録します。</p>
       <a href="{{ url_for('register') }}" class="btn btn-primary">学生証を登録する</a>
     </article>
     <article class="public-service-panel">
-      <h2>利用状況の確認</h2>
-      <p>残りの利用回数と、受け取りができるかを確認できます。</p>
+      <h3>登録済みの方</h3>
+      <p>残りの利用回数と利用可否を確認できます。</p>
       <a href="{{ url_for('usage') }}" class="btn btn-outline">利用状況を確認する</a>
     </article>
   </section>
 
-  <section class="public-service-guide" aria-labelledby="pickup-title">
-    <h2 id="pickup-title">受け取り方</h2>
-    <ol>
-      <li>登録済みの学生証を、配布機のカードリーダーにかざします。</li>
-      <li>配布機の案内に従い、生理用品を受け取ります。</li>
-    </ol>
-  </section>
   <nav class="public-service-links" aria-label="管理者向け">
     {% if session.get('admin_logged_in') %}
       <a href="{{ url_for('admin_dashboard') }}">管理者ダッシュボード</a>

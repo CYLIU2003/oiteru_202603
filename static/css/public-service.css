@@ -21,6 +21,7 @@
 
 .public-service h1,
 .public-service h2,
+.public-service h3,
 .public-service p,
 .public-service ol,
 .public-service dl,
@@ -38,8 +39,13 @@
   line-height: 1.5;
 }
 
+.public-service h3 {
+  font-size: 1.125rem;
+  line-height: 1.5;
+}
+
 .public-service-intro p,
-.public-service-guide ol {
+.public-service-guide p {
   margin-top: 8px;
 }
 
@@ -58,6 +64,17 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
+}
+
+.public-service-choices > h2 {
+  grid-column: 1 / -1;
+}
+
+.public-service-guide {
+  padding: 16px 20px;
+  border-inline-start: 4px solid var(--public-blue);
+  background: #f1f4ff;
+  color: #1a1a1a;
 }
 
 .public-service-panel {
@@ -83,13 +100,11 @@
   text-align: center;
 }
 
-.public-service-steps,
-.public-service-guide ol {
+.public-service-steps {
   padding-inline-start: 1.5em;
 }
 
-.public-service-steps li + li,
-.public-service-guide li + li {
+.public-service-steps li + li {
   margin-top: 8px;
 }
 

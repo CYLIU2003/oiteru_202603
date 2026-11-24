@@ -15,10 +15,10 @@
 <div class="admin-dashboard">
   <h2>運用管理</h2>
   <nav class="operation-actions" aria-label="運用管理のページ内リンク">
-    <a class="btn btn-primary" href="#stock-entry">補充・在庫変更を記録</a>
-    <a class="btn btn-secondary" href="#maintenance-entry">故障・通信不良を報告</a>
-    <a href="#maintenance-queue">対応中のチケットを確認</a>
-    <a href="#stock-history">在庫変更の履歴を確認</a>
+    <a class="btn btn-primary" href="#stock-entry">補充を記録する</a>
+    <a class="btn btn-secondary" href="#maintenance-entry">故障を報告する</a>
+    <a href="#maintenance-queue">対応中のチケットを確認する</a>
+    <a href="#stock-history">在庫変更の履歴を確認する</a>
   </nav>
 
   <div class="stats-grid">
@@ -254,7 +254,7 @@
 
   <div class="btn-group" style="margin-top:24px;">
     <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary btn-icon">
-      <span class="material-symbols-outlined">arrow_back</span> 管理者メニューに戻る
+      <span class="material-symbols-outlined" aria-hidden="true">arrow_back</span> 業務ダッシュボードに戻る
     </a>
   </div>
 </div>

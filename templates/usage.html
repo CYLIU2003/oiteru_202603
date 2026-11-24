@@ -9,7 +9,7 @@
   </nav>
   <header class="public-service-intro">
     <h1>利用状況の確認</h1>
-    <p>学生証を使って、残りの利用回数を確認できます。</p>
+    <p>残りの利用回数と利用可否を表示します。</p>
   </header>
   <section class="public-service-panel" aria-labelledby="read-title">
     <h2 id="read-title">学生証の読み取り</h2>
@@ -24,19 +24,16 @@
     {% else %}
       <ol class="public-service-steps">
         <li>学生証をカードリーダーの読み取り面に置いてください。</li>
-        <li>「学生証を読み取る」を押し、結果が表示されるまで学生証を置いたままにしてください。</li>
+        <li>「学生証で利用状況を確認する」を押し、結果が表示されるまで学生証を置いたままにしてください。</li>
       </ol>
       <div id="status-message" class="public-service-notice" role="status" aria-atomic="true"></div>
       <form id="usage-form" method="post">
         <input type="hidden" name="card_id" id="card_id_input">
-        <button type="button" id="read-card-btn" class="btn btn-primary">学生証を読み取る</button>
+        <button type="button" id="read-card-btn" class="btn btn-primary">学生証で利用状況を確認する</button>
       </form>
       <noscript><p>学生証を読み取るには、ブラウザーのJavaScriptを有効にしてください。</p></noscript>
     {% endif %}
   </section>
-  <nav class="public-service-links" aria-label="学生証の登録">
-    <a href="{{ url_for('register') }}">学生証を登録する</a>
-  </nav>
 </div>
 {% if reader_connected %}
 <script>

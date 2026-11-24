@@ -32,7 +32,7 @@
     <ol class="registration-steps">
       <li><span class="step-number" aria-hidden="true">1</span><div><h3>ご自身の学生証を用意する</h3></div></li>
       <li><span class="step-number" aria-hidden="true">2</span><div><h3>学生証をリーダーの読み取り面に置く</h3></div></li>
-      <li><span class="step-number" aria-hidden="true">3</span><div><h3>「登録する」を押す</h3><p>結果が表示されるまで、学生証を置いたままにしてください。</p></div></li>
+      <li><span class="step-number" aria-hidden="true">3</span><div><h3>「学生証を登録する」を押す</h3><p>結果が表示されるまで、学生証を置いたままにしてください。</p></div></li>
     </ol>
     {% if reader_connected %}
       <div class="registration-reader-notice is-ready" role="status">
@@ -41,7 +41,7 @@
       </div>
       <form method="post">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="registration-submit">登録する <span aria-hidden="true">→</span></button>
+        <button type="submit" class="registration-submit">学生証を登録する <span aria-hidden="true">→</span></button>
       </form>
     {% else %}
       <div class="registration-reader-notice is-offline" role="status">
@@ -55,6 +55,5 @@
 
 <div class="registration-bottom">
   <a class="registration-back" href="{{ url_for('index') }}"><span aria-hidden="true">←</span> ホームに戻る</a>
-  <p><a href="{{ url_for('usage') }}">利用状況を確認 <span aria-hidden="true">↗</span></a></p>
 </div>
 {% endblock %}
