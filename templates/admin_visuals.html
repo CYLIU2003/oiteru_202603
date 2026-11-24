@@ -100,8 +100,8 @@ document.addEventListener('DOMContentLoaded', function () {
             datasets: [{
                 label: '利用回数',
                 data: hourlyDataAll,
-                backgroundColor: 'rgba(0, 23, 193, 0.8)',
-                borderColor: '#0017c1',
+                backgroundColor: 'rgba(42, 126, 166, 0.72)',
+                borderColor: '#2a7ea6',
                 borderWidth: 1,
                 borderRadius: 4
             }]
@@ -111,11 +111,11 @@ document.addEventListener('DOMContentLoaded', function () {
             scales: {
                 y: {
                     beginAtZero: true,
-                    ticks: { stepSize: 1, color: '#4d4d4d' },
-                    grid: { color: '#e6e6e6' }
+                    ticks: { stepSize: 1, color: '#4b5c66' },
+                    grid: { color: '#e3eae8' }
                 },
                 x: {
-                    ticks: { color: '#4d4d4d' },
+                    ticks: { color: '#4b5c66' },
                     grid: { display: false }
                 }
             }
@@ -140,11 +140,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 label: '利用回数',
                 data: {{ chart_data.daily_data | tojson }},
                 fill: true,
-                backgroundColor: 'rgba(25, 122, 75, 0.14)',
-                borderColor: '#197a4b',
+                backgroundColor: 'rgba(42, 111, 86, 0.14)',
+                borderColor: '#2a6f56',
                 borderWidth: 3,
                 tension: 0.25,
-                pointBackgroundColor: '#197a4b',
+                pointBackgroundColor: '#2a6f56',
                 pointRadius: 4,
                 pointHoverRadius: 7
             }]
@@ -154,11 +154,11 @@ document.addEventListener('DOMContentLoaded', function () {
             scales: {
                 y: {
                     beginAtZero: true,
-                    ticks: { stepSize: 1, color: '#4d4d4d' },
-                    grid: { color: '#e6e6e6' }
+                    ticks: { stepSize: 1, color: '#4b5c66' },
+                    grid: { color: '#e3eae8' }
                 },
                 x: {
-                    ticks: { color: '#4d4d4d' },
+                    ticks: { color: '#4b5c66' },
                     grid: { display: false }
                 }
             }
@@ -174,13 +174,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 label: '利用回数',
                 data: {{ chart_data.weekly_data | tojson }},
                 backgroundColor: [
-                    '#0017c1',
-                    '#264af4',
-                    '#197a4b',
-                    '#927200',
-                    '#c74700',
-                    '#cc0000',
-                    '#666666'
+                    '#2a7ea6',
+                    '#4a9b7f',
+                    '#d4a24c',
+                    '#7c74b0',
+                    '#c96e68',
+                    '#5a9eb8',
+                    '#8a9ca6'
                 ],
                 borderWidth: 2,
                 borderColor: '#ffffff'
@@ -193,7 +193,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     position: 'bottom',
                     labels: {
                         padding: 16,
-                        color: '#333333',
+                        color: '#2b3e4a',
                         font: { size: 13 }
                     }
                 }

@@ -1,5 +1,5 @@
 /* ==========================================================================
-   OITERU Registration Screen Helpers (Unified DADS Tokens)
+   OITERU Registration Screen Helpers (Gentle Campus DADS Tokens)
    Shares the global base.html header, typography, focus ring, and colors from
    static/css/dads-oiteru.css without any page-specific header/font takeover.
    ========================================================================== */
@@ -9,7 +9,7 @@
   align-items: center;
   gap: 16px;
   padding: 16px 20px;
-  border: 1px solid var(--dads-gray-300);
+  border: 1px solid var(--dads-card-border);
   border-radius: 12px;
   background: var(--dads-gray-50);
 }
@@ -24,16 +24,18 @@
 .registration-welcome,
 .registration-panel {
   background: var(--dads-surface);
-  border: 1px solid var(--dads-gray-420);
+  border: 1px solid var(--dads-card-border);
   border-radius: 12px;
+  box-shadow: var(--dads-card-shadow);
   padding: 24px;
-  color: var(--dads-gray-900);
+  color: var(--dads-gray-800);
 }
 
 .registration-welcome h1 {
   margin: 0 0 8px;
   font-size: clamp(1.625rem, 1.35rem + 1.1vw, 2.25rem);
   line-height: 1.4;
+  color: var(--dads-gray-900);
 }
 
 .registration-description {
@@ -57,7 +59,7 @@
   width: 210px;
   max-width: 100%;
   padding: 16px 20px;
-  border: 1px solid var(--dads-gray-420);
+  border: 1px solid var(--dads-card-border);
   border-radius: 8px;
   background: var(--dads-surface);
   color: var(--dads-gray-900);
@@ -146,23 +148,25 @@
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  padding: 14px 18px 14px 24px;
+  padding: 14px 18px 14px 22px;
   margin-bottom: 16px;
-  border: 2px solid var(--dads-blue-900);
+  border: 1px solid #c3d8e6;
   border-radius: 8px;
-  box-shadow: inset 8px 0 0 0 var(--dads-blue-900);
-  background: var(--dads-surface);
+  box-shadow: inset 6px 0 0 0 var(--dads-blue-900);
+  background: #fafcfe;
   color: var(--dads-gray-900);
 }
 
 .registration-reader-notice.is-ready {
-  border-color: var(--dads-success-2);
-  box-shadow: inset 8px 0 0 0 var(--dads-success-2);
+  border-color: #b7d7c8;
+  box-shadow: inset 6px 0 0 0 var(--dads-success-2);
+  background: #f8fbf9;
 }
 
 .registration-reader-notice.is-offline {
-  border-color: var(--dads-error-1);
-  box-shadow: inset 8px 0 0 0 var(--dads-error-1);
+  border-color: #dfafb3;
+  box-shadow: inset 6px 0 0 0 var(--dads-error-1);
+  background: #fefafa;
 }
 
 .registration-reader-notice h3 {

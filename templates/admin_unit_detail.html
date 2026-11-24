@@ -32,29 +32,29 @@
     max-height: 400px;
     overflow-y: auto;
     padding: 12px 14px;
-    background: var(--dads-gray-50, #f2f2f2);
-    border: 1px solid var(--dads-gray-300, #b3b3b3);
+    background: var(--dads-gray-50);
+    border: 1px solid var(--dads-gray-300);
     border-radius: 8px;
     font-size: 0.875rem;
     line-height: 1.55;
   }
   .unit-log-row {
     padding: 5px 0;
-    border-bottom: 1px solid var(--dads-gray-200, #cccccc);
+    border-bottom: 1px solid var(--dads-gray-200);
     overflow-wrap: anywhere;
   }
   .unit-log-row:last-child {
     border-bottom: 0;
   }
   .unit-log-time {
-    color: var(--dads-gray-600, #666666);
+    color: var(--dads-gray-600);
     margin-right: 6px;
   }
   .unit-terminal-box {
     margin: 0;
     padding: 14px 16px;
-    background: var(--dads-gray-900, #1a1a1a);
-    color: #f2f2f2;
+    background: var(--dads-gray-900);
+    color: var(--dads-gray-50);
     border-radius: 8px;
     max-height: 240px;
     overflow: auto;
@@ -680,7 +680,7 @@ async function refreshLogs() {
     const p = document.createElement('p');
     p.style.margin = '0';
     if (isError) {
-      p.style.color = 'var(--dads-red-900, #cc0000)';
+      p.style.color = 'var(--dads-red-900)';
       p.style.fontWeight = '700';
     } else {
       p.className = 'dads-muted';

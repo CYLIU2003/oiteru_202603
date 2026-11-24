@@ -1,13 +1,13 @@
 /* ==========================================================================
    OITERU Shell Compatibility Layer
-   All canonical DADS shell tokens, navigation, and focus styles live in
-   static/css/dads-oiteru.css. This file provides minimal legacy token aliases
-   with zero conflicting overrides.
+   All canonical Gentle Campus DADS shell tokens, navigation, and focus styles
+   live in static/css/dads-oiteru.css. This file provides minimal legacy token
+   aliases with zero conflicting overrides.
    ========================================================================== */
 
 :root {
-  --shell-link: var(--dads-blue-900, #0017c1);
-  --shell-current: var(--dads-blue-50, #e8f1fe);
-  --shell-border: var(--dads-gray-420, #949494);
-  --shell-focus: var(--dads-yellow-300, #ffd43d);
+  --shell-link: var(--dads-blue-900, #1d6b91);
+  --shell-current: var(--dads-blue-50, #eef5f9);
+  --shell-border: var(--dads-header-border, #dce3e5);
+  --shell-focus: var(--dads-yellow-300, #f4ce5c);
 }

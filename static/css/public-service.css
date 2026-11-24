@@ -1,5 +1,5 @@
 /* ==========================================================================
-   OITERU Public Service Page Layout Helpers (DADS-aligned)
+   OITERU Public Service Page Layout Helpers (Gentle Campus DADS-aligned)
    Inherits all tokens, focus rings, buttons, banners, and cards from
    static/css/dads-oiteru.css.
    ========================================================================== */
@@ -17,7 +17,7 @@
 }
 
 .public-service-intro {
-  border-bottom: 1px solid var(--dads-gray-420);
+  border-bottom: 1px solid var(--dads-header-border);
   padding-bottom: 16px;
 }
 
@@ -76,11 +76,11 @@
 }
 
 .public-service-guide {
-  padding: 16px 20px 16px 24px;
-  border: 2px solid var(--dads-blue-900);
+  padding: 16px 20px 16px 22px;
+  border: 1px solid #c3d8e6;
   border-radius: 8px;
-  box-shadow: inset 8px 0 0 0 var(--dads-blue-900);
-  background: var(--dads-surface);
+  box-shadow: inset 6px 0 0 0 var(--dads-blue-900);
+  background: #fafcfe;
   color: var(--dads-gray-900);
 }
 
@@ -89,10 +89,11 @@
   align-content: start;
   gap: 16px;
   padding: 20px 24px;
-  border: 1px solid var(--dads-gray-420);
+  border: 1px solid var(--dads-card-border);
   border-radius: 12px;
+  box-shadow: var(--dads-card-shadow);
   background: var(--dads-surface);
-  color: var(--dads-gray-900);
+  color: var(--dads-gray-800);
 }
 
 .public-service-choices .public-service-panel {
@@ -116,11 +117,11 @@
 
 .public-service-notice {
   display: block;
-  padding: 14px 18px 14px 24px;
-  border: 2px solid var(--dads-blue-900);
+  padding: 14px 18px 14px 22px;
+  border: 1px solid #c3d8e6;
   border-radius: 8px;
-  box-shadow: inset 8px 0 0 0 var(--dads-blue-900);
-  background: var(--dads-surface);
+  box-shadow: inset 6px 0 0 0 var(--dads-blue-900);
+  background: #fafcfe;
   color: var(--dads-gray-900);
   line-height: 1.7;
 }
@@ -136,8 +137,9 @@
 }
 
 .public-service-notice-error {
-  border-color: var(--dads-error-1);
-  box-shadow: inset 8px 0 0 0 var(--dads-error-1);
+  border-color: #dfafb3;
+  box-shadow: inset 6px 0 0 0 var(--dads-error-1);
+  background: #fefafa;
 }
 
 .public-service-result > div {
@@ -145,7 +147,7 @@
   grid-template-columns: minmax(8rem, 1fr) minmax(0, 2fr);
   gap: 4px 16px;
   padding-block: 12px;
-  border-bottom: 1px solid var(--dads-gray-200);
+  border-bottom: 1px solid var(--dads-divider-soft);
 }
 
 .public-service-result > div:last-child {
@@ -178,7 +180,7 @@
   justify-content: space-between;
   gap: 16px;
   padding: 20px 24px;
-  border: 1px solid var(--dads-gray-420);
+  border: 1px solid var(--dads-card-border);
   border-radius: 12px;
   background: var(--dads-gray-50);
 }
