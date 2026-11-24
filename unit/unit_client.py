@@ -281,7 +281,7 @@ def normalize_motor_config(config):
 
     normalized['SERVER_URL'] = str(normalized.get('SERVER_URL', DEFAULT_CONFIG['SERVER_URL']))
     normalized['UNIT_NAME'] = str(normalized.get('UNIT_NAME', DEFAULT_CONFIG['UNIT_NAME']))
-    normalized['UNIT_PASSWORD'] = str(normalized.get('UNIT_PASSWORD', DEFAULT_CONFIG['UNIT_PASSWORD']))
+    normalized['UNIT_PASSWORD'] = str(normalized.get('UNIT_PASSWORD', ''))
     normalized['SENSOR_GPIO_PIN'] = normalized['SENSOR_PIN']
     return normalized
 
@@ -334,28 +334,20 @@ def apply_remote_config(remote_config, current_config):
         print(f"[設定更新] 危険なGPIO設定を拒否しました: {exc}")
         return False
 
-    updated_keys = []
-    for remote_key, local_key in key_mapping.items():
-        if remote_key in remote_config:
-            old_value = current_config.get(local_key)
-            new_value = remote_config[remote_key]
-            
-            # 値が変更された場合のみ更新
-            if old_value != new_value:
-                current_config[local_key] = new_value
-                updated_keys.append(f"{local_key}: {old_value} → {new_value}")
-    
-    if updated_keys:
-        print(f"[設定更新] 以下の設定が変更されました:")
-        for key in updated_keys:
-            print(f"  - {key}")
-        
-        # 設定をファイルに保存
-        if save_config(current_config):
-            print("[設定更新] config.json に保存し、即座に反映されます ✓")
-        else:
+    changes = {
+        key: candidate_config[key]
+        for key in key_mapping.values()
+        if candidate_config.get(key) != current_config.get(key)
+    }
+    if changes:
+        if not save_config(candidate_config):
             print("[設定更新] config.json の保存に失敗しました")
             return False
+        print(f"[設定更新] 以下の設定が変更されました:")
+        for key, value in changes.items():
+            print(f"  - {key}: {current_config.get(key)} → {value}")
+        current_config.update(changes)
+        print("[設定更新] config.json に保存し、即座に反映されます ✓")
     else:
         print("[設定更新] 変更なし")
     return True
@@ -1273,6 +1265,8 @@ def run_client(config, stop_event, gui_queue):
             print(f"警告: GPIO初期化失敗: {e}。")
             PLATFORM_RUNTIME = 'PC'
 
+    nfc_ready = threading.Event()
+
     def get_my_ip():
         """自身のIPアドレスを取得（Tailscale優先）"""
         try:
@@ -1348,6 +1342,7 @@ def run_client(config, stop_event, gui_queue):
                 # 現在の設定を構築
                 current_config = {
                     "MOTOR_TYPE": MOTOR_TYPE,
+                    "CONTROL_METHOD": config.get("CONTROL_METHOD", "RASPI_DIRECT"),
                     "USE_SENSOR": USE_SENSOR,
                     "MOTOR_SPEED": MOTOR_SPEED,
                     "MOTOR_DURATION": MOTOR_DURATION,
@@ -1374,7 +1369,18 @@ def run_client(config, stop_event, gui_queue):
                 payload = {
                     "name": UNIT_NAME, 
                     "ip_address": my_ip,
-                    "config": current_config
+                    "config": current_config,
+                    "capabilities": {
+                        "nfc": (
+                            "unavailable" if PLATFORM_RUNTIME != "RASPI"
+                            else "ready" if nfc_ready.is_set() else "unknown"
+                        ),
+                        "motor": "unknown" if PLATFORM_RUNTIME == "RASPI" else "unavailable",
+                        "sensor": (
+                            "unknown" if PLATFORM_RUNTIME == "RASPI" and USE_SENSOR
+                            else "unavailable"
+                        ),
+                    },
                 }
                 pending_ack = config.get("_pending_config_ack")
                 if pending_ack:
@@ -1669,6 +1675,7 @@ def run_client(config, stop_event, gui_queue):
                     try:
                         clf = nfc.ContactlessFrontend(path)
                         if clf:
+                            nfc_ready.set()
                             gui_queue.put({'nfc': f'✅ リーダー接続完了 ({path})'})
                             send_log_to_server(f"NFCリーダー初期化成功: {path}")
                             return clf
@@ -1727,6 +1734,7 @@ def run_client(config, stop_event, gui_queue):
                     
                     # デバイス切断エラーの検知
                     if "No such device" in error_msg or "Errno 19" in error_msg:
+                        nfc_ready.clear()
                         send_log_to_server(f"NFCリーダー切断を検知: {error_msg}")
                         gui_queue.put({'nfc': '⚠️ リーダー切断検知、再接続中...'})
                         
@@ -1766,6 +1774,7 @@ def run_client(config, stop_event, gui_queue):
         
     finally:
         # クリーンアップ
+        nfc_ready.clear()
         if clf:
             try:
                 clf.close()

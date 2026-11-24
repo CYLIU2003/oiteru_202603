@@ -1,54 +1,119 @@
 {% extends "base.html" %}
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/public-service.css') }}">
+<style>
+  .public-action-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 20px;
+  }
+  .public-action-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .public-action-card .dads-btn {
+    margin-top: auto;
+  }
+  .public-staff-strip {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px 16px;
+  }
+  .public-icon {
+    width: 1.25em;
+    height: 1.25em;
+    flex-shrink: 0;
+  }
+</style>
+{% endblock %}
 {% block content %}
-<section class="hero">
-  <div class="hero-text">
-    <h2>OITERU システムへようこそ</h2>
-    <p>学生証をかざすだけでスムーズに備品を受け取れるセルフサービスです。<br class="u-hide-mobile">はじめての方でも直感的に操作できるよう、シンプルなステップでご案内します。</p>
-    <div class="hero-actions">
-      <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg">
-        <span class="material-symbols-outlined">app_registration</span>
-        学生証を登録する
-      </a>
-      <a href="{{ url_for('usage') }}" class="btn btn-outline btn-lg">
-        <span class="material-symbols-outlined">manage_search</span>
-        利用状況を確認する
-      </a>
+<div class="dads-page">
+  <header class="dads-page-header">
+    <div class="dads-stack-sm">
+      <p class="dads-shoulder">学生向けサービス（ログイン不要）</p>
+      <h1 class="dads-heading-page">生理用品配布サービス</h1>
+      <p class="dads-lead">学生証を使って配布機から生理用品を受け取れます。ログイン不要で利用できます。</p>
     </div>
-    <p class="hero-note"><strong>利用者の方:</strong> 上の「学生証を登録する」「利用状況を確認する」は、ログイン不要で利用できます。</p>
-    {% if session.get('admin_logged_in') %}
-    <p class="hero-note"><strong>管理者の方:</strong> 管理者メニューは <a href="{{ url_for('admin_dashboard') }}">ダッシュボード</a> から</p>
-    {% else %}
-    <p class="hero-note"><strong>管理者の方のみ:</strong> <a href="{{ url_for('admin_login') }}">こちらからログイン</a></p>
-    {% endif %}
-  </div>
-  <div class="hero-visual" aria-hidden="true">
-    <div class="hero-card">
-      <span class="material-symbols-outlined">touch_app</span>
-      <h3>かんたん3ステップ</h3>
-      <ol>
-        <li>学生証をリーダーにタッチ</li>
-        <li>在庫を確認</li>
-        <li>自動で備品を受け取る</li>
-      </ol>
-    </div>
-  </div>
-</section>
+  </header>
 
-<section class="feature-grid">
-  <article class="feature-card">
-    <span class="material-symbols-outlined">inventory_2</span>
-    <h3>リアルタイムな在庫表示</h3>
-    <p>在庫状況が瞬時に更新されるので、備品の残数をすぐに把握できます。</p>
-  </article>
-  <article class="feature-card">
-    <span class="material-symbols-outlined">verified_user</span>
-    <h3>安心の認証フロー</h3>
-    <p>学生証による認証で、権限のあるユーザーだけが利用できる安全な運用を実現します。</p>
-  </article>
-  <article class="feature-card">
-    <span class="material-symbols-outlined">lightbulb</span>
-    <h3>はじめてでも迷わない</h3>
-    <p>画面の案内やLED表示で、操作手順を丁寧にナビゲーションします。</p>
-  </article>
-</section>
+  <section aria-labelledby="public-actions-title" class="dads-stack-md">
+    <h2 id="public-actions-title" class="dads-heading-section dads-heading-chip">ご利用メニュー</h2>
+    <div class="dads-grid-2">
+      <article class="dads-card public-action-card">
+        <div class="dads-stack-sm">
+          <div class="public-action-meta">
+            <span class="dads-chip dads-chip-blue">初回手続き</span>
+          </div>
+          <h3 class="dads-heading-sub">初めて利用する方</h3>
+          <p class="dads-muted">まずは学生証を登録します（ログイン不要・所要約10秒）。</p>
+        </div>
+        <a href="{{ url_for('register') }}" class="dads-btn dads-btn-solid dads-btn-lg dads-btn-full">
+          <span>学生証を登録する</span>
+          <svg class="public-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M5 12h14"/>
+            <path d="m12 5 7 7-7 7"/>
+          </svg>
+        </a>
+      </article>
+
+      <article class="dads-card public-action-card">
+        <div class="dads-stack-sm">
+          <div class="public-action-meta">
+            <span class="dads-chip dads-chip-green">残数確認</span>
+          </div>
+          <h3 class="dads-heading-sub">すでに登録済みの方</h3>
+          <p class="dads-muted">残りの利用回数や利用可否を学生証で確認できます。</p>
+        </div>
+        <a href="{{ url_for('usage') }}" class="dads-btn dads-btn-outline dads-btn-lg dads-btn-full">
+          <span>利用状況を確認する</span>
+          <svg class="public-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M5 12h14"/>
+            <path d="m12 5 7 7-7 7"/>
+          </svg>
+        </a>
+      </article>
+    </div>
+  </section>
+
+  <section class="dads-card dads-stack-md" aria-labelledby="pickup-guide-title">
+    <h2 id="pickup-guide-title" class="dads-heading-section dads-heading-chip">配布機での受け取り方法</h2>
+    <ol class="dads-steps">
+      <li class="dads-step">
+        <span class="dads-step-num is-current" aria-hidden="true">1</span>
+        <div>
+          <h3 class="dads-step-title">学生証を登録</h3>
+          <p class="dads-step-desc">初回のみ、この端末で学生証を登録します。</p>
+        </div>
+      </li>
+      <li class="dads-step">
+        <span class="dads-step-num" aria-hidden="true">2</span>
+        <div>
+          <h3 class="dads-step-title">配布機にかざす</h3>
+          <p class="dads-step-desc">登録済みの学生証を配布機のカードリーダーにかざします。</p>
+        </div>
+      </li>
+      <li class="dads-step">
+        <span class="dads-step-num" aria-hidden="true">3</span>
+        <div>
+          <h3 class="dads-step-title">受け取る</h3>
+          <p class="dads-step-desc">認証後、生理用品が排出されます。</p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <nav class="dads-card dads-card-subtle public-staff-strip" aria-label="管理者向けリンク">
+    <span class="dads-muted">管理者の方はこちら：</span>
+    {% if session.get('admin_logged_in') %}
+      <a href="{{ url_for('admin_dashboard') }}" class="dads-link">管理者ダッシュボード</a>
+    {% else %}
+      <a href="{{ url_for('admin_login') }}" class="dads-link">管理者ログイン</a>
+    {% endif %}
+  </nav>
+</div>
 {% endblock %}

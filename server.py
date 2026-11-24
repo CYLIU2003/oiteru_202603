@@ -976,6 +976,7 @@ def admin_dashboard():
         "admin_dashboard.html",
         stats={"user_count": user_count, "unit_count": unit_count},
         total_dispensed=total_dispensed,
+        dispense_count_since=valid_start_datetime.strftime("%Y/%m/%d %H:%M"),
         server_info=server_info,
     )
 
@@ -1026,12 +1027,56 @@ def admin_user_detail(uid):
 def admin_units():
     if not session.get("admin_logged_in"):
         return redirect(url_for("admin_login"))
-    from app import state
-    with get_connection() as conn:
-        units = db.fetchall(conn, "SELECT * FROM units")
-        pending_units = state.get_pending_units(conn)
+    from app.services.unit_service import (
+        DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
+        DEFAULT_HEARTBEAT_TIMEOUT_SECONDS,
+        DEFAULT_POLL_INTERVAL_SECONDS,
+        get_unit_monitor_dashboard,
+    )
+
+    monitor_error = None
+    try:
+        with get_connection() as conn:
+            dashboard = get_unit_monitor_dashboard(conn)
+    except Exception:
+        logger.exception("子機監視一覧の取得に失敗しました")
+        monitor_error = (
+            "データベースから子機監視情報を取得できませんでした。"
+            "MySQL サービスや通信状態を確認して再試行してください。"
+        )
+        dashboard = {
+            "summary": {
+                "total_units": 0,
+                "online_count": 0,
+                "offline_count": 0,
+                "unknown_count": 0,
+                "ready_count": 0,
+                "attention_count": 0,
+                "available_count": 0,
+                "unavailable_count": 0,
+                "out_of_stock_count": 0,
+                "heartbeat_overdue_count": 0,
+                "active_ticket_count": 0,
+                "pending_unit_count": 0,
+                "alert_count": 0,
+                "heartbeat_timeout_seconds": DEFAULT_HEARTBEAT_TIMEOUT_SECONDS,
+                "default_heartbeat_interval_seconds": DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
+                "poll_interval_seconds": DEFAULT_POLL_INTERVAL_SECONDS,
+                "checked_at": "",
+            },
+            "alerts": [],
+            "units": [],
+            "pending_units": [],
+        }
     return render_template(
-        "admin_units.html", units=units, unregistered_units=pending_units
+        "admin_units.html",
+        units=dashboard["units"],
+        unregistered_units=dashboard["pending_units"],
+        pending_units=dashboard["pending_units"],
+        summary=dashboard["summary"],
+        alerts=dashboard["alerts"],
+        monitor_dashboard=dashboard,
+        monitor_error=monitor_error,
     )
 
 
@@ -1042,10 +1087,10 @@ def admin_unit_detail(uid):
 
     from dataclasses import asdict
 
-    from app.repositories.unit_repository import UnitRepository
+    from app.repositories.operations_repository import OperationsRepository
     from app.services import operations_service
 
-    unit_repo = UnitRepository()
+    operations_repo = OperationsRepository()
 
     if request.method == "POST":
         if request.form.get("action") == "delete":
@@ -1088,11 +1133,12 @@ def admin_unit_detail(uid):
         return redirect(url_for("admin_unit_detail", uid=uid))
 
     with get_connection() as conn:
-        unit_record = unit_repo.find_by_id(conn, uid)
+        unit_record = operations_repo.find_unit(conn, uid)
     if not unit_record:
         flash("指定された子機は見つかりません。", "error")
         return redirect(url_for("admin_units"))
     unit = asdict(unit_record)
+    unit.pop("password", None)
 
     # 子機の設定情報をDB上のreported/desired状態から取得
     from app import state
@@ -1646,8 +1692,25 @@ def api_get_unit_logs(unit_name):
     if auth_error:
         return auth_error
 
-    logs = list(unit_logs.get(unit_name, []))
-    return jsonify({"logs": logs, "count": len(logs)})
+    from app.services.unit_service import get_unit_logs
+
+    try:
+        with get_connection() as conn:
+            logs = get_unit_logs(conn, unit_name, limit=UNIT_LOG_LIMIT)
+    except Exception:
+        logger.exception("子機ログの取得に失敗しました: unit_name=%s", unit_name)
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": "子機ログの取得に失敗しました",
+                    "code": "UNIT_LOGS_FETCH_FAILED",
+                }
+            ),
+            500,
+        )
+
+    return jsonify({"success": True, "logs": logs, "count": len(logs)})
 
 
 def parse_bool(value) -> bool:

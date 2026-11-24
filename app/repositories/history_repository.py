@@ -58,5 +58,28 @@ class HistoryRepository(BaseRepository):
         rows = self.fetch_all(conn, query, params)
         return [HistoryRecord.from_row(r) for r in rows]
 
+    def find_by_unit_name(
+        self, conn, unit_name: str, limit: int = 100
+    ) -> List[HistoryRecord]:
+        """Return recent history entries prefixed with ``[<unit_name>] ``."""
+        if not unit_name:
+            return []
+        bounded_limit = max(1, int(limit))
+        prefix = f"[{unit_name}] "
+        escaped_prefix = (
+            prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        )
+        rows = self.fetch_all(
+            conn,
+            """SELECT id, txt, type, created_at
+                 FROM history
+                WHERE txt LIKE ?
+                ORDER BY created_at DESC, id DESC
+                LIMIT ?""",
+            (f"{escaped_prefix}%", bounded_limit),
+        )
+        records = [HistoryRecord.from_row(r) for r in rows]
+        return [r for r in records if r.txt.startswith(prefix)]
+
     def delete_all(self, conn) -> int:
         return self.delete(conn, "DELETE FROM history")

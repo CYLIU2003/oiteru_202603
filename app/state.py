@@ -138,8 +138,32 @@ def format_db_time(value: Any) -> Optional[str]:
     return parsed.strftime(_DB_TIME_FORMAT) if parsed else None
 
 
-def get_pending_units(conn) -> List[Dict[str, Any]]:
-    rows = _db.fetchall(conn, "SELECT * FROM pending_units ORDER BY last_seen DESC")
+def get_pending_units(
+    conn,
+    unit_names: Optional[List[str]] = None,
+) -> List[Dict[str, Any]]:
+    if unit_names is not None:
+        clean_names = list(dict.fromkeys(str(name) for name in unit_names if name))
+        if not clean_names:
+            return []
+        placeholders = ", ".join(["?"] * len(clean_names))
+        rows = _db.fetchall(
+            conn,
+            f"""SELECT id, unit_name, ip_address, first_seen, last_seen,
+                       heartbeat_count, credential_conflict, credential_conflict_at
+                  FROM pending_units
+                 WHERE unit_name IN ({placeholders})
+                 ORDER BY last_seen DESC""",
+            tuple(clean_names),
+        )
+        return [dict(r) for r in rows] if rows else []
+    rows = _db.fetchall(
+        conn,
+        """SELECT id, unit_name, ip_address, first_seen, last_seen,
+                  heartbeat_count, credential_conflict, credential_conflict_at
+             FROM pending_units
+            ORDER BY last_seen DESC""",
+    )
     return [dict(r) for r in rows] if rows else []
 
 
@@ -300,15 +324,15 @@ def queue_config_update(conn, unit_name: str, config: Dict[str, Any]) -> Dict[st
 
 
 def get_config_update_for_delivery(conn, unit_name: str) -> Optional[Dict[str, Any]]:
-    """Return the latest unacknowledged update and retain it for retry."""
+    """Return the newest version only, retaining it until the child acknowledges it."""
     row = _db.fetchone(
         conn,
         """SELECT * FROM device_config_updates
-             WHERE unit_name = ? AND status IN ('pending', 'delivered')
-             ORDER BY config_version DESC LIMIT 1""",
+             WHERE unit_name = ?
+             ORDER BY config_version DESC, id DESC LIMIT 1 FOR UPDATE""",
         (unit_name,),
     )
-    if not row:
+    if not row or row["status"] not in ("pending", "delivered"):
         return None
     result = dict(row)
     now = _now()
@@ -466,6 +490,192 @@ def record_device_status(
         "VALUES (?, ?, ?, ?)",
         (unit_name, status, detail, _now()),
     )
+
+
+def list_unit_config_snapshots(
+    conn,
+    unit_names: Optional[List[str]] = None,
+) -> Dict[str, Dict[str, Any]]:
+    """Return latest reported config snapshots keyed by unit_name."""
+    if unit_names is not None:
+        clean_names = list(dict.fromkeys(str(name) for name in unit_names if name))
+        if not clean_names:
+            return {}
+        placeholders = ", ".join(["?"] * len(clean_names))
+        rows = (
+            _db.fetchall(
+                conn,
+                f"""SELECT unit_name, config_json, ip_address, last_updated
+                      FROM unit_config_snapshots
+                     WHERE unit_name IN ({placeholders})""",
+                tuple(clean_names),
+            )
+            or []
+        )
+    else:
+        rows = (
+            _db.fetchall(
+                conn,
+                "SELECT unit_name, config_json, ip_address, last_updated FROM unit_config_snapshots",
+            )
+            or []
+        )
+    snapshots: Dict[str, Dict[str, Any]] = {}
+    for row in rows:
+        item = dict(row)
+        unit_name = str(item.get("unit_name") or "")
+        if not unit_name:
+            continue
+        try:
+            config = json.loads(item.get("config_json", "{}"))
+            if not isinstance(config, dict):
+                config = {}
+        except (json.JSONDecodeError, TypeError):
+            config = {}
+        snapshots[unit_name] = {
+            "unit_name": unit_name,
+            "config": config,
+            "ip_address": item.get("ip_address"),
+            "last_updated": format_db_time(item.get("last_updated")),
+        }
+    return snapshots
+
+
+def list_latest_config_updates(
+    conn,
+    unit_names: Optional[List[str]] = None,
+) -> Dict[str, Dict[str, Any]]:
+    """Return the latest config delivery record per unit_name."""
+    if unit_names is not None:
+        clean_names = list(dict.fromkeys(str(name) for name in unit_names if name))
+        if not clean_names:
+            return {}
+        placeholders = ", ".join(["?"] * len(clean_names))
+        rows = (
+            _db.fetchall(
+                conn,
+                f"""SELECT dcu.unit_name, dcu.config_version, dcu.status,
+                           dcu.created_at, dcu.sent_at, dcu.acked_at, dcu.error
+                      FROM device_config_updates AS dcu
+                      INNER JOIN (
+                          SELECT unit_name, MAX(id) AS max_id
+                            FROM device_config_updates
+                           WHERE unit_name IN ({placeholders})
+                           GROUP BY unit_name
+                      ) AS latest
+                        ON dcu.id = latest.max_id""",
+                tuple(clean_names),
+            )
+            or []
+        )
+    else:
+        rows = (
+            _db.fetchall(
+                conn,
+                """SELECT dcu.unit_name, dcu.config_version, dcu.status,
+                          dcu.created_at, dcu.sent_at, dcu.acked_at, dcu.error
+                     FROM device_config_updates AS dcu
+                     INNER JOIN (
+                         SELECT unit_name, MAX(id) AS max_id
+                           FROM device_config_updates
+                          GROUP BY unit_name
+                     ) AS latest
+                       ON dcu.id = latest.max_id""",
+            )
+            or []
+        )
+    latest: Dict[str, Dict[str, Any]] = {}
+    for row in rows:
+        item = dict(row)
+        unit_name = str(item.get("unit_name") or "")
+        if not unit_name or unit_name in latest:
+            continue
+        latest[unit_name] = {
+            "unit_name": unit_name,
+            "config_version": item.get("config_version"),
+            "status": str(item.get("status") or "unknown"),
+            "created_at": format_db_time(item.get("created_at")),
+            "sent_at": format_db_time(item.get("sent_at")),
+            "acked_at": format_db_time(item.get("acked_at")),
+            "error": item.get("error"),
+        }
+    return latest
+
+
+def list_recent_device_status_logs(
+    conn,
+    unit_name: Optional[str] = None,
+    per_unit_limit: int = 5,
+    unit_names: Optional[List[str]] = None,
+) -> Dict[str, List[Dict[str, Any]]]:
+    """Return recent device_status_logs grouped by unit_name using bounded index scans."""
+    per_unit_limit = max(1, int(per_unit_limit))
+    if unit_name:
+        rows = (
+            _db.fetchall(
+                conn,
+                """SELECT unit_name, status, detail, created_at
+                     FROM device_status_logs
+                    WHERE unit_name = ?
+                    ORDER BY created_at DESC, id DESC
+                    LIMIT ?""",
+                (unit_name, per_unit_limit),
+            )
+            or []
+        )
+    elif unit_names is not None:
+        clean_names = list(dict.fromkeys(str(name) for name in unit_names if name))
+        if not clean_names:
+            return {}
+        subqueries = [
+            """(SELECT unit_name, status, detail, created_at
+                  FROM device_status_logs
+                 WHERE unit_name = ?
+                 ORDER BY created_at DESC, id DESC
+                 LIMIT ?)"""
+            for _ in clean_names
+        ]
+        params: List[Any] = []
+        for name in clean_names:
+            params.extend((name, per_unit_limit))
+        rows = _db.fetchall(conn, " UNION ALL ".join(subqueries), tuple(params)) or []
+    else:
+        rows = (
+            _db.fetchall(
+                conn,
+                """SELECT unit_name, status, detail, created_at
+                     FROM (
+                         SELECT unit_name, status, detail, created_at, id,
+                                ROW_NUMBER() OVER (
+                                    PARTITION BY unit_name
+                                    ORDER BY created_at DESC, id DESC
+                                ) AS rn
+                           FROM device_status_logs
+                     ) AS ranked
+                    WHERE rn <= ?
+                    ORDER BY unit_name ASC, created_at DESC, id DESC""",
+                (per_unit_limit,),
+            )
+            or []
+        )
+
+    grouped: Dict[str, List[Dict[str, Any]]] = {}
+    for row in rows:
+        item = dict(row)
+        name = str(item.get("unit_name") or "")
+        if not name:
+            continue
+        bucket = grouped.setdefault(name, [])
+        if len(bucket) >= per_unit_limit:
+            continue
+        bucket.append(
+            {
+                "status": str(item.get("status") or "unknown"),
+                "detail": item.get("detail"),
+                "created_at": format_db_time(item.get("created_at")),
+            }
+        )
+    return grouped
 
 
 def _hash_token(token: str) -> str:

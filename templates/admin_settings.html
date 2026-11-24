@@ -1,134 +1,204 @@
 {% extends "base.html" %}
 
+{% block breadcrumbs %}
+<nav class="dads-breadcrumbs" aria-label="現在位置">
+  <ol>
+    <li><a href="{{ url_for('admin_dashboard') }}">業務トップ</a></li>
+    <li aria-current="page">システム設定</li>
+  </ol>
+</nav>
+{% endblock %}
+
 {% block content %}
-<div class="admin-dashboard">
-  <h2><span class="material-symbols-outlined">settings</span> システム設定</h2>
-  <p style="color: var(--md-on-surface-variant);">設定は自動的に全ての親機・従親機・子機に同期されます。</p>
-
-  <div class="admin-card">
-    <div class="admin-card-header">
-      <h3><span class="material-symbols-outlined">tune</span> 自動登録モード設定</h3>
+<div class="dads-page">
+  <header class="dads-page-header">
+    <div class="dads-stack-sm">
+      <p class="dads-shoulder">システム管理</p>
+      <h1 class="dads-heading-page">システム設定</h1>
+      <p class="dads-lead">変更した設定は自動的にすべての親機・従親機・子機へ同期されます。</p>
     </div>
+    <div>
+      <span class="dads-chip dads-chip-gray">設定バージョン: <span class="dads-mono">{{ settings_version }}</span></span>
+    </div>
+  </header>
 
-    <form method="post" id="settingsForm">
-      <!-- 自動登録モード -->
-      <div style="margin-bottom: var(--md-space-lg);">
-        <div class="toggle-status">
-          <label class="toggle-switch" title="クリックで切り替え">
-            <input type="checkbox" id="auto_register_mode" name="auto_register_mode"
-                   {% if settings.auto_register_mode %}checked{% endif %}>
-            <span class="toggle-slider"></span>
+  <section class="dads-card dads-stack-lg" aria-labelledby="settings-policy-heading">
+    <h2 id="settings-policy-heading" class="dads-heading-section dads-heading-chip">自動登録・取得上限の設定</h2>
+
+    <form method="post" id="settingsForm" class="dads-stack-lg">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="dads-card-subtle dads-stack-sm">
+        <div class="dads-card-header">
+          <div class="dads-stack-sm">
+            <p class="dads-label">自動登録モード</p>
+            <p class="dads-muted">
+              有効にすると、未登録のカードがタッチされた際に自動でユーザー登録されます。事前登録なしで運用開始できます。
+            </p>
+          </div>
+          <label class="dads-switch">
+            <input
+              type="checkbox"
+              id="auto_register_mode"
+              name="auto_register_mode"
+              {% if settings.auto_register_mode %}checked{% endif %}
+            >
+            <span class="dads-switch-label" id="auto-register-status-label">
+              {% if settings.auto_register_mode %}有効{% else %}無効{% endif %}
+            </span>
           </label>
-          <span style="font-weight: 600;">自動登録モード</span>
         </div>
-        <p class="form-help" style="margin-top: 8px;">
-          有効にすると、未登録のカードがタッチされた際に自動でユーザー登録されます。
-          事前登録なしでシステムを運用開始できます。
-        </p>
       </div>
 
-      <!-- 自動登録時の初期残数 -->
-      <div class="form-group">
-        <label class="form-label" for="auto_register_stock">自動登録時の初期残数</label>
-        <input type="number" class="form-input" id="auto_register_stock"
-               name="auto_register_stock"
-               value="{{ settings.auto_register_stock }}"
-               min="1" max="100" style="max-width: 120px;">
-        <p class="form-help">自動登録されたユーザーに付与される初期の取得可能数です。</p>
-      </div>
-
-      <!-- 取得上限設定 -->
-      <div style="background: var(--md-surface-container-low); padding: 24px; border-radius: var(--md-radius-sm); margin-bottom: var(--md-space-lg);">
-        <label class="form-label" style="font-size: 1.1rem;">
-          <span class="material-symbols-outlined">monitoring</span> 取得上限設定
+      <div class="dads-field">
+        <label class="dads-label" for="auto_register_stock">
+          自動登録時の初期残数
+          <span class="dads-required">必須</span>
         </label>
-        <p class="form-help" style="margin-bottom: 16px;">
-          指定した期間内に取得できる最大数を設定します。期間が変わると上限はリセットされます。
+        <p class="dads-support-text" id="auto-register-stock-support">
+          自動登録された利用者に付与される初期の取得可能数（1〜100）です。
+        </p>
+        <input
+          type="number"
+          class="dads-input"
+          id="auto_register_stock"
+          name="auto_register_stock"
+          value="{{ settings.auto_register_stock }}"
+          min="1"
+          max="100"
+          aria-describedby="auto-register-stock-support"
+          style="max-width: 160px;"
+          required
+        >
+      </div>
+
+      <fieldset class="dads-fieldset dads-stack-md">
+        <legend class="dads-label">取得上限設定</legend>
+        <p class="dads-support-text">
+          指定した期間内に1人の利用者が取得できる最大数を設定します。期間が変わると上限は自動的にリセットされます。
         </p>
 
-        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-          <select class="form-select" id="limit_period" name="limit_period"
-                  style="width: auto; min-width: 140px;">
+        <div class="dads-btn-row">
+          <select
+            class="dads-select"
+            id="limit_period"
+            name="limit_period"
+            aria-label="取得上限のリセット期間"
+            style="width: auto; min-width: 160px;"
+          >
             <option value="day" {% if settings.limit_period == 'day' %}selected{% endif %}>1日あたり</option>
             <option value="week" {% if settings.limit_period == 'week' %}selected{% endif %}>1週間あたり</option>
             <option value="month" {% if settings.limit_period == 'month' %}selected{% endif %}>1ヶ月あたり</option>
           </select>
 
-          <input type="number" class="form-input" id="usage_limit"
-                 name="usage_limit"
-                 value="{{ settings.usage_limit }}"
-                 min="1" max="100" style="width: 80px;">
+          <input
+            type="number"
+            class="dads-input"
+            id="usage_limit"
+            name="usage_limit"
+            value="{{ settings.usage_limit }}"
+            min="1"
+            max="100"
+            aria-label="取得上限数"
+            style="width: 110px;"
+            required
+          >
 
-          <span style="font-size: 1rem;">個まで</span>
+          <span>個まで</span>
         </div>
 
-        <div style="margin-top: 16px; padding: 14px; background: var(--md-primary-container); border-radius: var(--md-radius-sm);">
-          <strong style="color: var(--md-on-primary-container);">
-            <span class="material-symbols-outlined" style="font-size: 18px;">info</span> 現在の設定:
-          </strong>
-          <span id="limit-preview" style="color: var(--md-on-primary-container);">
+        <div class="dads-banner dads-banner-info" role="status" aria-live="polite">
+          <p class="dads-banner-title">現在の適用ルール</p>
+          <p class="dads-banner-body" id="limit-preview">
             {% if settings.limit_period == 'day' %}1日{% elif settings.limit_period == 'week' %}1週間{% else %}1ヶ月{% endif %}あたり {{ settings.usage_limit }}個まで取得可能
-          </span>
+          </p>
         </div>
 
-        <p class="form-help" style="margin-top: 12px;">
-          <strong>リセットのタイミング:</strong><br>
-          ・1日: 毎日0時にリセット<br>
-          ・1週間: 毎週月曜日0時にリセット<br>
-          ・1ヶ月: 毎月1日0時にリセット
-        </p>
-      </div>
+        <dl class="dads-dl">
+          <div class="dads-dl-row">
+            <dt>1日のリセット</dt>
+            <dd>毎日 0:00 にリセット</dd>
+          </div>
+          <div class="dads-dl-row">
+            <dt>1週間のリセット</dt>
+            <dd>毎週月曜日 0:00 にリセット</dd>
+          </div>
+          <div class="dads-dl-row">
+            <dt>1ヶ月のリセット</dt>
+            <dd>毎月1日 0:00 にリセット</dd>
+          </div>
+        </dl>
+      </fieldset>
 
-      <hr style="border: none; border-top: 1px solid var(--md-outline-variant); margin: var(--md-space-lg) 0;">
-
-      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
-        <small style="color: var(--md-on-surface-variant);">
-          設定バージョン: <code>{{ settings_version }}</code>
-        </small>
-        <button type="submit" class="btn btn-primary">
-          <span class="material-symbols-outlined">save</span> 設定を保存
-        </button>
+      <div class="dads-card-header">
+        <p class="dads-muted">設定バージョン: <code class="dads-mono">{{ settings_version }}</code></p>
+        <button type="submit" class="dads-btn dads-btn-solid dads-btn-md">設定を保存する</button>
       </div>
     </form>
-  </div>
+  </section>
 
-  <!-- 設定同期の説明 -->
-  <div class="admin-card">
-    <div class="admin-card-header">
-      <h3><span class="material-symbols-outlined">cloud_sync</span> 設定の同期について</h3>
+  <section class="dads-card dads-stack-md" aria-labelledby="maintenance-sync-heading">
+    <h2 id="maintenance-sync-heading" class="dads-heading-section dads-heading-chip">データ保守・同期情報</h2>
+    <p class="dads-muted">利用者データのExcelバックアップ作成・復元、および各端末への設定同期仕様を確認できます。</p>
+
+    <div class="dads-btn-row">
+      <a href="{{ url_for('admin_backup_download') }}" class="dads-btn dads-btn-outline dads-btn-md">
+        バックアップをダウンロード
+      </a>
+      <a href="{{ url_for('admin_restore') }}" class="dads-btn dads-btn-outline dads-btn-md">
+        バックアップから復元
+      </a>
     </div>
-    <p>設定は以下のように同期されます：</p>
-    <ul>
-      <li><strong>親機間</strong>: データベースを通じて自動同期</li>
-      <li><strong>子機へ</strong>: ハートビート通信で自動同期（約3秒ごと）</li>
-    </ul>
-    <p style="color: var(--md-on-surface-variant);">
-      <span class="material-symbols-outlined" style="font-size: 18px;">info</span>
-      設定を変更すると、次のハートビートで全ての子機に反映されます。
-    </p>
-  </div>
 
-  <div class="btn-group">
-    <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">
-      <span class="material-symbols-outlined">arrow_back</span> ダッシュボードに戻る
-    </a>
+    <dl class="dads-dl">
+      <div class="dads-dl-row">
+        <dt>親機間の同期</dt>
+        <dd>データベースを通じて自動で同期されます。</dd>
+      </div>
+      <div class="dads-dl-row">
+        <dt>子機への同期</dt>
+        <dd>ハートビート通信（約3秒ごと）により、変更後の設定がすべての子機へ自動反映されます。</dd>
+      </div>
+    </dl>
+  </section>
+
+  <div>
+    <a href="{{ url_for('admin_dashboard') }}" class="dads-back-link">業務トップに戻る</a>
   </div>
 </div>
 
 <script>
 function updatePreview() {
-    const period = document.getElementById('limit_period').value;
-    const limit = document.getElementById('usage_limit').value;
-    const periodNames = {
-        'day': '1日',
-        'week': '1週間',
-        'month': '1ヶ月'
-    };
-    const preview = document.getElementById('limit-preview');
-    preview.textContent = `${periodNames[period]}あたり ${limit}個まで取得可能`;
+  const period = document.getElementById('limit_period').value;
+  const limit = document.getElementById('usage_limit').value;
+  const periodNames = {
+    day: '1日',
+    week: '1週間',
+    month: '1ヶ月'
+  };
+  const preview = document.getElementById('limit-preview');
+  if (preview) {
+    preview.textContent = `${periodNames[period] || '1日'}あたり ${limit}個まで取得可能`;
+  }
 }
 
-document.getElementById('limit_period').addEventListener('change', updatePreview);
-document.getElementById('usage_limit').addEventListener('input', updatePreview);
+document.addEventListener('DOMContentLoaded', () => {
+  const periodEl = document.getElementById('limit_period');
+  const limitEl = document.getElementById('usage_limit');
+  const autoRegEl = document.getElementById('auto_register_mode');
+  const autoRegLabel = document.getElementById('auto-register-status-label');
+
+  if (periodEl) {
+    periodEl.addEventListener('change', updatePreview);
+  }
+  if (limitEl) {
+    limitEl.addEventListener('input', updatePreview);
+  }
+  if (autoRegEl && autoRegLabel) {
+    autoRegEl.addEventListener('change', () => {
+      autoRegLabel.textContent = autoRegEl.checked ? '有効' : '無効';
+    });
+  }
+});
 </script>
 {% endblock %}

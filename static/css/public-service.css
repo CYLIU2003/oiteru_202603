@@ -1,0 +1,206 @@
+/* ==========================================================================
+   OITERU Public Service Page Layout Helpers (Gentle Campus DADS-aligned)
+   Inherits all tokens, focus rings, buttons, banners, and cards from
+   static/css/dads-oiteru.css.
+   ========================================================================== */
+
+.public-service {
+  display: grid;
+  gap: 24px;
+  width: 100%;
+  max-width: 1120px;
+  margin-inline: auto;
+}
+
+.public-service-form {
+  max-width: 740px;
+}
+
+.public-service-intro {
+  border-bottom: 1px solid var(--dads-header-border);
+  padding-bottom: 16px;
+}
+
+.public-service h1,
+.public-service h2,
+.public-service h3,
+.public-service p,
+.public-service ol,
+.public-service dl,
+.public-service dd {
+  margin: 0;
+}
+
+.public-service h1 {
+  font-size: clamp(1.625rem, 1.35rem + 1.1vw, 2.25rem);
+  line-height: 1.4;
+  color: var(--dads-gray-900);
+}
+
+.public-service h2 {
+  font-size: 1.25rem;
+  line-height: 1.5;
+  color: var(--dads-gray-900);
+}
+
+.public-service h3 {
+  font-size: 1.125rem;
+  line-height: 1.5;
+  color: var(--dads-gray-900);
+}
+
+.public-service-intro p,
+.public-service-guide p {
+  margin-top: 8px;
+}
+
+.public-service p,
+.public-service li,
+.public-service dd {
+  line-height: 1.75;
+}
+
+.public-service-intro p,
+.public-service-panel > p {
+  color: var(--dads-gray-700);
+}
+
+.public-service-choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.public-service-choices > h2 {
+  grid-column: 1 / -1;
+}
+
+.public-service-guide {
+  padding: 16px 20px 16px 22px;
+  border: 1px solid #c3d8e6;
+  border-radius: 8px;
+  box-shadow: inset 6px 0 0 0 var(--dads-blue-900);
+  background: #fafcfe;
+  color: var(--dads-gray-900);
+}
+
+.public-service-panel {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  padding: 20px 24px;
+  border: 1px solid var(--dads-card-border);
+  border-radius: 12px;
+  box-shadow: var(--dads-card-shadow);
+  background: var(--dads-surface);
+  color: var(--dads-gray-800);
+}
+
+.public-service-choices .public-service-panel {
+  grid-template-rows: auto 1fr auto;
+}
+
+.public-service-steps {
+  padding-inline-start: 1.5em;
+}
+
+.public-service-steps li + li {
+  margin-top: 8px;
+}
+
+.public-service-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+}
+
+.public-service-notice {
+  display: block;
+  padding: 14px 18px 14px 22px;
+  border: 1px solid #c3d8e6;
+  border-radius: 8px;
+  box-shadow: inset 6px 0 0 0 var(--dads-blue-900);
+  background: #fafcfe;
+  color: var(--dads-gray-900);
+  line-height: 1.7;
+}
+
+.public-service-notice:empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.public-service-notice-error {
+  border-color: #dfafb3;
+  box-shadow: inset 6px 0 0 0 var(--dads-error-1);
+  background: #fefafa;
+}
+
+.public-service-result > div {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) minmax(0, 2fr);
+  gap: 4px 16px;
+  padding-block: 12px;
+  border-bottom: 1px solid var(--dads-divider-soft);
+}
+
+.public-service-result > div:last-child {
+  border-bottom: none;
+}
+
+.public-service-result dt {
+  font-weight: 700;
+  color: var(--dads-gray-700);
+  line-height: 1.7;
+}
+
+.public-service-result dd {
+  color: var(--dads-gray-900);
+  overflow-wrap: anywhere;
+}
+
+/* Public Action Card & Usage Stock Summary Helpers */
+.public-action-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.public-stock-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px;
+  border: 1px solid var(--dads-card-border);
+  border-radius: 12px;
+  background: var(--dads-gray-50);
+}
+
+.public-stock-number {
+  font-size: clamp(2.25rem, 1.8rem + 1.5vw, 3rem);
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--dads-blue-900);
+}
+
+@media (max-width: 768px) {
+  .public-service-choices {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .public-service-result > div {
+    grid-template-columns: 1fr;
+  }
+}

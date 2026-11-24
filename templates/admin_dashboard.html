@@ -1,90 +1,531 @@
 {% extends "base.html" %}
+
+{% block page_styles %}
+<style>
+  #ops-home [hidden] {
+    display: none !important;
+  }
+  .ops-live {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .ops-item-main {
+    flex: 1 1 260px;
+    min-width: 0;
+    display: grid;
+    gap: 4px;
+  }
+  .ops-item-title {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .ops-item-name {
+    font-weight: 700;
+    color: var(--dads-gray-900);
+    overflow-wrap: anywhere;
+  }
+  .ops-item-message {
+    margin: 0;
+    font-size: 0.9375rem;
+    color: var(--dads-gray-800);
+    overflow-wrap: anywhere;
+  }
+  .ops-item-meta {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--dads-gray-600);
+    overflow-wrap: anywhere;
+  }
+  .ops-item-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .ops-task-list {
+    display: grid;
+    gap: 12px;
+  }
+  .ops-task-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--dads-gray-200);
+  }
+  .ops-task-row:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+  }
+  .ops-task-copy {
+    flex: 1 1 220px;
+    min-width: 0;
+  }
+  .ops-task-title {
+    margin: 0;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: var(--dads-gray-900);
+  }
+  .ops-task-desc {
+    margin: 2px 0 0;
+    font-size: 0.875rem;
+    color: var(--dads-gray-600);
+  }
+  .ops-card-desc {
+    margin: 0 0 12px;
+    font-size: 0.9375rem;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="admin-dashboard">
-  <h2><span class="material-symbols-outlined">dashboard</span> 管理者ダッシュボード</h2>
-  
-  <!-- サーバー情報 -->
-  {% if server_info %}
-  <div class="info-card">
-    <h3><span class="material-symbols-outlined">dns</span> このサーバーの情報</h3>
-    <div class="info-grid">
-      <strong>サーバー名:</strong> <span>{{ server_info.name }}</span>
-      <strong>設置場所:</strong> <span>{{ server_info.location }}</span>
-      <strong>サーバーID:</strong> <span><code>{{ server_info.id }}</code></span>
-      <strong>データベース:</strong> <span>{{ server_info.db_type }}</span>
-    </div>
-  </div>
-  
-  <!-- 自動登録モード状態 -->
-  <div class="info-card {% if server_info.auto_register %}success{% else %}warning{% endif %}">
-    <h3>
-      {% if server_info.auto_register %}
-        <span class="material-symbols-outlined">check_circle</span> 自動登録モード: 有効
-      {% else %}
-        <span class="material-symbols-outlined">warning</span> 自動登録モード: 無効
-      {% endif %}
-    </h3>
+<div class="dads-page" id="ops-home"
+     data-monitor-url="{{ url_for('unit.api_unit_monitor_dashboard') }}"
+     data-unit-url="{{ url_for('admin_unit_detail', uid=0) }}"
+     data-units-url="{{ url_for('admin_units') }}"
+     data-operations-url="{{ url_for('operations.admin_operations') }}">
+
+  <header class="dads-page-header">
     <div>
-      {% if server_info.auto_register %}
-        <p style="margin: 0;">未登録カードがタッチされると自動でユーザー登録されます。初期残数: <strong>{{ server_info.auto_register_stock }}</strong></p>
-      {% else %}
-        <p style="margin: 0;">事前にカード登録が必要です。<a href="{{ url_for('admin_settings') }}">設定を変更 →</a></p>
-      {% endif %}
+      <p class="dads-shoulder">{{ server_info.name }}{% if server_info.location %} / {{ server_info.location }}{% endif %}</p>
+      <h1 class="dads-heading-page">業務トップ</h1>
     </div>
-  </div>
-  {% endif %}
-  
-  <!-- 統計情報 -->
-  <div class="stats-grid">
-    <div class="stat-card">
-      <span class="material-symbols-outlined">group</span>
-      <div class="stat-value">{{ stats.user_count }}</div>
-      <div class="stat-label">登録ユーザー</div>
-    </div>
-    <div class="stat-card">
-      <span class="material-symbols-outlined">devices</span>
-      <div class="stat-value">{{ stats.unit_count }}</div>
-      <div class="stat-label">子機</div>
-    </div>
-    <div class="stat-card">
-      <span class="material-symbols-outlined">check_circle</span>
-      <div class="stat-value">{{ total_dispensed }}</div>
-      <div class="stat-label">実排出数</div>
-    </div>
-  </div>
-  
-  <!-- メニュー -->
-  <div class="menu-grid">
-    <a href="{{ url_for('admin_settings') }}" class="menu-btn purple">
-      <span class="material-symbols-outlined">settings</span> システム設定
-    </a>
-    <a href="{{ url_for('operations.admin_operations') }}" class="menu-btn orange">
-      <span class="material-symbols-outlined">assignment</span> 運用管理
-    </a>
-    <a href="{{ url_for('admin_users') }}" class="menu-btn">
-      <span class="material-symbols-outlined">group</span> 利用者一覧
-    </a>
-    <a href="{{ url_for('admin_units') }}" class="menu-btn">
-      <span class="material-symbols-outlined">devices</span> 子機一覧
-    </a>
-    <a href="{{ url_for('admin_history') }}" class="menu-btn">
-      <span class="material-symbols-outlined">history</span> 利用履歴
-    </a>
-    <a href="{{ url_for('admin_visuals') }}" class="menu-btn orange">
-      <span class="material-symbols-outlined">monitoring</span> グラフ表示
-    </a>
-    <a href="{{ url_for('admin_backup_download') }}" class="menu-btn">
-      <span class="material-symbols-outlined">download</span> バックアップ
-    </a>
-    <a href="{{ url_for('admin_restore') }}" class="menu-btn">
-      <span class="material-symbols-outlined">restore_page</span> データ復元
-    </a>
-    <form method="post" action="{{ url_for('admin_logout') }}" style="display:inline;">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button type="submit" class="menu-btn gray">
-        <span class="material-symbols-outlined">logout</span> ログアウト
+    <div class="ops-live">
+      <span class="dads-muted" id="ops-checked-at">最終取得 —</span>
+      <button class="dads-btn dads-btn-outline dads-btn-sm" id="ops-refresh" type="button" hidden>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="M13.5 8a5.5 5.5 0 1 1-1.35-3.6M13.5 2.5v2.75H10.75" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        最新状態に更新
       </button>
-    </form>
+    </div>
+  </header>
+
+  <div class="dads-banner dads-banner-info" id="ops-banner" hidden>
+    <p class="dads-banner-body" id="ops-notice" role="status"></p>
+    <div id="ops-login" hidden style="margin-top: 10px;">
+      <a class="dads-btn dads-btn-solid dads-btn-sm" href="{{ url_for('admin_login') }}">管理者ログインへ</a>
+    </div>
+  </div>
+  <noscript>
+    <div class="dads-banner dads-banner-warning">
+      <p class="dads-banner-body">子機の状態をここに表示するには JavaScript を有効にしてください。</p>
+    </div>
+  </noscript>
+
+  <section class="dads-grid-4" aria-label="対応件数">
+    <a class="dads-kpi-card" id="ops-kpi-stock" href="{{ url_for('operations.admin_operations', _anchor='stock-empty') }}">
+      <span class="dads-kpi-label">在庫切れの子機</span>
+      <span class="dads-kpi-value" id="ops-stock">—</span>
+      <span class="dads-kpi-meta">補充が必要な端末数</span>
+      <span class="dads-kpi-arrow">補充画面へ →</span>
+    </a>
+    <a class="dads-kpi-card" id="ops-kpi-connection" href="{{ url_for('admin_units', _anchor='monitor-filters') }}">
+      <span class="dads-kpi-label">通信確認が必要</span>
+      <span class="dads-kpi-value" id="ops-connection">—</span>
+      <span class="dads-kpi-meta">応答遅延・未受信の端末</span>
+      <span class="dads-kpi-arrow">監視一覧へ →</span>
+    </a>
+    <a class="dads-kpi-card" id="ops-kpi-tickets" href="{{ url_for('operations.admin_operations', _anchor='maintenance-queue') }}">
+      <span class="dads-kpi-label">未完了の故障チケット</span>
+      <span class="dads-kpi-value" id="ops-tickets">—</span>
+      <span class="dads-kpi-meta">受付・対応中・復旧確認</span>
+      <span class="dads-kpi-arrow">チケットへ →</span>
+    </a>
+    <a class="dads-kpi-card" id="ops-kpi-pending" href="{{ url_for('admin_units', _anchor='pending-units-card') }}">
+      <span class="dads-kpi-label">子機の登録要求</span>
+      <span class="dads-kpi-value" id="ops-pending">—</span>
+      <span class="dads-kpi-meta">承認待ちの未登録端末</span>
+      <span class="dads-kpi-arrow">承認欄へ →</span>
+    </a>
+  </section>
+
+  <div class="dads-grid-split">
+    <section class="dads-card" aria-labelledby="ops-alert-heading">
+      <div class="dads-card-header">
+        <h2 class="dads-heading-section dads-heading-chip" id="ops-alert-heading" tabindex="-1">今すぐ対応すること</h2>
+      </div>
+      <p class="dads-muted ops-card-desc" id="ops-alert-description">対応状況は未取得です。</p>
+      <ul class="dads-resource-list" id="ops-alert-list"></ul>
+    </section>
+
+    <section class="dads-card" aria-labelledby="ops-unit-heading">
+      <div class="dads-card-header">
+        <h2 class="dads-heading-section dads-heading-chip" id="ops-unit-heading" tabindex="-1">子機の稼働状況</h2>
+        <a class="dads-link" href="{{ url_for('admin_units') }}">すべての子機監視を開く →</a>
+      </div>
+      <p class="dads-muted ops-card-desc" id="ops-unit-description">子機の状態は未取得です。</p>
+      <ul class="dads-resource-list" id="ops-unit-list"></ul>
+    </section>
+  </div>
+
+  <div class="dads-grid-2">
+    <section class="dads-card dads-stack-md" aria-labelledby="ops-tasks-title">
+      <h2 class="dads-heading-section dads-heading-rule" id="ops-tasks-title">よく使う作業</h2>
+      <div class="ops-task-list">
+        <div class="ops-task-row">
+          <div class="ops-task-copy">
+            <p class="ops-task-title">補充を記録する</p>
+            <p class="ops-task-desc">在庫の補充・棚卸修正・廃棄を理由つきで登録します。</p>
+          </div>
+          <a class="dads-btn dads-btn-solid dads-btn-sm" href="{{ url_for('operations.admin_operations', _anchor='stock-entry') }}">補充を記録する</a>
+        </div>
+        <div class="ops-task-row">
+          <div class="ops-task-copy">
+            <p class="ops-task-title">故障を報告する</p>
+            <p class="ops-task-desc">詰まり・機器故障・通信不良の保守チケットを登録します。</p>
+          </div>
+          <a class="dads-btn dads-btn-outline dads-btn-sm" href="{{ url_for('operations.admin_operations', _anchor='maintenance-entry') }}">故障を報告する</a>
+        </div>
+        <div class="ops-task-row">
+          <div class="ops-task-copy">
+            <p class="ops-task-title">利用者を探す</p>
+            <p class="ops-task-desc">カードID・登録日で利用者を検索し、利用可否や残回数を編集します。</p>
+          </div>
+          <a class="dads-btn dads-btn-outline dads-btn-sm" href="{{ url_for('admin_users') }}">利用者を探す</a>
+        </div>
+        <div class="ops-task-row">
+          <div class="ops-task-copy">
+            <p class="ops-task-title">新規子機を登録</p>
+            <p class="ops-task-desc">未登録子機の自動探知または手動設定で配布機を追加します。</p>
+          </div>
+          <a class="dads-btn dads-btn-outline dads-btn-sm" href="{{ url_for('admin_new_unit') }}">新規子機を登録</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="dads-card dads-stack-md" aria-labelledby="ops-mgmt-title">
+      <h2 class="dads-heading-section dads-heading-rule" id="ops-mgmt-title">利用者対応・集計・保守</h2>
+
+      <dl class="dads-dl">
+        <div class="dads-dl-row">
+          <dt>登録利用者</dt>
+          <dd>
+            <strong>{{ stats.user_count }} 人</strong>
+            {% if server_info.auto_register %}
+              <span class="dads-chip dads-chip-green">カード自動登録 ON（初期残数 {{ server_info.auto_register_stock }}）</span>
+            {% else %}
+              <span class="dads-chip dads-chip-gray">事前登録が必要</span>
+            {% endif %}
+          </dd>
+        </div>
+        <div class="dads-dl-row">
+          <dt>登録子機・実排出</dt>
+          <dd>
+            <strong>{{ stats.unit_count }} 台</strong> · 実排出 <strong>{{ total_dispensed }} 件</strong>
+            <span class="dads-muted">（{{ dispense_count_since }} 以降）</span>
+          </dd>
+        </div>
+      </dl>
+
+      <div class="dads-btn-row">
+        <a class="dads-btn dads-btn-outline dads-btn-sm" href="{{ url_for('admin_history') }}">利用履歴</a>
+        <a class="dads-btn dads-btn-outline dads-btn-sm" href="{{ url_for('admin_visuals') }}">利用統計</a>
+        <a class="dads-btn dads-btn-outline dads-btn-sm" href="{{ url_for('admin_settings') }}">システム設定</a>
+        <a class="dads-btn dads-btn-text dads-btn-sm" href="{{ url_for('admin_backup_download') }}">バックアップ作成</a>
+        <a class="dads-btn dads-btn-text dads-btn-sm" href="{{ url_for('admin_restore') }}">データ復元</a>
+      </div>
+
+      <details class="dads-disclosure">
+        <summary>システム情報</summary>
+        <div class="dads-disclosure-body">
+          <p class="dads-muted dads-mono" style="margin: 0;">サーバーID {{ server_info.id }} · {{ server_info.db_type }}</p>
+        </div>
+      </details>
+    </section>
   </div>
 </div>
+
+<script>
+(() => {
+  const root = document.getElementById('ops-home');
+  const find = id => document.getElementById('ops-' + id);
+  const banner = find('banner');
+  const notice = find('notice');
+  const refresh = find('refresh');
+  const rowsLimit = 8;
+  let timer;
+  let refreshing = false;
+  let signedOut = false;
+  let lastSuccess = 0;
+  let interval = 10000;
+  const linkPointers = new Set();
+  let pendingSnapshot;
+
+  function node(tag, text, cssClass) {
+    const result = document.createElement(tag);
+    result.textContent = text;
+    if (cssClass) result.className = cssClass;
+    return result;
+  }
+
+  function unitLink(id) {
+    return Number.isSafeInteger(id) && id > 0
+      ? root.dataset.unitUrl.replace(/\/0$/, '/' + id)
+      : root.dataset.unitsUrl;
+  }
+
+  function operationsLink(id, hash) {
+    const operations = new URL(root.dataset.operationsUrl, location.origin);
+    if (Number.isSafeInteger(id) && id > 0) {
+      operations.searchParams.set('unit_id', String(id));
+    }
+    if (hash) operations.hash = hash;
+    return operations.href;
+  }
+
+  function actionLink(text, href, cssClass, key) {
+    const item = node('a', text, cssClass);
+    item.href = href;
+    item.dataset.focusKey = key;
+    return item;
+  }
+
+  function replaceRows(list, rows) {
+    const focused = list.contains(document.activeElement) && document.activeElement.dataset.focusKey;
+    list.replaceChildren(...rows);
+    if (focused) {
+      const retained = Array.from(list.querySelectorAll('a')).find(item => item.dataset.focusKey === focused);
+      const next = retained || list.closest('section').querySelector('h2');
+      if (next) next.focus({preventScroll: true});
+    }
+  }
+
+  function alertChipClass(level) {
+    if (level === 'critical') return 'dads-chip dads-chip-solid-red';
+    if (level === 'serious') return 'dads-chip dads-chip-orange';
+    return 'dads-chip dads-chip-yellow';
+  }
+
+  function connectionChipClass(status) {
+    if (status === 'online') return 'dads-chip dads-chip-green';
+    if (status === 'offline') return 'dads-chip dads-chip-red';
+    return 'dads-chip dads-chip-yellow';
+  }
+
+  function setKpiState(cardId, countValue, nonZeroClass) {
+    const card = find('kpi-' + cardId);
+    if (!card) return;
+    card.classList.remove('is-critical', 'is-warning', 'is-ok');
+    if (typeof countValue !== 'number') return;
+    card.classList.add(countValue > 0 ? nonZeroClass : 'is-ok');
+  }
+
+  function alertRow(alert) {
+    const row = node('li', '', 'dads-resource-item');
+    const main = node('div', '', 'ops-item-main');
+    const titleRow = node('div', '', 'ops-item-title');
+    titleRow.append(
+      node('span', alert.level_label || '注意', alertChipClass(alert.level)),
+      node('span', alert.unit_name || '未登録子機', 'ops-item-name')
+    );
+    main.append(titleRow, node('p', alert.message || '詳細を確認してください。', 'ops-item-message'));
+
+    const id = alert.unit_id;
+    let href = unitLink(id);
+    let caption = '子機詳細を確認';
+    let btnClass = 'dads-btn dads-btn-outline dads-btn-sm';
+
+    if (id && (alert.code === 'OUT_OF_STOCK' || alert.code === 'LOW_STOCK')) {
+      href = operationsLink(id, 'stock-entry');
+      caption = '補充を記録';
+      btnClass = 'dads-btn dads-btn-solid dads-btn-sm';
+    } else if (id && alert.code === 'ACTIVE_TICKET') {
+      href = operationsLink(id, 'maintenance-queue');
+      caption = 'チケット対応';
+      btnClass = 'dads-btn dads-btn-solid dads-btn-sm';
+    } else if (!id) {
+      href = root.dataset.unitsUrl + '#pending-units-card';
+      caption = '登録を承認';
+      btnClass = 'dads-btn dads-btn-solid dads-btn-sm';
+    }
+
+    const actions = node('div', '', 'ops-item-actions');
+    actions.append(actionLink(caption, href, btnClass, [id, alert.unit_name, alert.code].join('|')));
+
+    row.append(main, actions);
+    return row;
+  }
+
+  const capabilityLabel = {ready: '使用可', unavailable: '利用不可', unknown: '未確認'};
+
+  function unitRow(unit) {
+    const row = node('li', '', 'dads-resource-item');
+    const main = node('div', '', 'ops-item-main');
+    const titleRow = node('div', '', 'ops-item-title');
+    titleRow.append(
+      node('span', unit.name || '名称未設定', 'ops-item-name'),
+      node('span', unit.connection_label || '状態不明', connectionChipClass(unit.connection_status))
+    );
+
+    const stock = unit.stock == null ? '未取得' : String(unit.stock) + ' 個';
+    const availability = unit.available === true ? '許可' : unit.available === false ? '停止' : '未確認';
+    const nfc = capabilityLabel[unit.nfc_status] || '未確認';
+    const motor = capabilityLabel[unit.motor_status] || '未確認';
+    const sensor = capabilityLabel[unit.sensor_status] || '未確認';
+
+    main.append(
+      titleRow,
+      node('p', '利用設定 ' + availability + ' · 在庫 ' + stock + ' · 設定同期 ' + (unit.config_sync_label || '未取得'), 'ops-item-message'),
+      node('p', 'NFC ' + nfc + ' · モーター ' + motor + ' · センサー ' + sensor, 'ops-item-meta'),
+      node('p', '最終受信 ' + (unit.last_seen || '未受信'), 'ops-item-meta')
+    );
+
+    const actions = node('div', '', 'ops-item-actions');
+    actions.append(
+      actionLink('詳細・設定', unitLink(unit.id), 'dads-btn dads-btn-outline dads-btn-sm', 'detail|' + String(unit.id)),
+      actionLink('補充・故障', operationsLink(unit.id, ''), 'dads-btn dads-btn-text dads-btn-sm', 'ops|' + String(unit.id))
+    );
+
+    row.append(main, actions);
+    return row;
+  }
+
+  function render(data) {
+    const summary = data.summary;
+    const count = key => Number.isInteger(summary[key]) ? summary[key] : '—';
+    find('stock').textContent = count('out_of_stock_count');
+    find('connection').textContent = count('heartbeat_overdue_count');
+    find('tickets').textContent = count('active_ticket_count');
+    find('pending').textContent = count('pending_unit_count');
+    setKpiState('stock', summary.out_of_stock_count, 'is-critical');
+    setKpiState('connection', summary.heartbeat_overdue_count, 'is-critical');
+    setKpiState('tickets', summary.active_ticket_count, 'is-warning');
+    setKpiState('pending', summary.pending_unit_count, 'is-warning');
+    find('checked-at').textContent = '最終取得 ' + (summary.checked_at || '—');
+
+    const alerts = data.alerts;
+    const units = data.units;
+    find('alert-description').textContent = alerts.length
+      ? '要確認 ' + alerts.length + ' 件' + (alerts.length > rowsLimit ? '（優先度順で先頭 ' + rowsLimit + ' 件を表示）' : '')
+      : '現在、対応が必要な項目はありません。';
+    find('unit-description').textContent = units.length
+      ? '全登録子機 ' + units.length + ' 台のうちオンライン ' + count('online_count') + ' 台'
+        + (units.length > rowsLimit ? '（先頭 ' + rowsLimit + ' 台を表示）' : '')
+      : '登録済みの子機はありません。';
+    replaceRows(find('alert-list'), alerts.slice(0, rowsLimit).map(alertRow));
+    replaceRows(find('unit-list'), units.slice(0, rowsLimit).map(unitRow));
+    if (Number.isFinite(summary.poll_interval_seconds) && summary.poll_interval_seconds > 0) {
+      interval = Math.max(5000, summary.poll_interval_seconds * 1000);
+    }
+  }
+
+  function renderAfterPointerRelease() {
+    // The browser dispatches the link's click after pointerup.
+    setTimeout(() => {
+      if (!signedOut && !linkPointers.size && pendingSnapshot) {
+        render(pendingSnapshot);
+        pendingSnapshot = null;
+      }
+    }, 0);
+  }
+
+  function schedule() {
+    clearTimeout(timer);
+    if (!document.hidden && !signedOut) timer = setTimeout(update, interval);
+  }
+
+  function showNotice(message, tone) {
+    const toneClass = tone === 'error'
+      ? 'dads-banner-error'
+      : tone === 'warning'
+        ? 'dads-banner-warning'
+        : 'dads-banner-info';
+    banner.className = 'dads-banner ' + toneClass;
+    banner.hidden = false;
+    if (notice.textContent !== message) notice.textContent = message;
+  }
+
+  async function update() {
+    if (refreshing || signedOut || document.hidden) return;
+    clearTimeout(timer);
+    refreshing = true;
+    refresh.setAttribute('aria-disabled', 'true');
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    try {
+      const response = await fetch(root.dataset.monitorUrl, {
+        headers: {Accept: 'application/json'},
+        cache: 'no-store',
+        signal: controller.signal,
+      });
+      if (response.status === 401 || response.status === 403) {
+        signedOut = true;
+        pendingSnapshot = null;
+        showNotice('セッションが終了しました。管理者ログインし直してください。', 'warning');
+        find('login').hidden = false;
+        find('checked-at').textContent = '最終取得 —';
+        ['stock', 'connection', 'tickets', 'pending'].forEach(id => {
+          find(id).textContent = '—';
+          setKpiState(id, null, '');
+        });
+        replaceRows(find('alert-list'), []);
+        replaceRows(find('unit-list'), []);
+        find('alert-description').textContent = '対応状況を取得できません。';
+        find('unit-description').textContent = '子機の状態を取得できません。';
+        return;
+      }
+      if (!response.ok) throw new Error('Monitor request failed');
+      const data = await response.json();
+      if (!data.success || !data.summary || !Array.isArray(data.alerts) || !Array.isArray(data.units)) {
+        throw new Error('Invalid monitor data');
+      }
+      if (linkPointers.size) {
+        pendingSnapshot = data;
+      } else {
+        pendingSnapshot = null;
+        render(data);
+      }
+      lastSuccess = Date.now();
+      banner.hidden = true;
+    } catch {
+      if (!lastSuccess) {
+        find('alert-description').textContent = '対応状況を取得できません。';
+        find('unit-description').textContent = '子機の状態を取得できません。';
+      }
+      const message = !lastSuccess
+        ? '子機の状態を取得できませんでした。'
+        : Date.now() - lastSuccess >= Math.max(30000, interval * 3)
+          ? '更新できません。表示内容は古い情報です。'
+          : '更新できません。前回取得した状態を表示しています。';
+      showNotice(message, 'warning');
+    } finally {
+      clearTimeout(timeout);
+      refreshing = false;
+      if (!signedOut) refresh.removeAttribute('aria-disabled');
+      schedule();
+    }
+  }
+
+  refresh.hidden = false;
+  showNotice('子機の状態を取得しています。', 'info');
+  refresh.addEventListener('click', update);
+  root.addEventListener('pointerdown', event => {
+    if (event.target.closest('.dads-resource-list a')) linkPointers.add(event.pointerId);
+  });
+  for (const type of ['pointerup', 'pointercancel']) {
+    document.addEventListener(type, event => {
+      if (linkPointers.delete(event.pointerId) && !linkPointers.size) renderAfterPointerRelease();
+    }, true);
+  }
+  window.addEventListener('blur', () => {
+    if (!linkPointers.size) return;
+    linkPointers.clear();
+    renderAfterPointerRelease();
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) clearTimeout(timer);
+    else update();
+  });
+  update();
+})();
+</script>
 {% endblock %}

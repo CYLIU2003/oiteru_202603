@@ -1,60 +1,117 @@
 {% extends "base.html" %}
 {% block page_styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/register.css', v='campus-14') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/public-service.css') }}">
+<style>
+  .public-tap-guide {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .public-tap-svg {
+    width: 96px;
+    height: 64px;
+    flex-shrink: 0;
+  }
+  .public-icon {
+    width: 1.15em;
+    height: 1.15em;
+    flex-shrink: 0;
+  }
+  .public-bottom-nav {
+    justify-content: space-between;
+  }
+</style>
 {% endblock %}
-{% block body_class %}registration-page{% endblock %}
-{% block brand %}
-<a class="university-brand" href="{{ url_for('index') }}" aria-label="生理用品配布 ホームへ">
-  <img src="{{ url_for('static', filename='img/tcu-header-logo.svg') }}" width="350" height="71" alt="東京都市大学 TOKYO CITY UNIVERSITY">
-</a>
-<span class="registration-service">生理用品配布</span>
+{% block breadcrumbs %}
+<nav class="dads-breadcrumbs" aria-label="現在位置">
+  <ol>
+    <li><a href="{{ url_for('index') }}">ホーム</a></li>
+    <li aria-current="page">学生証の登録</li>
+  </ol>
+</nav>
 {% endblock %}
 {% block content %}
+<div class="dads-page dads-page-narrow">
+  <header class="dads-page-header">
+    <div class="dads-stack-sm">
+      <p class="dads-shoulder">ログイン不要</p>
+      <h1 class="dads-heading-page">学生証の登録</h1>
+      <p class="dads-lead">初回のみ、お使いの学生証を登録します。</p>
+    </div>
+  </header>
 
-<div class="registration-workspace">
-  <section class="registration-welcome" aria-labelledby="registration-title">
-    <h1 id="registration-title">学生証の登録</h1>
-    <p class="registration-description">生理用品の受け取りに使います。</p>
-    <div class="registration-art" aria-hidden="true">
-      <span class="registration-art-dots"></span>
-      <div class="student-card">
-        <div class="student-card-top">学生証</div>
-        <div class="student-card-body">
-          <svg class="student-card-portrait" viewBox="0 0 44 54" fill="none"><rect width="44" height="54" rx="2" fill="#E5EEF2"/><circle cx="22" cy="19" r="9" fill="#91A9B6"/><path d="M6 49v-6a16 16 0 0 1 32 0v6" fill="#91A9B6"/></svg>
-          <div class="student-card-fields"><span class="student-card-line"></span><span class="student-card-line is-short"></span></div>
+  <section class="dads-card dads-stack-lg" aria-labelledby="guide-title">
+    <h2 id="guide-title" class="dads-heading-section dads-heading-chip">登録の手順</h2>
+
+    <ol class="dads-steps">
+      <li class="dads-step">
+        <span class="dads-step-num" aria-hidden="true">1</span>
+        <div>
+          <h3 class="dads-step-title">学生証を用意する</h3>
+          <p class="dads-step-desc">ご自身の学生証をお手元にご用意ください。</p>
         </div>
+      </li>
+      <li class="dads-step">
+        <span class="dads-step-num is-current" aria-hidden="true">2</span>
+        <div>
+          <h3 class="dads-step-title">カードリーダーに置く</h3>
+          <p class="dads-step-desc">カードリーダーの読み取り面に学生証を平らに置いてください。</p>
+        </div>
+      </li>
+      <li class="dads-step">
+        <span class="dads-step-num" aria-hidden="true">3</span>
+        <div>
+          <h3 class="dads-step-title">下のボタンを押す</h3>
+          <p class="dads-step-desc">結果が表示されるまで、学生証を置いたままにしてください。</p>
+        </div>
+      </li>
+    </ol>
+
+    <div class="dads-card dads-card-subtle public-tap-guide">
+      <svg class="public-tap-svg" viewBox="0 0 96 64" fill="none" aria-hidden="true">
+        <rect x="6" y="42" width="84" height="16" rx="4" fill="var(--dads-gray-100)" stroke="var(--dads-gray-600)" stroke-width="2"/>
+        <circle cx="76" cy="50" r="3" fill="var(--dads-success-2)"/>
+        <rect x="18" y="8" width="60" height="36" rx="5" fill="var(--dads-surface)" stroke="var(--dads-blue-900)" stroke-width="2.5"/>
+        <rect x="24" y="15" width="14" height="18" rx="2" fill="var(--dads-blue-50)" stroke="var(--dads-blue-900)" stroke-width="1.5"/>
+        <line x1="44" y1="19" x2="70" y2="19" stroke="var(--dads-gray-800)" stroke-width="2.5" stroke-linecap="round"/>
+        <line x1="44" y1="27" x2="62" y2="27" stroke="var(--dads-gray-536)" stroke-width="2.5" stroke-linecap="round"/>
+      </svg>
+      <div class="dads-stack-sm">
+        <p class="dads-heading-sub">読み取りのコツ</p>
+        <p class="dads-muted">カードケースから出さなくても読み取れますが、反応しない場合は他のICカードと重ねずにお試しください。</p>
       </div>
     </div>
-  </section>
 
-  <section class="registration-panel" aria-labelledby="guide-title">
-    <h2 id="guide-title">登録方法</h2>
-    <ol class="registration-steps">
-      <li><span class="step-number" aria-hidden="true">1</span><div><h3>学生証を用意する</h3><p>ご自身の学生証をお手元にご用意ください。</p></div></li>
-      <li><span class="step-number" aria-hidden="true">2</span><div><h3>リーダーに置く</h3><p>学生証を読み取り面に置いてください。</p></div></li>
-      <li><span class="step-number" aria-hidden="true">3</span><div><h3>「登録する」を押す</h3><p>結果が出るまで、学生証はそのまま。</p></div></li>
-    </ol>
     {% if reader_connected %}
-      <div class="registration-reader-notice is-ready">
-        <span class="reader-indicator" aria-hidden="true"></span>
-        <div><h3>リーダー接続確認済み</h3><small>ページ表示時点</small></div>
+      <div class="dads-banner dads-banner-success" role="status">
+        <p class="dads-banner-title">カードリーダー接続済み</p>
+        <p class="dads-banner-body">学生証を置いて下のボタンを押してください。</p>
       </div>
       <form method="post">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="registration-submit">登録する <span aria-hidden="true">→</span></button>
+        <button type="submit" class="dads-btn dads-btn-solid dads-btn-lg dads-btn-full">
+          <span>学生証を登録する</span>
+          <svg class="public-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M5 12h14"/>
+            <path d="m12 5 7 7-7 7"/>
+          </svg>
+        </button>
       </form>
     {% else %}
-      <div class="registration-reader-notice is-offline">
-        <span class="reader-indicator" aria-hidden="true"></span>
-        <div><h3>リーダー未接続</h3><p>親機PCのUSB接続を確認してください。</p></div>
+      <div class="dads-banner dads-banner-error" role="status">
+        <p class="dads-banner-title">カードリーダーが未接続です</p>
+        <p class="dads-banner-body">USB接続を確認して再確認してください。</p>
       </div>
-      <form method="get"><button type="submit" class="registration-submit">接続を再確認 <span aria-hidden="true">↻</span></button></form>
+      <form method="get">
+        <button type="submit" class="dads-btn dads-btn-outline dads-btn-lg dads-btn-full">接続を再確認する</button>
+      </form>
     {% endif %}
   </section>
-</div>
 
-<div class="registration-bottom">
-  <a class="registration-back" href="{{ url_for('index') }}"><span aria-hidden="true">←</span> ホームに戻る</a>
-  <p><a href="{{ url_for('usage') }}">利用状況を確認 <span aria-hidden="true">↗</span></a></p>
+  <nav class="dads-btn-row public-bottom-nav" aria-label="画面移動">
+    <a href="{{ url_for('index') }}" class="dads-back-link">ホームに戻る</a>
+    <a href="{{ url_for('usage') }}" class="dads-link">登録済みの方：利用状況を確認する</a>
+  </nav>
 </div>
 {% endblock %}

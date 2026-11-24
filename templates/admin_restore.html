@@ -1,23 +1,68 @@
 {% extends "base.html" %}
+
+{% block breadcrumbs %}
+<nav class="dads-breadcrumbs" aria-label="現在位置">
+  <ol>
+    <li><a href="{{ url_for('admin_dashboard') }}">業務トップ</a></li>
+    <li><a href="{{ url_for('admin_settings') }}">システム設定</a></li>
+    <li aria-current="page">データ復元</li>
+  </ol>
+</nav>
+{% endblock %}
+
 {% block content %}
-<div class="card-action">
-  <span class="material-symbols-outlined" style="font-size: 2.8rem; color: var(--md-primary); margin-bottom: 8px;">restore_page</span>
-  <h2>データ復元</h2>
-  <p>バックアップExcelファイル（<code>backup.xlsx</code>）を選択してアップロードしてください。</p>
-  <form method="post" enctype="multipart/form-data">
-    <div class="form-group">
-      <input type="file" name="backup_file" accept=".xlsx" class="form-input" required>
+<div class="dads-page dads-page-narrow">
+  <header class="dads-page-header">
+    <div class="dads-stack-sm">
+      <p class="dads-shoulder">データ保守</p>
+      <h1 class="dads-heading-page">データ復元</h1>
+      <p class="dads-lead">バックアップ用のExcelファイル（.xlsx）をアップロードし、利用者データを復元します。</p>
     </div>
-    <button type="submit" class="btn btn-primary btn-lg">
-      <span class="material-symbols-outlined">upload</span>
-      アップロードして復元
-    </button>
-  </form>
-  <div class="btn-group">
-    <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">
-      <span class="material-symbols-outlined">cancel</span>
-      キャンセル
-    </a>
+  </header>
+
+  <div class="dads-banner dads-banner-warning" role="alert">
+    <p class="dads-banner-title">復元実行前の注意</p>
+    <p class="dads-banner-body">
+      復元を実行すると、現在登録されているすべての利用者レコードが削除され、アップロードしたファイルの内容に置き換わります。
+      必要に応じて、先にシステム設定から現在のバックアップをダウンロードしてください。
+    </p>
   </div>
+
+  <section class="dads-card dads-stack-md" aria-labelledby="restore-form-heading">
+    <h2 id="restore-form-heading" class="dads-heading-section dads-heading-chip">バックアップファイルの選択</h2>
+
+    <form
+      method="post"
+      enctype="multipart/form-data"
+      class="dads-stack-md"
+      onsubmit="return confirm('現在の利用者データをすべて置き換えて復元します。実行してもよろしいですか？');"
+    >
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="dads-field">
+        <label class="dads-label" for="backup_file">
+          バックアップExcelファイル
+          <span class="dads-required">必須</span>
+        </label>
+        <p class="dads-support-text" id="backup-file-support">
+          対象形式: <code class="dads-mono">.xlsx</code>（必須列: <code class="dads-mono">card_id, allow, entry, stock, today, total</code>）
+        </p>
+        <input
+          type="file"
+          id="backup_file"
+          name="backup_file"
+          accept=".xlsx"
+          class="dads-input"
+          aria-describedby="backup-file-support"
+          required
+        >
+      </div>
+
+      <div class="dads-btn-row">
+        <button type="submit" class="dads-btn dads-btn-solid dads-btn-md">アップロードして復元する</button>
+        <a href="{{ url_for('admin_settings') }}" class="dads-btn dads-btn-outline dads-btn-md">システム設定に戻る</a>
+      </div>
+    </form>
+  </section>
 </div>
 {% endblock %}

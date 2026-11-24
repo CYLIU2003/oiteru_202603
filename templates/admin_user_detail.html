@@ -1,98 +1,159 @@
 {% extends "base.html" %}
+
+{% block breadcrumbs %}
+<nav class="dads-breadcrumbs" aria-label="現在位置">
+  <ol>
+    <li><a href="{{ url_for('admin_dashboard') }}">業務トップ</a></li>
+    <li><a href="{{ url_for('admin_users') }}">利用者管理</a></li>
+    <li aria-current="page">利用者 ID {{ user['id'] }}</li>
+  </ol>
+</nav>
+{% endblock %}
+
 {% block content %}
-<div class="admin-section">
-  <div class="admin-card">
-    <div class="admin-card-header">
-      <h2><span class="material-symbols-outlined">person</span> 利用者詳細 (ID: {{ user['id'] }})</h2>
+<div class="dads-page dads-page-narrow">
+  <header class="dads-page-header">
+    <div class="dads-stack-sm">
+      <p class="dads-shoulder">利用者詳細</p>
+      <h1 class="dads-heading-page">利用者 ID {{ user['id'] }}</h1>
+    </div>
+    <div>
+      <span
+        id="user-status-chip"
+        class="dads-chip {% if user['allow'] == 1 %}dads-chip-green{% else %}dads-chip-red{% endif %}"
+      >
+        {% if user['allow'] == 1 %}許可{% else %}不許可{% endif %}
+      </span>
+    </div>
+  </header>
+
+  <section class="dads-card dads-stack-md" aria-labelledby="user-summary-heading">
+    <h2 id="user-summary-heading" class="dads-heading-section dads-heading-chip">基本情報</h2>
+    <dl class="dads-dl">
+      <div class="dads-dl-row">
+        <dt>利用者ID</dt>
+        <dd class="dads-mono">{{ user['id'] }}</dd>
+      </div>
+      <div class="dads-dl-row">
+        <dt>登録日</dt>
+        <dd class="dads-mono">{{ user['entry'] }}</dd>
+      </div>
+      <div class="dads-dl-row">
+        <dt>累計利用回数</dt>
+        <dd><strong>{{ user['total'] }}回</strong></dd>
+      </div>
+    </dl>
+  </section>
+
+  <section class="dads-card dads-stack-md" aria-labelledby="user-allow-heading">
+    <div class="dads-card-header">
+      <div class="dads-stack-sm">
+        <h2 id="user-allow-heading" class="dads-heading-sub">利用許可の切り替え</h2>
+        <p class="dads-muted">不許可にすると、この利用者は配布機でカードを使用できなくなります。切り替えは即時保存されます。</p>
+      </div>
+      <label class="dads-switch">
+        <input
+          type="checkbox"
+          id="allow-toggle"
+          {% if user['allow'] == 1 %}checked{% endif %}
+          onchange="toggleAllow(this)"
+        >
+        <span class="dads-switch-label" id="allow-label">
+          {% if user['allow'] == 1 %}許可{% else %}不許可{% endif %}
+        </span>
+      </label>
     </div>
 
-    <!-- 基本情報 -->
-    <div class="info-grid">
-      <div class="info-item">
-        <div class="info-label">登録日</div>
-        <div class="info-value">{{ user['entry'] }}</div>
-      </div>
-      <div class="info-item">
-        <div class="info-label">累計利用回数</div>
-        <div class="info-value highlight">{{ user['total'] }}回</div>
-      </div>
+    <div id="allow-feedback" class="dads-banner dads-banner-info" role="status" aria-live="polite" hidden>
+      <p class="dads-banner-title" id="allow-feedback-title"></p>
+      <p class="dads-banner-body" id="allow-feedback-body"></p>
     </div>
+  </section>
 
-    <!-- 利用許可トグル -->
-    <div style="background:var(--md-surface-container-low);padding:20px;border-radius:var(--md-radius-sm);margin-bottom:24px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">
-        <div>
-          <strong style="font-size:1.1rem;">利用許可</strong>
-          <p style="margin:4px 0 0;color:var(--md-on-surface-variant);font-size:0.9rem;">
-            不許可にすると、この利用者はカードを使えなくなります
-          </p>
-        </div>
-        <div class="toggle-status">
-          <label class="toggle-switch" style="transform:scale(1.2);" title="クリックで切り替え">
-            <input type="checkbox" id="allow-toggle"
-                   {% if user['allow'] == 1 %}checked{% endif %}
-                   onchange="toggleAllow(this)">
-            <span class="toggle-slider"></span>
-          </label>
-          <span class="toggle-label {% if user['allow'] == 1 %}active{% else %}inactive{% endif %}"
-                id="allow-label" style="font-size:1.1rem;min-width:70px;">
-            {% if user['allow'] == 1 %}許可{% else %}不許可{% endif %}
-          </span>
-        </div>
-      </div>
-    </div>
+  <section class="dads-card dads-stack-md" aria-labelledby="user-edit-heading">
+    <h2 id="user-edit-heading" class="dads-heading-section dads-heading-chip">カードID・残り回数の編集</h2>
 
-    <!-- 編集フォーム -->
-    <form method="post">
+    <form method="post" class="dads-stack-md">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="allow" id="allow-input" value="{{ user['allow'] }}">
 
-      <div style="margin-bottom: var(--md-space-md);">
-        <h3><span class="material-symbols-outlined">edit</span> 利用者情報</h3>
+      <div class="dads-grid-2">
+        <div class="dads-field">
+          <label class="dads-label" for="cardid">
+            カードID
+            <span class="dads-required">必須</span>
+          </label>
+          <p class="dads-support-text" id="cardid-support">NFCカードの識別IDです。</p>
+          <input
+            type="text"
+            class="dads-input dads-mono"
+            id="cardid"
+            name="cardid"
+            value="{{ user['card_id'] }}"
+            aria-describedby="cardid-support"
+            required
+          >
+        </div>
+
+        <div class="dads-field">
+          <label class="dads-label" for="stock">
+            残り利用回数
+            <span class="dads-required">必須</span>
+          </label>
+          <p class="dads-support-text" id="stock-support">この利用者が現在利用できる残り回数です。</p>
+          <input
+            type="number"
+            class="dads-input"
+            id="stock"
+            name="stock"
+            value="{{ user['stock'] }}"
+            min="0"
+            aria-describedby="stock-support"
+            required
+          >
+        </div>
       </div>
 
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:20px;">
-        <div class="form-group">
-          <label class="form-label" for="cardid">カードID</label>
-          <input type="text" class="form-input" id="cardid" name="cardid"
-                 value="{{ user['card_id'] }}">
-          <div class="form-help">NFCカードのID</div>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="stock">残り利用回数</label>
-          <input type="number" class="form-input" id="stock" name="stock"
-                 value="{{ user['stock'] }}">
-          <div class="form-help">利用可能な残り回数</div>
-        </div>
-      </div>
-
-      <div class="btn-group">
-        <button type="submit" class="btn btn-primary btn-icon">
-          <span class="material-symbols-outlined">save</span> 更新する
-        </button>
-        <a href="{{ url_for('admin_users') }}" class="btn btn-secondary btn-icon">
-          <span class="material-symbols-outlined">arrow_back</span> 一覧に戻る
-        </a>
+      <div class="dads-btn-row">
+        <button type="submit" class="dads-btn dads-btn-solid dads-btn-md">更新する</button>
+        <a href="{{ url_for('admin_users') }}" class="dads-btn dads-btn-outline dads-btn-md">利用者一覧に戻る</a>
       </div>
     </form>
+  </section>
 
-    <!-- 危険ゾーン -->
-    <div class="info-card error" style="margin-top: var(--md-space-xl);">
-      <h4><span class="material-symbols-outlined">warning</span> 危険ゾーン</h4>
-      <p>この利用者を削除すると、元に戻すことはできません。</p>
-      <form method="post" onsubmit="return confirm('この利用者を本当に削除しますか？\nこの操作は元に戻せません。');">
-        <input type="hidden" name="action" value="delete">
-        <button type="submit" class="btn btn-danger btn-icon">
-          <span class="material-symbols-outlined">delete</span> この利用者を削除する
-        </button>
-      </form>
+  <section class="dads-danger-box dads-stack-md" aria-labelledby="user-danger-heading">
+    <div class="dads-stack-sm">
+      <h2 id="user-danger-heading" class="dads-heading-sub">利用者の削除</h2>
+      <p class="dads-muted">この利用者を削除すると、登録情報と残り回数は元に戻すことができません。</p>
     </div>
-  </div>
+    <form
+      method="post"
+      onsubmit="return confirm('利用者 ID {{ user['id'] }} を本当に削除しますか？この操作は元に戻せません。');"
+    >
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="delete">
+      <button type="submit" class="dads-btn dads-btn-danger dads-btn-md">この利用者を削除する</button>
+    </form>
+  </section>
 </div>
 
 <script>
+function showAllowFeedback(variant, title, message) {
+  const banner = document.getElementById('allow-feedback');
+  const titleEl = document.getElementById('allow-feedback-title');
+  const bodyEl = document.getElementById('allow-feedback-body');
+  if (!banner || !titleEl || !bodyEl) return;
+
+  banner.className = 'dads-banner dads-banner-' + variant;
+  titleEl.textContent = title;
+  bodyEl.textContent = message;
+  banner.hidden = false;
+}
+
 async function toggleAllow(checkbox) {
   const label = document.getElementById('allow-label');
   const hiddenInput = document.getElementById('allow-input');
+  const statusChip = document.getElementById('user-status-chip');
   const originalChecked = !checkbox.checked;
 
   try {
@@ -104,22 +165,27 @@ async function toggleAllow(checkbox) {
     const data = await response.json();
 
     if (data.success) {
-      label.textContent = data.allow === 1 ? '許可' : '不許可';
-      label.className = 'toggle-label ' + (data.allow === 1 ? 'active' : 'inactive');
-      hiddenInput.value = data.allow;
+      const isAllowed = data.allow === 1;
+      const stateText = isAllowed ? '許可' : '不許可';
+      if (label) {
+        label.textContent = stateText;
+      }
+      if (hiddenInput) {
+        hiddenInput.value = data.allow;
+      }
+      if (statusChip) {
+        statusChip.textContent = stateText;
+        statusChip.className = 'dads-chip ' + (isAllowed ? 'dads-chip-green' : 'dads-chip-red');
+      }
+      showAllowFeedback('success', '利用許可を更新しました', `現在の状態: ${stateText}`);
     } else {
       checkbox.checked = originalChecked;
-      alert('エラー: ' + data.error);
+      showAllowFeedback('error', '更新に失敗しました', data.error || '利用許可を変更できませんでした。');
     }
   } catch (error) {
     checkbox.checked = originalChecked;
-    alert('通信エラーが発生しました');
+    showAllowFeedback('error', '通信エラー', 'サーバーとの通信に失敗しました。時間をおいて再度お試しください。');
   }
 }
 </script>
-
-<style>
-  .btn-danger { background-color: #dc3545; color: white; }
-  .btn-danger:hover { background-color: #c82333; }
-</style>
 {% endblock %}

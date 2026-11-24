@@ -1,47 +1,84 @@
 {% extends "base.html" %}
+
+{% block breadcrumbs %}
+<nav class="dads-breadcrumbs" aria-label="現在位置">
+  <ol>
+    <li><a href="{{ url_for('admin_dashboard') }}">業務トップ</a></li>
+    <li><a href="{{ url_for('admin_history') }}">利用履歴</a></li>
+    <li aria-current="page">利用統計グラフ</li>
+  </ol>
+</nav>
+{% endblock %}
+
 {% block content %}
-<div class="admin-dashboard">
-  <h2>📊 利用状況グラフ</h2>
-  
-  <div class="info-card">
-    <h3>ℹ️ このページについて</h3>
-    <p style="margin: 0;">排出成功記録（2026/1/22 19:20以降）の時間分布を表示しています。<br>
-    <strong>総排出成功回数: {{ total_count }}回</strong></p>
-  </div>
-  
-  <div class="chart-grid" style="margin-top: 24px;">
-    <div class="chart-card">
-      <h3>🕐 時間別利用回数
-        <select id="dateSelector" style="margin-left: 12px; padding: 4px 8px; font-size: 14px; border-radius: 4px; border: 1px solid #ccc;">
-          <option value="all">全期間</option>
-          {% for date in chart_data.available_dates %}
-          <option value="{{ date }}">{{ date }}</option>
-          {% endfor %}
-        </select>
-      </h3>
-      <canvas id="hourlyChart"></canvas>
+<div class="dads-page">
+  <header class="dads-page-header">
+    <div class="dads-stack-sm">
+      <p class="dads-shoulder">利用統計</p>
+      <h1 class="dads-heading-page">利用統計グラフ</h1>
     </div>
-    <div class="chart-card">
-      <h3>📅 日別利用回数</h3>
-      <canvas id="dailyChart"></canvas>
+    <div>
+      <a href="{{ url_for('admin_history') }}" class="dads-btn dads-btn-outline dads-btn-sm">
+        利用履歴一覧を見る
+      </a>
     </div>
+  </header>
+
+  <div class="dads-banner dads-banner-info" role="note">
+    <p class="dads-banner-title">集計範囲と総排出回数</p>
+    <p class="dads-banner-body">
+      排出成功記録（2026/1/22 19:20以降）の時間別・日別・曜日別の利用分布を表示しています。
+      <strong>総排出成功回数: {{ total_count }}回</strong>
+    </p>
   </div>
-  
-  <div class="chart-card" style="margin-bottom: 24px;">
-    <h3>📆 曜日別利用回数</h3>
-    <div style="max-width: 400px; margin: 0 auto;">
+
+  <div class="dads-grid-2">
+    <section class="dads-card dads-stack-md" aria-labelledby="hourly-chart-heading">
+      <div class="dads-card-header">
+        <h2 id="hourly-chart-heading" class="dads-heading-section dads-heading-chip">時間別利用回数</h2>
+        <div class="dads-btn-row">
+          <label for="dateSelector" class="dads-muted">対象日</label>
+          <select id="dateSelector" class="dads-select" style="width: auto; min-width: 140px;">
+            <option value="all">全期間</option>
+            {% for date in chart_data.available_dates %}
+            <option value="{{ date }}">{{ date }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div>
+        <canvas id="hourlyChart"></canvas>
+      </div>
+    </section>
+
+    <section class="dads-card dads-stack-md" aria-labelledby="daily-chart-heading">
+      <div class="dads-card-header">
+        <h2 id="daily-chart-heading" class="dads-heading-section dads-heading-chip">日別利用回数</h2>
+        <span class="dads-chip dads-chip-gray">直近14日</span>
+      </div>
+      <div>
+        <canvas id="dailyChart"></canvas>
+      </div>
+    </section>
+  </div>
+
+  <section class="dads-card dads-stack-md" aria-labelledby="weekly-chart-heading">
+    <div class="dads-card-header">
+      <h2 id="weekly-chart-heading" class="dads-heading-section dads-heading-chip">曜日別利用回数</h2>
+    </div>
+    <div style="max-width: 420px; width: 100%; margin: 0 auto;">
       <canvas id="weeklyChart"></canvas>
     </div>
-  </div>
-  
-  <div style="margin-top: 32px;">
-    <a href="{{ url_for('admin_dashboard') }}" class="menu-btn gray">← 管理者メニューに戻る</a>
+  </section>
+
+  <div class="dads-btn-row">
+    <a href="{{ url_for('admin_history') }}" class="dads-btn dads-btn-outline dads-btn-md">利用履歴に戻る</a>
+    <a href="{{ url_for('admin_dashboard') }}" class="dads-btn dads-btn-text dads-btn-md">業務トップに戻る</a>
   </div>
 </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    // 共通オプション
     const commonOptions = {
         responsive: true,
         maintainAspectRatio: true,
@@ -51,12 +88,10 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
     };
-    
-    // 日付別データ（サーバーから渡される）
+
     const hourlyDataByDate = {{ chart_data.hourly_by_date | tojson }};
     const hourlyDataAll = {{ chart_data.hourly_data | tojson }};
-    
-    // 時間別グラフ
+
     const hourlyCtx = document.getElementById('hourlyChart').getContext('2d');
     const hourlyChart = new Chart(hourlyCtx, {
         type: 'bar',
@@ -65,10 +100,10 @@ document.addEventListener('DOMContentLoaded', function () {
             datasets: [{
                 label: '利用回数',
                 data: hourlyDataAll,
-                backgroundColor: 'rgba(38, 168, 223, 0.7)',
-                borderColor: 'rgba(38, 168, 223, 1)',
-                borderWidth: 2,
-                borderRadius: 6
+                backgroundColor: 'rgba(42, 126, 166, 0.72)',
+                borderColor: '#2a7ea6',
+                borderWidth: 1,
+                borderRadius: 4
             }]
         },
         options: {
@@ -76,30 +111,26 @@ document.addEventListener('DOMContentLoaded', function () {
             scales: {
                 y: {
                     beginAtZero: true,
-                    ticks: { stepSize: 1 },
-                    grid: { color: 'rgba(0,0,0,0.05)' }
+                    ticks: { stepSize: 1, color: '#4b5c66' },
+                    grid: { color: '#e3eae8' }
                 },
                 x: {
+                    ticks: { color: '#4b5c66' },
                     grid: { display: false }
                 }
             }
         }
     });
-    
-    // 日付セレクター変更イベント
-    document.getElementById('dateSelector').addEventListener('change', function() {
+
+    document.getElementById('dateSelector').addEventListener('change', function () {
         const selectedDate = this.value;
-        let newData;
-        if (selectedDate === 'all') {
-            newData = hourlyDataAll;
-        } else {
-            newData = hourlyDataByDate[selectedDate] || hourlyDataAll;
-        }
+        const newData = selectedDate === 'all'
+            ? hourlyDataAll
+            : (hourlyDataByDate[selectedDate] || hourlyDataAll);
         hourlyChart.data.datasets[0].data = newData;
         hourlyChart.update();
     });
-    
-    // 日別グラフ
+
     const dailyCtx = document.getElementById('dailyChart').getContext('2d');
     new Chart(dailyCtx, {
         type: 'line',
@@ -109,13 +140,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 label: '利用回数',
                 data: {{ chart_data.daily_data | tojson }},
                 fill: true,
-                backgroundColor: 'rgba(75, 192, 192, 0.1)',
-                borderColor: 'rgba(75, 192, 192, 1)',
+                backgroundColor: 'rgba(42, 111, 86, 0.14)',
+                borderColor: '#2a6f56',
                 borderWidth: 3,
-                tension: 0.3,
-                pointBackgroundColor: 'rgba(75, 192, 192, 1)',
-                pointRadius: 5,
-                pointHoverRadius: 8
+                tension: 0.25,
+                pointBackgroundColor: '#2a6f56',
+                pointRadius: 4,
+                pointHoverRadius: 7
             }]
         },
         options: {
@@ -123,17 +154,17 @@ document.addEventListener('DOMContentLoaded', function () {
             scales: {
                 y: {
                     beginAtZero: true,
-                    ticks: { stepSize: 1 },
-                    grid: { color: 'rgba(0,0,0,0.05)' }
+                    ticks: { stepSize: 1, color: '#4b5c66' },
+                    grid: { color: '#e3eae8' }
                 },
                 x: {
+                    ticks: { color: '#4b5c66' },
                     grid: { display: false }
                 }
             }
         }
     });
-    
-    // 曜日別グラフ
+
     const weeklyCtx = document.getElementById('weeklyChart').getContext('2d');
     new Chart(weeklyCtx, {
         type: 'doughnut',
@@ -143,7 +174,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 label: '利用回数',
                 data: {{ chart_data.weekly_data | tojson }},
                 backgroundColor: [
-                    '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40', '#C9CBCF'
+                    '#2a7ea6',
+                    '#4a9b7f',
+                    '#d4a24c',
+                    '#7c74b0',
+                    '#c96e68',
+                    '#5a9eb8',
+                    '#8a9ca6'
                 ],
                 borderWidth: 2,
                 borderColor: '#ffffff'
@@ -156,6 +193,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     position: 'bottom',
                     labels: {
                         padding: 16,
+                        color: '#2b3e4a',
                         font: { size: 13 }
                     }
                 }

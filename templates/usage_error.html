@@ -1,22 +1,40 @@
 {% extends "base.html" %}
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/public-service.css') }}">
+{% endblock %}
+{% block breadcrumbs %}
+<nav class="dads-breadcrumbs" aria-label="現在位置">
+  <ol>
+    <li><a href="{{ url_for('index') }}">ホーム</a></li>
+    <li><a href="{{ url_for('usage') }}">利用状況の確認</a></li>
+    <li aria-current="page">読み取りエラー</li>
+  </ol>
+</nav>
+{% endblock %}
 {% block content %}
-<div class="card-action">
-  <span class="material-symbols-outlined" style="font-size: 2.8rem; color: var(--md-error); margin-bottom: 8px;">credit_card_off</span>
-  <h2 style="color: var(--md-error);">ICカードが読み取れません</h2>
-  <p>ホーム画面に戻ります。</p>
-  <div style="margin-top: 16px;">
-    <span class="material-symbols-outlined" style="animation: spin 1s linear infinite; color: var(--md-on-surface-variant);">progress_activity</span>
-  </div>
+<div class="dads-page dads-page-narrow">
+  <header class="dads-page-header">
+    <div class="dads-stack-sm">
+      <p class="dads-shoulder">利用状況の確認</p>
+      <h1 class="dads-heading-page">学生証を読み取れませんでした</h1>
+    </div>
+  </header>
+
+  <section class="dads-card dads-stack-lg" aria-labelledby="error-title">
+    <h2 id="error-title" class="dads-heading-section dads-heading-chip">次の操作をお試しください</h2>
+
+    <div class="dads-banner dads-banner-error" role="alert">
+      <p class="dads-banner-title">読み取りを完了できませんでした</p>
+      <p class="dads-banner-body">学生証をカードリーダーの読み取り面に置き直して、「もう一度読み取る」を押してください。操作がない場合、約5秒後に自動でホーム画面に戻ります。</p>
+    </div>
+
+    <nav class="dads-btn-row" aria-label="読み取り後の操作">
+      <a href="{{ url_for('usage') }}" class="dads-btn dads-btn-solid dads-btn-lg">もう一度読み取る</a>
+      <a href="{{ url_for('index') }}" class="dads-btn dads-btn-outline dads-btn-md">ホームに戻る</a>
+    </nav>
+  </section>
 </div>
-<style>
-  @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-  }
-</style>
 <script>
-  setTimeout(function() {
-    window.location.href = "{{ url_for('index') }}";
-  }, 2500);
+  setTimeout(() => window.location.assign({{ url_for('index') | tojson }}), 5000);
 </script>
 {% endblock %}

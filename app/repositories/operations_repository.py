@@ -14,12 +14,23 @@ from app.repositories.base import BaseRepository
 class OperationsRepository(BaseRepository):
     """Database access for the daily operations domain."""
 
+    _PUBLIC_UNIT_COLUMNS = (
+        "id, name, stock, initial_stock, connect, available, last_seen, ip_address"
+    )
+
     def find_unit(self, conn, unit_id: int) -> UnitRecord | None:
-        row = self.fetch_one(conn, "SELECT * FROM units WHERE id = ?", (unit_id,))
+        row = self.fetch_one(
+            conn,
+            f"SELECT {self._PUBLIC_UNIT_COLUMNS} FROM units WHERE id = ?",
+            (unit_id,),
+        )
         return UnitRecord.from_row(row) if row else None
 
     def list_units(self, conn) -> list[UnitRecord]:
-        rows = self.fetch_all(conn, "SELECT * FROM units ORDER BY name ASC")
+        rows = self.fetch_all(
+            conn,
+            f"SELECT {self._PUBLIC_UNIT_COLUMNS} FROM units ORDER BY name ASC",
+        )
         return [UnitRecord.from_row(row) for row in rows]
 
     def apply_stock_delta(self, conn, unit_id: int, quantity_delta: int) -> int:
@@ -206,6 +217,28 @@ class OperationsRepository(BaseRepository):
             ),
         )
         return [MaintenanceTicketRecord.from_row(row) for row in rows]
+
+    def count_active_tickets_by_unit(self, conn) -> dict[int, int]:
+        """Return exact active ticket counts per unit_id without LIMIT truncation."""
+        rows = self.fetch_all(
+            conn,
+            """SELECT mt.unit_id, COUNT(*) AS ticket_count
+                 FROM maintenance_tickets AS mt
+                 JOIN units AS u ON u.id = mt.unit_id
+                WHERE mt.status IN (?, ?, ?)
+                GROUP BY mt.unit_id""",
+            (
+                MaintenanceTicketStatus.OPEN,
+                MaintenanceTicketStatus.IN_PROGRESS,
+                MaintenanceTicketStatus.RESOLVED,
+            ),
+        )
+        counts: dict[int, int] = {}
+        for row in rows:
+            unit_id = row.get("unit_id")
+            if unit_id is not None:
+                counts[int(unit_id)] = int(row.get("ticket_count") or 0)
+        return counts
 
     def list_recent_stock_movements(
         self,

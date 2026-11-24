@@ -60,3 +60,21 @@ def test_pending_device_secret_conflict_does_not_replace_original_hash(conn):
     assert conflict is True
     assert pending["password_hash"] == original
     assert pending["credential_conflict"] == 1
+
+
+@pytest.mark.parametrize("applied", [True, False])
+def test_older_config_is_not_delivered_after_newest_ack(conn, applied):
+    older = state.queue_config_update(conn, "unit-01", {"HEARTBEAT_INTERVAL": 25})
+    first_delivery = state.get_config_update_for_delivery(conn, "unit-01")
+    assert first_delivery["config_update_id"] == older["config_update_id"]
+    newest = state.queue_config_update(conn, "unit-01", {"HEARTBEAT_INTERVAL": 30})
+    delivered = state.get_config_update_for_delivery(conn, "unit-01")
+    assert delivered["config_update_id"] == newest["config_update_id"]
+    assert state.acknowledge_config_update(
+        conn,
+        "unit-01",
+        delivered["config_update_id"],
+        delivered["config_version"],
+        applied=applied,
+    )
+    assert state.get_config_update_for_delivery(conn, "unit-01") is None

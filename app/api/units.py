@@ -14,7 +14,7 @@ from app.auth.auth_manager import verify_secret
 from app.auth.unit_auth import issue_unit_session_token, validate_unit_token
 from app.logger import get_logger
 from app.repositories.unit_repository import UnitRepository
-from app.services.unit_service import heartbeat_update
+from app.services.unit_service import get_unit_monitor_dashboard, heartbeat_update
 from db_adapter import get_connection
 from unit.configuration import validate_gpio_config
 
@@ -151,6 +151,17 @@ def api_unit_heartbeat():
     ip_address = request.remote_addr
     unit_config = data.get("config", {})
     config_ack = data.get("config_update_ack")
+    capabilities = data.get("capabilities")
+    if isinstance(unit_config, dict):
+        unit_config = dict(unit_config)
+        unit_config.pop("_capabilities", None)
+        if isinstance(capabilities, dict):
+            unit_config["_capabilities"] = {
+                name: status
+                for name in ("nfc", "motor", "sensor")
+                if isinstance(status := capabilities.get(name), str)
+                and status in {"unknown", "ready", "unavailable"}
+            }
 
     unit_token = data.get("unit_token")
     if not unit_name or not (unit_password or unit_token):
@@ -162,7 +173,7 @@ def api_unit_heartbeat():
             config_ack = {
                 "config_update_id": str(config_ack.get("config_update_id") or ""),
                 "config_version": int(config_ack.get("config_version")),
-                "applied": bool(config_ack.get("applied")),
+                "applied": _parse_bool(config_ack.get("applied")),
                 "error": str(config_ack.get("error") or ""),
             }
         except (TypeError, ValueError):
@@ -242,8 +253,34 @@ def api_add_log():
 
 def _require_admin():
     if not session.get("admin_logged_in"):
-        return jsonify({"error": "Unauthorized"}), 401
+        return jsonify({"success": False, "error": "Unauthorized", "code": "UNAUTHORIZED"}), 401
     return None
+
+
+@unit_bp.route("/api/v1/admin/units/monitor", methods=["GET"])
+def api_unit_monitor_dashboard():
+    """Return read-only child-unit monitoring state without exposing credentials."""
+    err = _require_admin()
+    if err:
+        return err
+    try:
+        with get_connection() as conn:
+            dashboard = get_unit_monitor_dashboard(conn)
+    except Exception:
+        logger.exception("Failed to fetch unit monitor dashboard")
+        response = jsonify(
+            {
+                "success": False,
+                "error": "子機監視データの取得に失敗しました",
+                "code": "MONITOR_FETCH_FAILED",
+            }
+        )
+        response.headers["Cache-Control"] = "no-store"
+        return response, 500
+
+    response = jsonify({"success": True, **dashboard})
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 def _pending_unit_expired(pending: dict) -> bool:
@@ -348,12 +385,15 @@ def api_get_unit_config(unit_name):
         reported = state.get_unit_config_snapshot(conn, unit_name)
         desired = state.get_desired_unit_config(conn, unit_name)
     if reported or desired:
+        reported_config = dict(reported["config"]) if reported else None
+        if reported_config is not None:
+            reported_config.pop("_capabilities", None)
         return jsonify(
             {
                 "success": True,
                 "unit_name": unit_name,
-                "config": reported["config"] if reported else desired["config"],
-                "reported_config": reported["config"] if reported else None,
+                "config": reported_config if reported else desired["config"],
+                "reported_config": reported_config,
                 "reported_at": reported.get("last_updated") if reported else None,
                 "desired_config": desired["config"] if desired else None,
                 "desired_version": desired.get("config_version") if desired else None,
