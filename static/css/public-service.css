@@ -1,0 +1,172 @@
+/* Public service screens. Component hierarchy follows the Digital Agency design system. */
+.public-service {
+  --public-line: #b3b3b3;
+  --public-muted: #4d4d4d;
+  --public-blue: #0017c1;
+  --public-error: #a90000;
+  display: grid;
+  gap: 24px;
+  max-width: 960px;
+  margin-inline: auto;
+}
+
+.public-service-form {
+  max-width: 680px;
+}
+
+.public-service-intro {
+  border-bottom: 1px solid var(--public-line);
+  padding-bottom: 16px;
+}
+
+.public-service h1,
+.public-service h2,
+.public-service p,
+.public-service ol,
+.public-service dl,
+.public-service dd {
+  margin: 0;
+}
+
+.public-service h1 {
+  font-size: clamp(1.75rem, 1.35rem + 1.8vw, 2.5rem);
+  line-height: 1.4;
+}
+
+.public-service h2 {
+  font-size: 1.25rem;
+  line-height: 1.5;
+}
+
+.public-service-intro p,
+.public-service-guide ol {
+  margin-top: 8px;
+}
+
+.public-service p,
+.public-service li,
+.public-service dd {
+  line-height: 1.75;
+}
+
+.public-service-intro p,
+.public-service-panel > p {
+  color: var(--public-muted);
+}
+
+.public-service-choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.public-service-panel {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  padding: clamp(16px, 4vw, 28px);
+  border: 1px solid var(--public-line);
+  border-radius: 8px;
+  background: #fff;
+  color: #1a1a1a;
+}
+
+.public-service-choices .public-service-panel {
+  grid-template-rows: auto 1fr auto;
+}
+
+.public-service .btn {
+  justify-self: start;
+  min-height: 48px;
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
+}
+
+.public-service-steps,
+.public-service-guide ol {
+  padding-inline-start: 1.5em;
+}
+
+.public-service-steps li + li,
+.public-service-guide li + li {
+  margin-top: 8px;
+}
+
+.public-service-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 24px;
+}
+
+.public-service-links a:not(.btn) {
+  color: var(--public-blue);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.public-service :is(a, button):focus-visible {
+  outline: 3px solid #1a1a1a;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px #ffd43d;
+}
+
+.public-service-notice {
+  display: flow-root;
+  padding: 12px 16px;
+  border: 1px solid var(--public-line);
+  border-inline-start: 4px solid var(--public-blue);
+  border-radius: 4px;
+  background: #f1f4ff;
+  color: #1a1a1a;
+  line-height: 1.75;
+}
+
+.public-service-notice:empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.public-service-notice-error {
+  border-inline-start-color: var(--public-error);
+  background: #fff5f5;
+}
+
+.public-service-result > div {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) minmax(0, 2fr);
+  gap: 4px 16px;
+  padding-block: 12px;
+  border-bottom: 1px solid var(--public-line);
+}
+
+.public-service-result dt {
+  font-weight: 700;
+  line-height: 1.75;
+}
+
+.public-service-result dd {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 40rem) {
+  .public-service-choices {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 27rem) {
+  .public-service .btn {
+    width: 100%;
+  }
+
+  .public-service-result > div {
+    grid-template-columns: 1fr;
+  }
+}

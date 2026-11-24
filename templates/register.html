@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block page_styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/register.css', v='campus-14') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/register.css', v='campus-15') }}">
 {% endblock %}
 {% block body_class %}registration-page{% endblock %}
 {% block brand %}
@@ -30,12 +30,12 @@
   <section class="registration-panel" aria-labelledby="guide-title">
     <h2 id="guide-title">登録方法</h2>
     <ol class="registration-steps">
-      <li><span class="step-number" aria-hidden="true">1</span><div><h3>学生証を用意する</h3><p>ご自身の学生証をお手元にご用意ください。</p></div></li>
-      <li><span class="step-number" aria-hidden="true">2</span><div><h3>リーダーに置く</h3><p>学生証を読み取り面に置いてください。</p></div></li>
-      <li><span class="step-number" aria-hidden="true">3</span><div><h3>「登録する」を押す</h3><p>結果が出るまで、学生証はそのまま。</p></div></li>
+      <li><span class="step-number" aria-hidden="true">1</span><div><h3>ご自身の学生証を用意する</h3></div></li>
+      <li><span class="step-number" aria-hidden="true">2</span><div><h3>学生証をリーダーの読み取り面に置く</h3></div></li>
+      <li><span class="step-number" aria-hidden="true">3</span><div><h3>「登録する」を押す</h3><p>結果が表示されるまで、学生証を置いたままにしてください。</p></div></li>
     </ol>
     {% if reader_connected %}
-      <div class="registration-reader-notice is-ready">
+      <div class="registration-reader-notice is-ready" role="status">
         <span class="reader-indicator" aria-hidden="true"></span>
         <div><h3>リーダー接続確認済み</h3><small>ページ表示時点</small></div>
       </div>
@@ -44,11 +44,11 @@
         <button type="submit" class="registration-submit">登録する <span aria-hidden="true">→</span></button>
       </form>
     {% else %}
-      <div class="registration-reader-notice is-offline">
+      <div class="registration-reader-notice is-offline" role="status">
         <span class="reader-indicator" aria-hidden="true"></span>
-        <div><h3>リーダー未接続</h3><p>親機PCのUSB接続を確認してください。</p></div>
+        <div><h3>リーダー未接続</h3><p>カードリーダーのUSB接続を確認し、再確認してください。</p></div>
       </div>
-      <form method="get"><button type="submit" class="registration-submit">接続を再確認 <span aria-hidden="true">↻</span></button></form>
+      <form method="get"><button type="submit" class="registration-submit is-secondary">接続を再確認 <span aria-hidden="true">↻</span></button></form>
     {% endif %}
   </section>
 </div>
